@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/user_settings.dart';
 import '../services/database_service.dart';
 
-/// Holds the narration & sensory/playback settings for ONE child at a time —
-/// whichever child is currently being configured (caregiver settings page) or
-/// is in Child Mode (the audio player). Call [loadForChild] when switching.
+/* Holds the settings for ONE child at a time — the child being configured
+   (settings page) or the one in Child Mode (player). Call [loadForChild]
+   when switching child. */
 class SettingsState extends ChangeNotifier {
   UserSettings _settings = const UserSettings();
   String? _childId; // the child these settings belong to
@@ -26,8 +26,8 @@ class SettingsState extends ChangeNotifier {
   bool get loading => _loading;
   String? get lastError => _lastError;
 
-  /// Load the given child's settings. Shows defaults while the fetch is in
-  /// flight so the UI never displays a different child's values.
+  /* Load a child's settings. Shows defaults while loading so the UI never
+     shows another child's values. */
   Future<void> loadForChild(String childId) async {
     _childId = childId;
     _settings = const UserSettings();
@@ -36,7 +36,7 @@ class SettingsState extends ChangeNotifier {
     notifyListeners();
 
     final resp = await DatabaseService.getChildSettings(childId);
-    // Ignore a stale response if the active child changed meanwhile.
+    // Ignore the reply if the child changed while loading.
     if (_childId != childId) return;
     if (resp.success && resp.data is UserSettings) {
       _settings = resp.data as UserSettings;

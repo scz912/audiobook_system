@@ -6,15 +6,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Per-child cache of the most recent Gemini suggestion run (UC-9).
-     *
-     * One row per child (the unique constraint) — every analyse run UPSERTs
-     * this row, so the table is always the "latest snapshot". Per-item accept
-     * / edit / dismiss state lives inside the `items` JSON so the caregiver
-     * can resolve each suggestion independently without us needing a second
-     * row-per-item table.
-     */
+    /* The latest Gemini tips for each child. One row per child — each
+       analyse run overwrites it. The accept/edit/dismiss state for each
+       tip lives in the `items` JSON. */
     public function up(): void
     {
         Schema::create('ai_suggestions', function (Blueprint $table) {
@@ -23,15 +17,13 @@ return new class extends Migration
                 ->unique()
                 ->constrained('child_profiles', 'child_id')
                 ->cascadeOnDelete();
-            // Stats sent to Gemini for this run — kept so the caregiver can see
-            // what the suggestions were based on (transparency).
+            // The stats we sent Gemini, kept so the caregiver can see why.
             $table->json('source_stats');
-            // List of suggestion items. Each item: { id, setting_key,
-            // current_value, suggested_value, reason, status }.
+            /* The tips. Each one: { id, setting_key, current_value,
+               suggested_value, reason, status }. */
             $table->json('items');
             $table->enum('confidence', ['low', 'normal'])->default('normal');
-            // True when this snapshot is from a previous successful run that we
-            // re-served because the most recent analyse call failed (E2).
+            // True when we re-served old tips because a fresh run failed.
             $table->boolean('is_stale')->default(false);
             $table->timestamp('generated_at')->nullable();
             $table->timestamps();

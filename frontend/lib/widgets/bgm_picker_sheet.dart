@@ -7,9 +7,9 @@ import '../models/music_track.dart';
 import '../services/database_service.dart';
 import '../theme/app_colors.dart';
 
-/// Bottom sheet that lets the caregiver browse and select a background music
-/// track. Returns the chosen [MusicTrack] via [Navigator.pop], or null if the
-/// sheet is dismissed without a selection.
+/* Bottom sheet that lets the caregiver browse and select a background music
+   track. Returns the chosen [MusicTrack] via [Navigator.pop], or null if the
+   sheet is dismissed without a selection. */
 class BgmPickerSheet extends StatefulWidget {
   final MusicTrack? initialTrack;
 
@@ -289,9 +289,9 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   }
 }
 
-/// Chip row that hides tags incompatible with the current selection.
-/// Max visible height is ~2.5 chip rows (non-scrollable; extra chips are
-/// clipped — the selection logic prevents reaching unreachable combinations).
+/* Chip row that hides tags incompatible with the current selection.
+   Max visible height is ~2.5 chip rows (non-scrollable; extra chips are
+   clipped — the selection logic prevents reaching unreachable combinations). */
 class _TagFilterWrap extends StatelessWidget {
   final List<String> allTags;
   final List<String> compatibleTags;

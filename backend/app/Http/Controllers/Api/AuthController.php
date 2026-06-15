@@ -52,7 +52,7 @@ class AuthController extends ApiController
                 'is_active'     => true,
             ]);
 
-            // Create default settings row.
+            // Make a blank settings row.
             CaregiverSettings::create(['caregiver_id' => $caregiver->caregiver_id]);
 
             $this->logEvent('Auth', 'register success', [
@@ -95,14 +95,14 @@ class AuthController extends ApiController
             );
         }
 
-        // Identify the caregiver: by email, mobile, or fallback to a single-caregiver demo flow.
+        // Find caregiver by email, mobile, or fall back to demo mode.
         $query = Caregiver::query()->where('is_active', true);
         if ($request->filled('email')) {
             $query->where('email', $request->input('email'));
         } elseif ($request->filled('mobile_number')) {
             $query->where('mobile_number', $request->input('mobile_number'));
         } else {
-            // No identifier — only works if exactly one caregiver exists.
+            // Demo mode only works if there's just one caregiver.
             if (Caregiver::where('is_active', true)->count() !== 1) {
                 $this->logWarn('Auth', 'login missing identifier');
                 return $this->errorResponse(

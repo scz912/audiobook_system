@@ -22,11 +22,9 @@ class _CategoryFilter {
 }
 
 class StoryLibraryPage extends StatefulWidget {
-  /// Optional override for the page's back arrow. ChildShell renders the
-  /// library as a tab body (no route on the navigator stack), so it passes a
-  /// callback that switches the shell back to the Home tab. When the library
-  /// is pushed standalone from ChildHomePage / a route, this stays null and
-  /// the default Navigator.maybePop() is used.
+  /* Optional back-arrow override. As a tab body, ChildShell passes a
+     callback to go to the Home tab. When pushed as a normal route this is
+     null and Navigator.maybePop() is used. */
   final VoidCallback? onBack;
   const StoryLibraryPage({super.key, this.onBack});
 
@@ -97,8 +95,8 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
     _syncPolling();
   }
 
-  /// Keep checking quietly while a book is still generating, so it appears the
-  /// moment its pictures are ready — then stop.
+  /* Keep checking while a book is generating, so it shows up once its
+     pictures are ready, then stop. */
   void _syncPolling() {
     final stillGenerating = _stories.any((s) => s.status == 'processing');
     if (stillGenerating) {
@@ -115,7 +113,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   List<ContentItem> get _filtered {
     final q = _searchCtrl.text.trim().toLowerCase();
     return _stories.where((s) {
-      // Hide books whose pictures are still being generated.
+      // Hide books that are still generating pictures.
       if (s.status == 'processing') return false;
       if (_category != 'all') {
         final c = (s.category ?? '').toLowerCase();
@@ -126,8 +124,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
         if (age != _ageRange) return false;
       }
       if (_language != 'all') {
-        // Books default to 'en' on the backend, so a null language counts as
-        // English for filter purposes.
+        // Books default to 'en', so treat a null language as English here.
         final lang = (s.language ?? 'en').toLowerCase();
         if (lang != _language) return false;
       }
@@ -497,7 +494,7 @@ class _CoverArt extends StatelessWidget {
           imageUrl!,
           fit: BoxFit.cover,
           width: double.infinity,
-          cacheWidth: 500, // grid covers don't need full 1024px; saves memory
+          cacheWidth: 500, // grid covers are small; saves memory
           errorBuilder: (_, _, _) => _placeholder(),
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;

@@ -21,13 +21,12 @@ class ChildHomePage extends StatefulWidget {
 
 class _ChildHomePageState extends State<ChildHomePage> {
   String? _selectedMood;
-  // Once the child has picked a mood today it stays locked until the next
-  // calendar day. Stored in SharedPreferences per (child_id, YYYY-MM-DD) so
-  // the lock survives app restarts and releases automatically at midnight.
+  // After a mood is picked it's locked until the next day. Saved per
+  // (child_id, date) so the lock survives restarts and clears at midnight.
   bool _moodLockedForToday = false;
   ContentItem? _featured;
 
-  // Mood `labelKey` is a translation key; resolved at render via context.tr().
+  // Mood `labelKey` is a translation key, resolved with context.tr().
   static const List<_Mood> _moods = [
     _Mood('happy', 'child.mood_happy', '😊', AppColors.moodHappy),
     _Mood('calm', 'child.mood_calm', '😌', AppColors.moodCalm),
@@ -47,15 +46,14 @@ class _ChildHomePageState extends State<ChildHomePage> {
     if (!mounted) return;
     if (resp.success && resp.data is List<ContentItem>) {
       final items = resp.data as List<ContentItem>;
-      // Only feature a finished book (skip ones still generating pictures).
+      // Only feature a finished book (skip ones still making pictures).
       final ready = items.where((i) => i.status != 'processing').toList();
       setState(() => _featured = ready.isNotEmpty ? ready.first : null);
     }
   }
 
-  /// SharedPreferences key for today's mood for [childId]. Date format is the
-  /// device's local calendar day so a child who taps at 11 PM sees the
-  /// selector unlock at midnight rather than 24 hours later.
+  /* The storage key for [childId]'s mood today. Uses the local date, so a
+     tap at 11 PM unlocks at midnight, not 24 hours later. */
   String _todayMoodKey(String childId) {
     final now = DateTime.now();
     final ymd = '${now.year}-'
@@ -64,8 +62,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
     return 'mood_${childId}_$ymd';
   }
 
-  /// Restore today's mood from disk on page open so the lock survives a
-  /// child-mode exit / re-entry within the same day.
+  /* Load today's saved mood when the page opens, so the lock holds after
+     leaving and re-entering Child Mode the same day. */
   Future<void> _loadTodayMood() async {
     final profile = context.read<ProfilesState>().activeProfile;
     if (profile == null) return;
@@ -76,15 +74,12 @@ class _ChildHomePageState extends State<ChildHomePage> {
       _selectedMood = saved;
       _moodLockedForToday = true;
     });
-    // Make sure the next listening session still picks up the mood the child
-    // chose earlier today (ProfilesState resets on enterChildMode).
+    // Re-apply the mood so the next session uses it (it resets on entry).
     if (!mounted) return;
     context.read<ProfilesState>().setMood(saved);
   }
 
-  /// Persist today's mood for [childId]. Safe to call multiple times — it
-  /// overwrites the existing key (but the UI lock prevents that from
-  /// happening within a single calendar day).
+  /* Save today's mood for [childId]. The UI lock keeps this to once a day. */
   Future<void> _saveMoodForToday(String childId, String moodId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_todayMoodKey(childId), moodId);
@@ -148,15 +143,14 @@ class _ChildHomePageState extends State<ChildHomePage> {
                 childAspectRatio: 1.5,
                 children: _moods.map((m) {
                   final selected = _selectedMood == m.id;
-                  // Non-selected cards fade back once the lock is on so the
-                  // child can still see what they chose but not be tempted to
-                  // tap the others. Locked + selected stays at full opacity.
+                  // Once locked, the unpicked cards fade so only the chosen
+                  // one stands out.
                   final dimmed = _moodLockedForToday && !selected;
                   return InkWell(
                     onTap: () {
                       if (_moodLockedForToday) {
-                        // Already chose today — explain why nothing happens
-                        // when they tap a different mood card.
+                        // Already chose today — explain why other cards don't
+                        // respond.
                         final chosen = _selectedMood;
                         if (chosen != null) {
                           final chosenLabel = _moods
@@ -204,8 +198,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
                               color: selected
                                   ? AppColors.textPrimary
                                   : Colors.transparent,
-                              // Thicker border on tap so the selection reads
-                              // at a glance even at arm's length on a phone.
+                              // Thicker border when picked, easy to see at
+                              // arm's length.
                               width: selected ? 4 : 0,
                             ),
                             boxShadow: selected
@@ -319,18 +313,16 @@ class _ChildHomePageState extends State<ChildHomePage> {
 
 class _Mood {
   final String id;
-  /// Translation key for the mood label.
+  // Translation key for the label.
   final String labelKey;
   final String emoji;
   final Color color;
   const _Mood(this.id, this.labelKey, this.emoji, this.color);
 }
 
-/// Big "Today's pick" call-to-action on the child home. Solid gradient
-/// background, solid white start button — no translucent pills, no pulsing
-/// glow shadows. Those were what made the text look soft in the earlier
-/// version: semi-transparent backgrounds don't antialias text sharply, and
-/// a glow expanding behind the button blurs whatever's near it.
+/* The big "Today's pick" button on the child home. Solid gradient and a
+   solid white button — no see-through pills or glows, which made the text
+   look blurry before. */
 class _StartStoryCard extends StatelessWidget {
   final ContentItem story;
   final VoidCallback onStart;
@@ -356,7 +348,7 @@ class _StartStoryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // "TODAY'S PICK" label — plain white text, no translucent pill.
+              // "TODAY'S PICK" label — plain white text.
               Row(
                 children: [
                   const Icon(Icons.star_rounded,
@@ -374,7 +366,7 @@ class _StartStoryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              // Cover thumbnail + story title.
+              // Cover and title.
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -396,7 +388,7 @@ class _StartStoryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              // Solid white start button — full width, centered, no glow.
+              // Full-width white start button.
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -429,10 +421,8 @@ class _StartStoryCard extends StatelessWidget {
   }
 }
 
-/// Square cover thumbnail next to the title. Falls back to a soft pastel
-/// book glyph when the story has no cover yet (e.g. AI generation still
-/// running). Solid colors only — no translucent borders to soften the
-/// edges.
+/* Square cover next to the title. Shows a book icon when there's no cover
+   yet (still generating). */
 class _StartStoryCover extends StatelessWidget {
   final String? url;
   const _StartStoryCover({this.url});

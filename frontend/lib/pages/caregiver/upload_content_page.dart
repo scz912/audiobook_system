@@ -22,13 +22,12 @@ import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
 
-/// One page being authored in the manual storybook builder.
+// One page being authored in the manual storybook builder.
 class _PageDraft {
   final TextEditingController text = TextEditingController();
   String? imagePath;
-  /// Offset (ms) where this page begins in the whole-book audio recording.
-  /// Captured by the page-boundaries editor; null on page 1 (auto = 0) and on
-  /// pages the caregiver hasn't marked yet.
+  /* Where this page starts in the recording, in ms. Set by the boundary
+     editor; null on page 1 (auto = 0) and on pages not marked yet. */
   int? audioStartMs;
   void dispose() => text.dispose();
 }
@@ -52,25 +51,25 @@ class _UploadContentPageState extends State<UploadContentPage> {
   String _difficulty = 'Easy';
   bool _submitting = false;
 
-  // Manual storybook pages (text + optional image per page) + cover image.
+  // Manual storybook pages (text + optional image each) + cover.
   final ImagePicker _picker = ImagePicker();
   String? _coverPath;
   final List<_PageDraft> _pageDrafts = [_PageDraft()];
 
-  // Optional whole-book narration recording. When present, the player follows
-  // the audio timeline and auto-flips pages based on each page's word share.
+  // Optional whole-book recording. When set, the player follows the audio
+  // and flips pages by each page's word share.
   String? _audioPath;
 
-  // Language for the manual storybook (defaults to the app language at submit
-  // time). null = inherit; 'en' / 'ms' override.
+  // Language for the manual storybook. null = use the app language; 'en' /
+  // 'ms' override it.
   String? _manualLanguage;
 
-  // BGM — write mode (required selection when enabled)
+  // Music for write mode (must pick one when on).
   bool _writeBgmEnabled = false;
   MusicTrack? _writeBgmTrack;
   int _writeBgmVolume = 30;
 
-  // BGM — AI mode (null track = auto-select by backend when enabled)
+  // Music for AI mode (null = let the backend pick when on).
   bool _aiBgmEnabled = false;
   MusicTrack? _aiBgmTrack;
   int _aiBgmVolume = 30;
@@ -83,8 +82,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
   String _aiPages = 'Auto';
   bool _aiGenerateImage = true;
   bool _generating = false;
-  // Language Gemini should write the story in. Defaults to the app language
-  // (caregiver can override per-generation).
+  // Language Gemini writes the story in. Defaults to the app language; the
+  // caregiver can override it.
   String? _aiLanguage;
 
   static const _ages = ['5-6', '7-9', '8-11', '9-12'];
@@ -103,7 +102,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     super.dispose();
   }
 
-  // ---------- manual storybook builder ----------
+  // manual storybook builder
 
   Future<void> _pickImage(void Function(String path) onPicked) async {
     try {
@@ -131,8 +130,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       if (path != null) {
         setState(() {
           _audioPath = path;
-          // A different recording invalidates any boundaries the caregiver
-          // captured against the previous one.
+          // A new recording clears the old page marks — they no longer fit.
           for (final d in _pageDrafts) {
             d.audioStartMs = null;
           }
@@ -175,7 +173,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
     setState(() => _submitting = true);
 
-    // 1) Create the audiobook (with optional cover) and get its id.
+    // 1) Create the book (with optional cover) and get its id.
     final joinedText = _pageDrafts
         .map((p) => p.text.text.trim())
         .where((t) => t.isNotEmpty)
@@ -211,9 +209,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
       return;
     }
 
-    // 2) Add each page (text + optional image + optional audio-boundary mark).
-    // Page 1 is always the implicit start (0 ms), so we send null for it; the
-    // marks for pages 2..N come from the boundary editor.
+    // 2) Add each page (text + optional image + optional page mark).
+    // Page 1 always starts at 0, so we send null for it; later page marks
+    // come from the boundary editor.
     var pageNo = 1;
     for (final draft in _pageDrafts) {
       final text = draft.text.text.trim();
@@ -238,7 +236,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     Navigator.of(context).pop();
   }
 
-  // ---------- AI generate ----------
+  // AI generate
 
   Future<void> _generateAi() async {
     final topic = _aiTopicCtrl.text.trim();
@@ -249,7 +247,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     }
     setState(() => _generating = true);
     final language =
-        _aiLanguage ?? context.read<LanguageState>().code; // defaults to UI language
+        _aiLanguage ?? context.read<LanguageState>().code; // app language by default
     final ApiResponse resp = await DatabaseService.generateAiContent(
       topic: topic,
       ageGroup: _aiAge,
@@ -258,7 +256,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       generateImage: _aiGenerateImage,
       pageCount: _aiPages == 'Auto' ? null : int.tryParse(_aiPages),
       includeBgm: _aiBgmEnabled,
-      trackId: _aiBgmTrack?.trackId, // null = auto-select when includeBgm=true
+      trackId: _aiBgmTrack?.trackId, // null = backend picks when music is on
       bgmVolume: _aiBgmVolume,
       language: language,
     );
@@ -406,7 +404,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     );
   }
 
-  // ---------- write form ----------
+  // write form
 
   Widget _buildWriteForm() {
     return Column(
@@ -450,7 +448,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
           ),
         ),
         const SizedBox(height: 14),
-        // Cover image
+        // Cover image.
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,8 +513,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 replaceLabel: context.tr('upload.replace_audio'),
                 clearLabel: context.tr('upload.clear'),
               ),
-              // Page boundaries editor: only visible when audio is picked and
-              // there are at least 2 pages to split between.
+              // Page-marks editor: only shows with audio picked and 2+ pages.
               if (_audioPath != null && _pageDrafts.length > 1) ...[
                 const SizedBox(height: 14),
                 _PageBoundariesEditor(
@@ -529,7 +526,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
           ),
         ),
         const SizedBox(height: 14),
-        // Per-page builder
+        // Per-page builder.
         const _Label('Pages'),
         const SizedBox(height: 8),
         for (int i = 0; i < _pageDrafts.length; i++) ...[
@@ -610,7 +607,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     );
   }
 
-  // ---------- AI form ----------
+  // AI form
 
   Widget _buildAiForm() {
     return Column(
@@ -804,8 +801,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
   }
 }
 
-/// Shown while the AI writes the story and generates the illustrations, so the
-/// caregiver knows the request is working and not frozen.
+/* Shown while the AI writes the story and draws the pictures, so the
+   caregiver knows it's working and not stuck. */
 class _PendingCard extends StatelessWidget {
   const _PendingCard();
 
@@ -862,8 +859,8 @@ class _PendingCard extends StatelessWidget {
   }
 }
 
-/// A tappable box that shows a picked image thumbnail, or a placeholder with an
-/// "add image" prompt when empty.
+/* A tappable box showing the picked image, or an "add image" prompt when
+   empty. */
 class _ImagePickerBox extends StatelessWidget {
   final String? imagePath;
   final double height;
@@ -943,8 +940,8 @@ class _ImagePickerBox extends StatelessWidget {
   }
 }
 
-/// One page row in the manual storybook builder: page number, remove button,
-/// a text field, and a per-page image picker.
+/* One page row in the builder: page number, remove button, text field, and
+   an image picker. */
 class _PageEditorCard extends StatelessWidget {
   final int index;
   final _PageDraft draft;
@@ -1071,13 +1068,9 @@ class _ModeToggle extends StatelessWidget {
   }
 }
 
-/// Caregiver-friendly audio file picker for the whole-book narration:
-/// shows a soft tile with the picked filename + "replace" / "remove" actions,
-/// or a "choose audio" button when nothing is selected yet.
-/// Small audio player + per-page mark UI that lets the caregiver listen to
-/// the whole-book recording and capture the exact moment each new page
-/// begins. The captured offsets land back on [_PageDraft.audioStartMs] so the
-/// child-side player can flip pages exactly at those points (no heuristic).
+/* Player + per-page mark UI. The caregiver plays the recording and taps to
+   mark where each page begins. The marks land on [_PageDraft.audioStartMs]
+   so the child's player flips pages at exactly those points. */
 class _PageBoundariesEditor extends StatefulWidget {
   final String audioPath;
   final List<_PageDraft> pageDrafts;
@@ -1113,8 +1106,8 @@ class _PageBoundariesEditorState extends State<_PageBoundariesEditor> {
     });
     _stateSub = _player.playerStateStream.listen((s) {
       if (!mounted) return;
-      // `playing` stays true after the clip completes; gate on processing
-      // state so the Play/Pause button flips back correctly at the end.
+      // `playing` stays true after the clip ends; check the processing
+      // state so Play/Pause flips back correctly.
       final isPlaying =
           s.playing && s.processingState != ProcessingState.completed;
       if (isPlaying != _playing) setState(() => _playing = isPlaying);
@@ -1155,20 +1148,18 @@ class _PageBoundariesEditorState extends State<_PageBoundariesEditor> {
     if (_playing) {
       await _player.pause();
     } else {
-      // If we were sitting at the end of the clip, rewind so the next "Play"
-      // actually plays from the beginning instead of completing instantly.
+      // If we're at the end, rewind so the next Play starts from the top.
       final total = _duration;
       if (total != null && _position >= total) {
         await _player.seek(Duration.zero);
       }
-      // Don't await play(): just_audio's play() resolves when playback
-      // ends, not when it begins.
+      // Don't await play(): it finishes when playback ends, not starts.
       unawaited(_player.play());
     }
   }
 
-  /// Capture the current position as the start of page [index] (0-based).
-  /// Page 0 (the first page) is always 0 and not user-editable.
+  /* Mark the current spot as the start of page [index]. Page 0 is always 0
+     and can't be changed. */
   void _markPage(int index) {
     if (index <= 0) return;
     final prev = _previousMarkMs(index);
@@ -1190,7 +1181,7 @@ class _PageBoundariesEditorState extends State<_PageBoundariesEditor> {
     setState(() {});
   }
 
-  /// The most recent marked offset before [index] (0 for page 1 / unmarked).
+  // The last mark before [index] (0 if none).
   int _previousMarkMs(int index) {
     for (var i = index - 1; i > 0; i--) {
       final m = widget.pageDrafts[i].audioStartMs;
@@ -1415,7 +1406,7 @@ class _AudioPickerRow extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w700)),
       );
     }
-    // Show only the trailing filename (full paths are noisy on Android).
+    // Show just the file name (full paths look messy on Android).
     final name = audioPath!.split(RegExp(r'[\\/]')).last;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1482,10 +1473,9 @@ class _Label extends StatelessWidget {
   }
 }
 
-/// BGM section card used in both Write and AI upload modes.
-///
-/// [autoAllowed] — when true (AI mode) shows an "Auto-select" hint instead of
-/// requiring the caregiver to pick a track manually.
+/* Music card used in both Write and AI modes. When [autoAllowed] is true
+   (AI mode) it shows an "Auto-select" hint instead of making the caregiver
+   pick a track. */
 class _BgmCard extends StatelessWidget {
   final bool enabled;
   final MusicTrack? selectedTrack;

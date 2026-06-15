@@ -5,21 +5,10 @@ namespace App\Http\Controllers\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Base controller for all /api endpoints. Provides the standard JSON
- * success/error envelope used across the API.
- */
+/* Base for all /api controllers. Gives them the shared JSON
+   success/error response format. */
 abstract class ApiController
 {
-    /**
-     * Emit a structured info-level log line tagged with a controller name so
-     * the whole request lifecycle is greppable in laravel.log:
-     *
-     *   [Insights] analyse started {"child_id":"...","caregiver_id":"..."}
-     *
-     * Pair this with logWarn() / logError() below at decision points
-     * (validation failed, not found, exception) for full traceability.
-     */
     protected function logEvent(string $tag, string $event, array $context = []): void
     {
         Log::info("[{$tag}] {$event}", $context);
@@ -58,13 +47,9 @@ abstract class ApiController
         ], $statusCode);
     }
 
-    /**
-     * Build an absolute URL for a stored relative path (e.g. "storage/uploads/..").
-     *
-     * Uses the INCOMING request's scheme+host so the URL is always reachable by
-     * whatever client is asking — Android emulator (10.0.2.2), a real phone on
-     * Wi-Fi, etc. Already-absolute URLs (Gemini image links) pass through unchanged.
-     */
+    /* Make a full URL from a stored path using the request's host, so it
+       works for emulator and real devices alike. Full URLs (Gemini images)
+       are left as-is. */
     protected function mediaUrl(?string $path): ?string
     {
         if ($path === null || $path === '') {

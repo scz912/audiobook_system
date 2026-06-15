@@ -6,10 +6,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Per-child narration & sensory/playback settings. Each child profile gets
-     * its own row so caregivers can tune the experience separately per child.
-     */
+    /* Per-child voice and playback settings — one row per child so the
+       caregiver can set each child separately. */
     public function up(): void
     {
         Schema::create('child_settings', function (Blueprint $table) {

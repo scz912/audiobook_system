@@ -17,23 +17,13 @@ class InsightsController extends ApiController
 {
     private const TZ = 'Asia/Kuala_Lumpur';
 
-    /**
-     * Minimum number of recorded listening sessions before Gemini's suggestion
-     * is considered reliable (UC-9 exception flow E1). Below this we still
-     * surface the suggestion list, but tagged with confidence = "low".
-     */
+    /* Need this many sessions before Gemini's tips are trusted.
+       Below this we still show them but tag confidence = "low". */
     private const MIN_SESSIONS_FOR_CONFIDENCE = 5;
 
-    /**
-     * Allowed setting keys + their value validators. Anything else returned by
-     * Gemini is dropped on the floor (UC-9 exception flow E3 — "suggestion
-     * that does not fit any known setting").
-     *
-     * Each validator coerces the raw value to its concrete type, returning
-     * either [true, $coerced] or [false, null] when the value is out of range.
-     *
-     * @return array<string, callable(mixed):array{0:bool,1:mixed}>
-     */
+    /* Settings we let Gemini change, with checks for each value.
+       Anything else from Gemini gets dropped. Each check returns
+       [true, value] if OK, or [false, null] if out of range. */
     private function settingValidators(): array
     {
         return [
@@ -80,15 +70,9 @@ class InsightsController extends ApiController
         return (bool) $v;
     }
 
-    /**
-     * Aggregated listening insights for the signed-in caregiver:
-     *  - overall totals (sessions, minutes, completion rate, top mood)
-     *  - avg session length, current daily streak
-     *  - last-7-days minutes per day (for a small bar chart)
-     *  - top stories by total listening time
-     *  - recent activity feed
-     *  - per-child breakdown (same fields, scoped per child)
-     */
+    /* Listening insights for the signed-in caregiver:
+       totals, avg session, streak, last 7 days, top stories,
+       recent activity, and the same fields per child. */
     public function overview(Request $request): JsonResponse
     {
         $caregiver = $request->get('auth_caregiver');
@@ -96,9 +80,9 @@ class InsightsController extends ApiController
             'caregiver_id' => $caregiver?->caregiver_id,
             'child_id'     => $request->input('child_id'),
         ]);
-        // The 'children' list always carries every profile (the UI's selector
-        // needs them all); $scopedProfiles is what each per-child / aggregate
-        // query iterates over, optionally narrowed to one child via ?child_id=.
+        /* The 'children' list always has every profile (the selector needs
+           them). $scopedProfiles is what the queries use, narrowed to one
+           child when child_id is passed. */
         $allProfiles = $caregiver->childProfiles()->orderBy('created_at')->get();
         $filterChildId = $request->input('child_id');
         $scopedProfiles = $filterChildId
@@ -192,13 +176,9 @@ class InsightsController extends ApiController
         ]);
     }
 
-    /**
-     * UC-9 — Analyse a child's listening behaviour. Aggregates stats, asks
-     * Gemini for sensory-friendly suggestions, UPSERTs the cached row, and
-     * returns the suggestion list. On Gemini error (E2) we re-serve the
-     * previous cached row with is_stale = true; on too-few-sessions (E1) we
-     * still return the suggestions but flag confidence as "low".
-     */
+    /* Look at a child's listening, ask Gemini for tips, and save them.
+       If Gemini fails, return the last saved tips marked stale. If there
+       aren't many sessions, flag confidence as "low". */
     public function analyse(Request $request, string $childId): JsonResponse
     {
         $this->logEvent('Insights', 'analyse called', [
@@ -222,8 +202,7 @@ class InsightsController extends ApiController
             'confidence'     => $confidence,
         ]);
 
-        // Tell Gemini what the current settings are so it doesn't suggest a
-        // no-op change.
+        // Give Gemini the current settings so it won't suggest no changes.
         $settings = $profile->childSettings
             ?? ChildSettings::create(['child_id' => $profile->child_id]);
         $stats['current_settings'] = [
@@ -246,9 +225,8 @@ class InsightsController extends ApiController
                 'child_id'    => $childId,
                 'configured'  => $gemini->isConfigured(),
             ]);
-            // E2: Gemini unreachable / quota / nothing to suggest. Re-serve the
-            // last cached row marked stale so the caregiver still sees something
-            // with a clear "couldn't refresh" note.
+            /* Gemini failed or had nothing. Show the last saved tips
+               marked stale so the caregiver still sees something. */
             $cached = AiSuggestion::where('child_id', $profile->child_id)->first();
             if ($cached) {
                 $cached->is_stale = true;
@@ -262,8 +240,7 @@ class InsightsController extends ApiController
             $this->logEvent('Insights', 'analyse no cache available', [
                 'child_id' => $childId,
             ]);
-            // No cached row either — return an empty result so the UI can show
-            // an "AI suggestions unavailable" state.
+            // Nothing saved either — return empty so the UI can say so.
             return $this->successResponse('No suggestions available', [
                 'suggestion_id' => null,
                 'child_id'      => $profile->child_id,
@@ -275,8 +252,7 @@ class InsightsController extends ApiController
             ]);
         }
 
-        // Filter out items we don't recognise (E3) and items that match the
-        // current value (would be a no-op).
+        // Drop unknown settings and ones that match the current value.
         $validators = $this->settingValidators();
         $items = [];
         foreach ($rawItems as $raw) {
@@ -322,11 +298,8 @@ class InsightsController extends ApiController
             $this->serializeSuggestion($row));
     }
 
-    /**
-     * Latest cached suggestion row for a child (no Gemini call). Used by the
-     * insights page when it first opens, so the caregiver sees yesterday's
-     * suggestions instantly instead of waiting for a fresh analyse round.
-     */
+    /* The last saved tips for a child (no Gemini call). The insights page
+       shows these right away instead of waiting for a fresh analyse. */
     public function suggestions(Request $request, string $childId): JsonResponse
     {
         $this->logEvent('Insights', 'suggestions called', [
@@ -357,11 +330,8 @@ class InsightsController extends ApiController
         return $this->successResponse('OK', $this->serializeSuggestion($cached));
     }
 
-    /**
-     * Accept a single suggestion — optionally with an edited value (UC-9 A2) —
-     * and write the change to the child's settings row. Marks the suggestion
-     * as accepted in the cached items list so the UI can show it greyed out.
-     */
+    /* Accept one tip (with an optional edited value) and write it to the
+       child's settings. Marks it accepted so the UI can grey it out. */
     public function applySuggestion(Request $request, string $childId): JsonResponse
     {
         $this->logEvent('Insights', 'applySuggestion called', [
@@ -419,7 +389,7 @@ class InsightsController extends ApiController
                 'ALREADY_RESOLVED', 409);
         }
 
-        // Coerce + validate either the override value or the original suggestion.
+        // Check the edited value, or the original tip if not edited.
         $validators = $this->settingValidators();
         $key = (string) $item['setting_key'];
         if (!isset($validators[$key])) {
@@ -440,7 +410,7 @@ class InsightsController extends ApiController
             return $this->errorResponse('Suggested value is out of range', 'INVALID', 422);
         }
 
-        // Persist to child_settings.
+        // Save to child_settings.
         $settings = $profile->childSettings
             ?? ChildSettings::create(['child_id' => $profile->child_id]);
         $settings->fill([$key => $value])->save();
@@ -460,7 +430,7 @@ class InsightsController extends ApiController
             $this->serializeSuggestion($row));
     }
 
-    /** Mark a single suggestion as dismissed without changing settings. */
+    // Mark one tip as dismissed without changing settings.
     public function dismissSuggestion(Request $request, string $childId): JsonResponse
     {
         $this->logEvent('Insights', 'dismissSuggestion called', [
@@ -546,17 +516,12 @@ class InsightsController extends ApiController
             : null;
     }
 
-    /**
-     * Compute the per-child stats fed to Gemini for UC-9. All ratios are
-     * normalised per-session so the prompt is the same shape regardless of
-     * how many sessions the child has logged.
-     *
-     * @return array<string,mixed>
-     */
+    /* Work out the per-child stats we send to Gemini. All rates are
+       per-session so the numbers look the same no matter how many
+       sessions there are. */
     private function aggregateStatsFor(ChildProfile $profile): array
     {
-        // Last 30 days, so the analysis reflects current behaviour rather than
-        // ancient sessions from when the child first started using the app.
+        // Last 30 days, so we look at how the child uses it now.
         $since = Carbon::now(self::TZ)->subDays(30);
         $sessions = $profile->listeningHistory()
             ->where('created_at', '>=', $since)
@@ -581,9 +546,8 @@ class InsightsController extends ApiController
         $totalPauses = (int) $sessions->sum('pause_count');
         $totalSkips  = (int) $sessions->sum('skip_count');
 
-        // Early drop = sessions where the child stopped before halfway AND
-        // didn't mark the book complete. A high rate suggests the child loses
-        // interest or finds the content overwhelming.
+        /* Early drop = stopped before halfway and didn't finish. A high
+           rate may mean the child loses interest or feels overwhelmed. */
         $earlyDrops = $sessions->filter(function ($s) {
             if ($s->completed) {
                 return false;
@@ -628,7 +592,7 @@ class InsightsController extends ApiController
         ];
     }
 
-    /** Build [date=>['date','day','minutes'=>0], …] for the last 7 days (oldest first). */
+    // Build the last 7 days (oldest first), each starting at 0 minutes.
     private function emptyWeek(Carbon $now): array
     {
         $week = [];
@@ -643,13 +607,13 @@ class InsightsController extends ApiController
         return $week;
     }
 
-    /** Convert a timestamp to a Y-m-d key in the caregiver-facing timezone. */
+    // Turn a timestamp into a Y-m-d key in the caregiver's timezone.
     private function dayKey($ts): string
     {
         return Carbon::parse($ts)->setTimezone(self::TZ)->format('Y-m-d');
     }
 
-    /** All distinct days (in local timezone) on which the caregiver's children listened. */
+    // All the days the caregiver's children listened.
     private function collectDayKeys(array $childIds): array
     {
         if (empty($childIds)) {
@@ -665,11 +629,9 @@ class InsightsController extends ApiController
             ->all();
     }
 
-    /**
-     * Current daily streak: how many consecutive days ending today have a
-     * session. Falls through to "ending yesterday" so a streak isn't lost
-     * just because the child hasn't listened yet today.
-     */
+    /* Daily streak that shows how many days in a row up to today have a session.
+       Counts from yesterday if today has none yet, so the streak isn't
+       lost just because the child hasn't listened today. */
     private function computeStreak(array $distinctDayKeys, Carbon $now): int
     {
         if (empty($distinctDayKeys)) {
@@ -677,7 +639,7 @@ class InsightsController extends ApiController
         }
         $set = array_flip($distinctDayKeys);
         $cursor = $now->copy()->startOfDay();
-        // If today has no session yet, start counting from yesterday.
+        // If today has none yet, start from yesterday.
         if (!isset($set[$cursor->format('Y-m-d')])) {
             $cursor->subDay();
         }
@@ -689,7 +651,7 @@ class InsightsController extends ApiController
         return $streak;
     }
 
-    /** Top 5 audiobooks by total minutes played across this caregiver's children. */
+    // Top 5 audiobooks by total minutes across the caregiver's children.
     private function topStories(array $childIds): array
     {
         if (empty($childIds)) {
@@ -719,7 +681,7 @@ class InsightsController extends ApiController
             ->toArray();
     }
 
-    /** Most recent 10 listening sessions across this caregiver's children. */
+    // The 10 most recent sessions across the caregiver's children.
     private function recentSessions(array $childIds): array
     {
         if (empty($childIds)) {
@@ -765,14 +727,9 @@ class InsightsController extends ApiController
             ->toArray();
     }
 
-    /**
-     * Build an absolute URL for a stored relative path using the incoming
-     * request's host (not APP_URL), so the URL is always reachable by the
-     * client that asked — emulator, real device, anything. See the longer
-     * comment on AudiobookController::mediaUrl for the rationale.
-     *
-     * Already-absolute URLs (Gemini image links) pass through unchanged.
-     */
+    /* Make a full URL from a stored path using the request's host (not
+       APP_URL), so it works for emulator and real devices alike.
+       Full URLs (Gemini images) are left as-is. */
     protected function mediaUrl(?string $path): ?string
     {
         if ($path === null || $path === '') {
@@ -785,7 +742,7 @@ class InsightsController extends ApiController
         return $base . '/' . ltrim($path, '/');
     }
 
-    /** Returns the mood name with the highest count, or null if all are zero. */
+    // The mood with the most picks, or null if there are none.
     private function topMood(array $counts): ?string
     {
         arsort($counts);

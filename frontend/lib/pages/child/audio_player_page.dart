@@ -21,9 +21,8 @@ class AudioPlayerPage extends StatefulWidget {
   final String title;
   final String? audiobookId;
 
-  /// Caregiver preview (from Content Management): play the book to check it,
-  /// without the per-child settings panel (there's no child to save them to)
-  /// and without recording a listening session.
+  /* Caregiver preview: play the book to check it, with no settings panel
+     and no listening session saved. */
   final bool previewMode;
 
   const AudioPlayerPage({
@@ -46,69 +45,61 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   bool _loading = true;
   bool _audioReady = false;
   bool _playingAudio = false;
-  bool _useTts = true; // narration (Gemini TTS) mode vs. audio-file mode
+  bool _useTts = true; // Gemini voice mode vs. uploaded audio mode
   int _page = 0;
 
   int _highlightStart = 0;
   int _highlightEnd = 0;
 
-  // Listening-session tracking (UC-8 -> records into listening_history).
+  // Tracks this listening session, saved to listening_history when it ends.
   final Stopwatch _listenWatch = Stopwatch();
   String? _activeChildId;
   String? _sessionMood;
   bool _reachedEnd = false;
   bool _sessionRecorded = false;
-  // Behaviour counters fed into UC-9's analyse-listening-behaviour endpoint:
-  // every user-initiated pause and every forward page skip during a session.
+  // How many times the child paused or skipped forward this session.
   int _pauseCount = 0;
   int _skipCount = 0;
   bool _finishShowing = false;
   bool _naturalLoading = false;
-  bool _naturalPlaying = false; // Gemini natural-voice narration is active
-  // Bumped whenever narration starts or stops; lets an in-flight load detect
-  // that a newer page/narration has superseded it and bail out (prevents the
-  // audio and read-along drifting out of sync after tapping Back/Next quickly).
+  bool _naturalPlaying = false; // Gemini voice is playing
+  // Bumped each time narration starts or stops. An in-flight load checks
+  // this to see if a newer page has taken over, so the voice and read-along
+  // don't drift apart when tapping Back/Next quickly.
   int _narrationSeq = 0;
   StreamSubscription<void>? _audioCompleteSub;
   StreamSubscription<Duration>? _naturalPosSub;
-  // Subscription used in audio-file mode to auto-advance pages along with the
-  // playback position so the storybook follows the caregiver's recording.
-  // Subscribed eagerly when the audio loads so we never miss the first events
-  // (a previous version only subscribed when the user tapped Listen and could
-  // miss the moment if the timing was off).
+  // In uploaded-audio mode, follows playback to flip pages as the recording
+  // plays. Subscribed as soon as the audio loads so we don't miss the
+  // first ticks.
   StreamSubscription<Duration>? _audioPosSub;
-  // Subscribed eagerly so we know the clip's total duration as soon as
-  // just_audio learns it — used to build _pageEndTimes once the value is real.
+  // Tracks the clip's total length as soon as just_audio knows it, used to
+  // build _pageEndTimes.
   StreamSubscription<Duration?>? _audioDurSub;
   Duration? _knownAudioDuration;
-  // Cumulative end timestamps per page, weighted by each page's share of the
-  // total word count. _pageEndTimes[i] is when page i should hand off to i+1.
+  // When each page should end, split by each page's share of the words.
+  // _pageEndTimes[i] is when page i hands off to i+1.
   List<Duration> _pageEndTimes = const [];
-  // For uploaded whole-book audio: per-page word spans anchored to that
-  // page's slice of the clip timeline, so read-along still highlights the
-  // current word as the caregiver's recording plays.
+  // For uploaded audio: each page's words placed on the clip timeline, so
+  // read-along still highlights the current word.
   List<List<_WordSpan>> _audioFilePageSpans = const [];
-  // Set just before an auto page-advance fires, so _onPageChanged knows not
-  // to seek (we're already in sync — the position naturally crossed it).
+  // Set just before an auto page-flip so _onPageChanged knows not to seek
+  // (we're already at the right spot).
   bool _suppressAudioPageSeek = false;
-  // True while an auto page-advance animation is mid-flight, so the listener
-  // doesn't queue up a second animateToPage on every position tick that
-  // arrives during the 480 ms PageController animation.
+  // True while an auto page-flip is animating, so we don't start a second
+  // one on every position tick during the 480 ms animation.
   bool _autoAdvanceInFlight = false;
   List<_WordSpan> _wordSpans = const [];
-  String _narrationText = ''; // text of the page currently being narrated
+  String _narrationText = ''; // text of the page being read now
 
-  // Background music — a separate player so it never interferes with the
-  // narration / story-audio engine.
+  // Background music — its own player so it doesn't clash with the voice.
   final AudioPlayer _bgmPlayer = AudioPlayer();
-  int _bgmVolume = 30;    // 0-100, sourced from Audiobook.bgmVolume
-  bool _bgmStarted = false; // true once the URL has been loaded and play() called
+  int _bgmVolume = 30;    // 0-100, from Audiobook.bgmVolume
+  bool _bgmStarted = false; // true once it has started playing
 
-  // Settings are local to this player session — child changes in here don't
-  // persist back to the child's stored settings (those belong to the
-  // caregiver to manage via the Settings tab). For preview mode it starts at
-  // defaults; for child mode it starts from the caregiver's stored values so
-  // the first playback respects what they chose.
+  // Settings just for this player session — changes here don't save back to
+  // the child's stored settings (the caregiver owns those). Preview starts
+  // at defaults; child mode starts from the caregiver's saved values.
   UserSettings? _localSettings;
 
   static const _defaultStoryText =
@@ -123,14 +114,13 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   @override
   void initState() {
     super.initState();
-    // Preview mode starts fresh; child mode starts from whatever the caregiver
-    // has configured for this child (read from SettingsState once — we don't
-    // watch, because in-player tweaks shouldn't bleed back out).
+    // Preview starts fresh; child mode starts from the caregiver's settings.
+    // Read once (don't watch) so in-player changes don't leak back out.
     _localSettings = widget.previewMode
         ? const UserSettings()
         : context.read<SettingsState>().settings;
     _loadAudiobook();
-    // One listener for playback completion (narration OR a real audio file).
+    // One listener for when playback finishes (voice or audio file).
     _audioCompleteSub = _engine.onComplete.listen((_) {
       if (!mounted) return;
       if (_naturalPlaying) {
@@ -149,8 +139,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Capture the active child + their selected mood while a context is
-    // available, so we can still record the session from dispose().
+    // Grab the active child and mood now, while we have a context, so we
+    // can still save the session from dispose().
     final profiles = context.read<ProfilesState>();
     _activeChildId ??= profiles.activeProfile?.childId;
     _sessionMood = profiles.currentMood;
@@ -170,35 +160,32 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     super.dispose();
   }
 
-  /// The active settings — always the player-local copy. Child changes here
-  /// stay session-only (UC: "If the child changes settings inside the audio
-  /// playback page, do not also update that setting in the overall settings
-  /// for that child"). Both helpers return the same value; the names are kept
-  /// for callsite clarity (build vs. non-build).
+  /* The settings in use — always the player-local copy. Child changes here
+     stay in this session only. Both helpers return the same thing; the two
+     names just read better at the call site (build vs. non-build). */
   UserSettings _watchSettings() => _localSettings ?? const UserSettings();
 
   UserSettings _readSettings() => _localSettings ?? const UserSettings();
 
-  /// Apply a settings change to the player-local copy only. We deliberately
-  /// don't propagate this to SettingsState — the caregiver's chosen settings
-  /// for this child must not be overwritten by the child tapping a chip in
-  /// the player.
+  /* Change a setting in the player-local copy only — never save it back to
+     SettingsState, so the child tapping a chip can't overwrite what the
+     caregiver chose. */
   void _applySettingsChange(UserSettings Function(UserSettings) update) {
     setState(() {
       _localSettings = update(_localSettings ?? const UserSettings());
     });
   }
 
-  /// Persists the just-finished listening session. Fire-and-forget — safe to
-  /// call from dispose() because it uses captured values and the static
-  /// DatabaseService (no BuildContext needed).
+  /* Saves the finished listening session. Fire-and-forget — safe to call
+     from dispose() since it uses saved values and the static
+     DatabaseService (no BuildContext needed). */
   void _recordSessionIfNeeded() {
     if (_sessionRecorded) return;
-    if (widget.previewMode) return; // a caregiver preview isn't a real session
+    if (widget.previewMode) return; // a preview isn't a real session
     final childId = _activeChildId;
     final audiobookId = widget.audiobookId;
     final seconds = _listenWatch.elapsed.inSeconds;
-    // Skip the built-in demo story (no real UUID) and trivially short visits.
+    // Skip the built-in demo story and very short visits.
     if (childId == null || audiobookId == null || seconds < 3) return;
     _sessionRecorded = true;
     DatabaseService.recordListeningSession(
@@ -224,16 +211,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     final resp = await DatabaseService.getAudiobookData(widget.audiobookId!);
     if (!mounted) return;
 
-    // getAudiobookData returns an already-parsed Audiobook in resp.data.
+    // getAudiobookData gives us a ready-made Audiobook in resp.data.
     if (resp.success && resp.data is Audiobook) {
       final book = resp.data as Audiobook;
       _audiobook = book;
       _page = 0;
       if (book.pages.isNotEmpty) {
-        // Caregiver-built storybook: one image + text per page. The
-        // `audioStartMs` (when set on pages 2..N) is the exact offset in the
-        // whole-book recording where this page begins — used downstream to
-        // build exact page boundaries instead of the word-count heuristic.
+        // Caregiver-built storybook: one image + text per page. When
+        // `audioStartMs` is set, it marks where the page starts in the
+        // recording, giving exact page breaks instead of word-count guesses.
         _pages = book.pages
             .map((p) => _PlayerPage(
                   text: (p.text ?? '').trim(),
@@ -242,7 +228,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                 ))
             .toList();
       } else {
-        // Plain story text: paginate by sentences, share the cover image.
+        // Plain story text: split into pages by sentences, share the cover.
         _pages = _pagesFromText(
           book.contentText ?? _defaultStoryText,
           book.coverImage,
@@ -254,33 +240,30 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
           await _engine.setSpeed(settings.readingSpeed);
           _audioReady = true;
           _useTts = false;
-          // Capture whatever just_audio resolved at setUrl time, then track
-          // durationStream so we still get the value if it comes in late
-          // (HTTP-streamed MP3s sometimes resolve duration after a few ticks).
+          // Take the length just_audio gives us now, and keep watching in
+          // case it arrives a bit later (streamed MP3s sometimes do).
           _knownAudioDuration = duration;
           _audioDurSub?.cancel();
           _audioDurSub = _engine.player.durationStream.listen((d) {
             if (d != null && d > Duration.zero) _knownAudioDuration = d;
           });
-          // Build page boundaries + per-page read-along spans eagerly when we
-          // already know the duration; the position listener will do the same
-          // lazily on the first tick where the duration becomes known.
+          // If we already know the length, build the page breaks and
+          // read-along spans now; otherwise the position listener does it
+          // on the first tick once the length is known.
           if (duration != null && duration > Duration.zero && _pages.isNotEmpty) {
             _pageEndTimes = _buildPageEndTimes(_pages, duration);
             _audioFilePageSpans =
                 _buildAudioFilePageSpans(_pages, _pageEndTimes);
           }
-          // Subscribe to the position stream *now*, not when the user taps
-          // Listen — that way page auto-advance + read-along are armed for
-          // the very first playback tick and we don't depend on the timing
-          // of the play() call.
+          // Subscribe to the position stream now, not when Listen is
+          // tapped, so page auto-flip and read-along are ready from the
+          // first tick.
           _listenForAudioFilePosition();
         } catch (e) {
-          // The book has a recording attached but we couldn't load it (most
-          // commonly: the audio URL isn't reachable from this device). Fall
-          // back to Gemini TTS so something still plays, but tell the
-          // caregiver — silently switching modes is what masked the "URL
-          // points at localhost" misconfiguration for a long time.
+          // The book has a recording but it wouldn't load (usually the URL
+          // isn't reachable from this device). Fall back to Gemini voice so
+          // something plays, and tell the caregiver instead of switching
+          // quietly.
           debugPrint('Audio file load failed for ${book.audioFile}: $e');
           _audioReady = false;
           _useTts = true;
@@ -299,21 +282,20 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
 
     if (mounted) setState(() => _loading = false);
 
-    // Store the BGM volume so the slider is correct before the user taps Listen.
-    // The actual audio is deferred until the first play tap (_startBgmIfNeeded).
+    // Set the music volume so the slider is right before the first tap.
+    // The music itself doesn't start until then (_startBgmIfNeeded).
     final book = _audiobook;
     if (book != null && book.musicTrackFileUrl != null) {
       _bgmVolume = book.bgmVolume;
     }
 
-    // Warm up the image cache for every page now (decoded at the same
-    // cacheWidth the player uses) so swiping/clicking Next shows the picture
-    // instantly instead of waiting for download + decode at view time.
+    // Load every page image into the cache now so tapping Next shows the
+    // picture right away instead of waiting for it to download.
     if (mounted) _precachePageImages();
   }
 
-  /// Start BGM the first time (loads URL, sets volume, loops), or resume it on
-  /// subsequent calls. No-op if this audiobook has no music track assigned.
+  /* Start the music the first time (load, set volume, loop), or resume it
+     after that. Does nothing if this book has no music. */
   Future<void> _startBgmIfNeeded() async {
     final url = _audiobook?.musicTrackFileUrl;
     if (url == null || url.isEmpty) return;
@@ -326,7 +308,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       }
       await _bgmPlayer.play();
     } catch (_) {
-      // BGM is non-essential; silently ignore failures.
+      // Music is optional; ignore failures.
     }
   }
 
@@ -340,19 +322,18 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       seen.add(url);
     }
     for (final url in seen) {
-      // CachedNetworkImageProvider hits the disk cache first, then network.
-      // Once a page image has been fetched once, subsequent visits skip the
-      // HTTP roundtrip entirely — which is the whole point on a slow
-      // emulator loopback or after an app restart.
+      // Checks the disk cache first, then the network. After the first
+      // fetch, later visits skip the download — handy on a slow emulator
+      // or after restarting the app.
       precacheImage(
         CachedNetworkImageProvider(url, maxWidth: 800),
         context,
-        onError: (_, _) {}, // silent: the display widget will retry on view
+        onError: (_, _) {}, // ignore: the widget will retry when shown
       );
     }
   }
 
-  /// Split a long story into sentence-based pages, each sharing [imageUrl].
+  // Break a long story into pages by sentence, all sharing [imageUrl].
   List<_PlayerPage> _pagesFromText(String text, String? imageUrl) {
     final sentences = text
         .split(RegExp(r'(?<=[.!?])\s+'))
@@ -379,7 +360,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
 
   Future<void> _togglePlayPause() async {
     if (_useTts) {
-      // Narration mode uses Gemini's natural voice.
+      // Voice mode uses Gemini.
       await _toggleNarration();
       return;
     }
@@ -387,30 +368,29 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       await _engine.pause();
       unawaited(_bgmPlayer.pause());
       _listenWatch.stop();
-      _pauseCount++; // UC-9: user-initiated pause
+      _pauseCount++; // count the pause for UC-9
     } else {
       unawaited(_engine.play()); // see note in _toggleNarration
       unawaited(_startBgmIfNeeded());
       _listenWatch.start();
-      // No need to subscribe here — _loadAudiobook already armed the position
-      // listener as soon as the recording loaded, so page auto-advance works
-      // from the very first playback tick.
+      // No need to subscribe here — _loadAudiobook already set up the
+      // position listener, so page auto-flip works from the first tick.
     }
     if (mounted) setState(() => _playingAudio = !_playingAudio);
   }
 
-  /// Play/pause the current page with Gemini's natural voice. Highlights words
-  /// in time with the audio (karaoke-style) so read-along works too.
+  /* Play/pause the current page with Gemini's voice, highlighting each word
+     as it's spoken (karaoke-style) for read-along. */
   Future<void> _toggleNarration() async {
     if (_naturalLoading) return;
 
-    // Already narrating this page -> pause / resume.
+    // Already reading this page -> pause / resume.
     if (_naturalPlaying) {
       if (_playingAudio) {
         await _engine.pause();
         unawaited(_bgmPlayer.pause());
         _listenWatch.stop();
-        _pauseCount++; // UC-9: user-initiated pause
+        _pauseCount++; // count the pause for UC-9
         if (mounted) setState(() => _playingAudio = false);
       } else {
         unawaited(_engine.play()); // see note in fresh-play branch below
@@ -425,12 +405,12 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     final text = _pages[_page].text.trim();
     if (text.isEmpty) return;
 
-    // Read settings before any await (avoids using context across async gaps).
+    // Read settings before any await (don't use context across async gaps).
     final settings = _readSettings();
     final voice = settings.narratorVoice.apiValue;
     final speed = settings.readingSpeed;
 
-    // Tag this narration; if a newer one (or a page turn) starts, this one bails.
+    // Tag this read; if a newer one or a page turn starts, this one stops.
     final seq = ++_narrationSeq;
 
     if (mounted) {
@@ -442,7 +422,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     }
 
     final resp = await DatabaseService.getNaturalVoiceUrl(text: text, voice: voice);
-    if (!mounted || seq != _narrationSeq) return; // superseded while loading
+    if (!mounted || seq != _narrationSeq) return; // a newer read took over
     setState(() => _naturalLoading = false);
 
     if (resp.success && resp.data is String) {
@@ -450,18 +430,16 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         await _engine.loadAudio(resp.data as String);
         if (!mounted || seq != _narrationSeq) return;
         await _engine.setSpeed(speed);
-        // The read-along word spans need the clip duration, which often isn't
-        // known yet right after loading. They're built lazily on the first
-        // position tick (see _listenForNaturalProgress) so read-along starts on
-        // the FIRST tap instead of only after a second one.
+        // Read-along needs the clip length, which often isn't known right
+        // after loading. We build the word spans on the first position tick
+        // (see _listenForNaturalProgress) so read-along works on the first tap.
         _narrationText = text;
         _wordSpans = const [];
         _naturalPlaying = true;
         _listenForNaturalProgress();
-        // NOTE: just_audio's play() returns a future that only completes when
-        // playback ENDS (or is paused/stopped) — not when it starts. Awaiting
-        // it would block the setState below until the clip finished, which is
-        // why Listen used to need two taps before Pause + read-along showed.
+        // just_audio's play() finishes only when playback ENDS, not when it
+        // starts. Awaiting it would block the setState below until the clip
+        // was done, so we don't await it.
         unawaited(_engine.play());
         unawaited(_startBgmIfNeeded());
         _listenWatch.start();
@@ -479,14 +457,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     }
   }
 
-  /// Subscribe to playback position and highlight the word being spoken.
+  // Follow the playback position and highlight the word being spoken.
   void _listenForNaturalProgress() {
     _naturalPosSub?.cancel();
     if (!_readSettings().readAlong) return;
     _naturalPosSub = _engine.positionStream.listen((pos) {
       if (!mounted || !_naturalPlaying) return;
-      // Build the word spans the first time the clip duration is known (it
-      // usually isn't ready the instant playback starts).
+      // Build the word spans once the clip length is known (usually not
+      // right when playback starts).
       if (_wordSpans.isEmpty) {
         final total = _engine.player.duration;
         if (total == null || total <= Duration.zero) return;
@@ -507,14 +485,13 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     });
   }
 
-  /// Page end-times along a whole-book recording. When the caregiver marked
-  /// page boundaries during upload (audioStartMs is set on pages 2..N in
-  /// strictly increasing order) we use those exact offsets — page i ends
-  /// where page i+1 starts, and the last page ends at the clip's total
-  /// duration. Otherwise we fall back to the word-count heuristic.
+  /* When each page ends in a whole-book recording. If the caregiver marked
+     page starts during upload (audioStartMs set and increasing), we use
+     those exact marks — page i ends where page i+1 starts, last page ends
+     at the clip's end. Otherwise we guess from word counts. */
   List<Duration> _buildPageEndTimes(List<_PlayerPage> pages, Duration total) {
     if (pages.length <= 1) return [total];
-    // Are all pages 2..N marked, and monotonically increasing?
+    // Are all the later pages marked and increasing?
     var monotonic = true;
     var prevMs = 0;
     for (var i = 1; i < pages.length; i++) {
@@ -526,7 +503,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       prevMs = m;
     }
     if (monotonic && pages.last.audioStartMs! < total.inMilliseconds) {
-      // Exact: each page ends at the next page's start; last page = total.
+      // Each page ends where the next starts; the last ends at the total.
       final out = <Duration>[];
       for (var i = 0; i < pages.length; i++) {
         final endMs = i == pages.length - 1
@@ -539,9 +516,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     return _computePageEndTimes(pages, total);
   }
 
-  /// Compute the cumulative end-time of each page along a single whole-book
-  /// audio clip, by weighting each page by its share of the total word count.
-  /// Falls back to an even split when there's no usable text.
+  /* Work out each page's end time by its share of the total words.
+     Splits evenly if there's no usable text. */
   List<Duration> _computePageEndTimes(List<_PlayerPage> pages, Duration total) {
     final counts = pages
         .map((p) => RegExp(r'\S+').allMatches(p.text).length)
@@ -564,10 +540,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     return out;
   }
 
-  /// Word spans for each page anchored to that page's slice of the whole-book
-  /// audio timeline. `out[i][j]` is the j-th word of page i, with its start /
-  /// end Durations expressed in the FULL clip timeline (not page-relative),
-  /// so a position-stream tick can be matched against it directly.
+  /* Word spans for each page, placed on the full clip timeline. `out[i][j]`
+     is word j of page i, with start/end times on the whole clip (not the
+     page), so a position tick matches them directly. */
   List<List<_WordSpan>> _buildAudioFilePageSpans(
     List<_PlayerPage> pages,
     List<Duration> endTimes,
@@ -596,23 +571,19 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     return out;
   }
 
-  /// While the caregiver-uploaded whole-book audio is playing, drive both
-  /// auto page-turns AND read-along highlighting from the position stream.
-  /// Subscribes eagerly so that page sync starts working the first tick a
-  /// duration becomes available — even if it was null when the clip loaded.
+  /* While the uploaded recording plays, drive both auto page-flips and
+     read-along from the position stream. Subscribed early so page sync
+     works from the first tick the length is known. */
   void _listenForAudioFilePosition() {
     _audioPosSub?.cancel();
     if (_useTts || !_audioReady || _pages.isEmpty) return;
     _audioPosSub = _engine.positionStream.listen((pos) async {
       if (!mounted || !_playingAudio || _useTts) return;
 
-      // Lazy: if loadAudio came back with a null duration on cold start, the
-      // page boundaries + word spans weren't built yet — build them the
-      // moment a valid duration becomes available so this single subscription
-      // can drive everything from then on. We prefer _knownAudioDuration
-      // (populated by the durationStream listener) over the engine's polled
-      // duration, because for some HTTP-streamed MP3s only the stream value
-      // ever becomes non-null.
+      // If the length wasn't known at load time, the page breaks and word
+      // spans aren't built yet — build them once a real length shows up.
+      // Prefer _knownAudioDuration (from the durationStream listener); for
+      // some streamed MP3s only that ever becomes non-null.
       if (_pageEndTimes.length != _pages.length) {
         final dur = _knownAudioDuration ?? _engine.player.duration;
         if (dur == null || dur <= Duration.zero) return;
@@ -621,14 +592,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
             _buildAudioFilePageSpans(_pages, _pageEndTimes);
       }
 
-      // Auto-advance once the recording crosses the current page's end-time.
-      // _autoAdvanceInFlight prevents stacking multiple animateToPage calls
-      // during the 480 ms PageController animation when ticks keep arriving.
+      // Flip the page once the recording passes the current page's end.
+      // _autoAdvanceInFlight stops a second flip from starting during the
+      // 480 ms animation while ticks keep coming.
       if (!_autoAdvanceInFlight &&
           _page < _pages.length - 1 &&
           pos >= _pageEndTimes[_page]) {
         _autoAdvanceInFlight = true;
-        _suppressAudioPageSeek = true; // already at the boundary in audio
+        _suppressAudioPageSeek = true; // audio is already at the right spot
         try {
           await _changePage(_page + 1);
         } finally {
@@ -637,9 +608,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         return;
       }
 
-      // Read-along: highlight whichever word of the current page covers the
-      // engine's position. Bail quietly if the caregiver turned read-along
-      // off or if this page has no usable word spans.
+      // Read-along: highlight the word of this page at the current position.
+      // Stop quietly if read-along is off or this page has no word spans.
       if (!_readSettings().readAlong) return;
       if (_page >= _audioFilePageSpans.length) return;
       final pageSpans = _audioFilePageSpans[_page];
@@ -659,8 +629,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     });
   }
 
-  /// Distribute the words of [text] across [total], weighting longer words and
-  /// punctuation pauses, to approximate per-word timing for the highlight.
+  /* Spread the words of [text] across [total], giving longer words and
+     punctuation more time, to estimate when each word is spoken. */
   List<_WordSpan> _buildWordSpans(String text, Duration? total) {
     if (total == null || total.inMilliseconds <= 0) return const [];
     final matches = RegExp(r'\S+').allMatches(text).toList();
@@ -671,7 +641,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     for (final m in matches) {
       final word = text.substring(m.start, m.end);
       var w = word.length + 1.0;
-      if (RegExp(r'[.!?,;:]$').hasMatch(word)) w += 3; // pause after punctuation
+      if (RegExp(r'[.!?,;:]$').hasMatch(word)) w += 3; // pause after a mark
       weights.add(w);
       totalWeight += w;
     }
@@ -694,7 +664,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 
   Future<void> _stopNaturalVoice() async {
-    _narrationSeq++; // invalidate any in-flight narration load
+    _narrationSeq++; // cancel any voice load in progress
     _naturalPosSub?.cancel();
     _naturalPosSub = null;
     _naturalPlaying = false;
@@ -703,7 +673,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     await _engine.stop();
   }
 
-  /// Called when the natural-voice clip for a page finishes playing.
+  // Runs when a page's voice clip finishes playing.
   void _onNaturalVoiceComplete() {
     _naturalPosSub?.cancel();
     _naturalPosSub = null;
@@ -719,20 +689,20 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
 
     final isLastPage = _page >= _pages.length - 1;
     if (isLastPage) {
-      unawaited(_bgmPlayer.pause()); // story finished — stop BGM
+      unawaited(_bgmPlayer.pause()); // story done — stop the music
       _reachedEnd = true;
       _recordSessionIfNeeded();
       _showFinishDialog();
       return;
     }
     if (_readSettings().autoPlayNext) {
-      // BGM keeps playing through the auto-advance; _startBgmIfNeeded in
-      // _toggleNarration will resume it if it ever got paused.
+      // Music keeps playing through the page flip; _toggleNarration
+      // resumes it if it ever paused.
       _changePage(_page + 1).then((_) {
         if (mounted) _toggleNarration();
       });
     } else {
-      unawaited(_bgmPlayer.pause()); // waiting for user to tap Listen again
+      unawaited(_bgmPlayer.pause()); // wait for the next Listen tap
     }
   }
 
@@ -755,13 +725,12 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   Future<void> _onPageChanged(int next) async {
     if (!mounted || next == _page) return;
     final wasNarrating = _naturalPlaying && _playingAudio;
-    // UC-9: count this as a "skip" only when the child manually moved forward
-    // (Next button / swipe). Reverse moves and the audio-driven auto-advance
-    // (flagged by _suppressAudioPageSeek below) don't count.
+    // Count a skip only when the child moves forward themselves (Next or
+    // swipe). Going back or an auto page-flip don't count.
     if (next > _page && !_suppressAudioPageSeek) {
       _skipCount++;
     }
-    // Narration is per-page, so stop it when the page turns.
+    // Voice is per-page, so stop it when the page turns.
     if (_naturalPlaying) {
       await _stopNaturalVoice();
     }
@@ -772,16 +741,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       _highlightEnd = 0;
       if (_useTts) _playingAudio = false;
     });
-    // If the child turned the page mid-narration, keep reading on the new page.
+    // If the child turned the page while reading, read the new page.
     if (wasNarrating && _useTts && mounted) {
       await Future.delayed(const Duration(milliseconds: 200));
       if (mounted) await _toggleNarration();
       return;
     }
-    // Audio-file mode with a whole-book recording: keep the audio aligned to
-    // the page the user just chose. When this page-change was triggered by the
-    // audio crossing the boundary itself, we skip the seek (we'd be seeking to
-    // a moment we're already at).
+    // Uploaded-audio mode: move the audio to the page the user just chose.
+    // If the page changed because the audio crossed the boundary itself,
+    // skip the seek — we're already there.
     if (!_useTts &&
         _audioReady &&
         _pageEndTimes.length == _pages.length &&
@@ -791,16 +759,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         return;
       }
       // Manual jump (Next/Back/swipe) — move the audio to the start of [next].
-      // Page 0 starts at zero; later pages start at the previous page's end.
+      // Page 0 starts at 0; later pages start at the previous page's end.
       final start = next == 0 ? Duration.zero : _pageEndTimes[next - 1];
-      // Nudge slightly past the previous boundary so the position listener
-      // doesn't immediately treat us as "still on the old page".
+      // Nudge just past the boundary so the listener doesn't think we're
+      // still on the old page.
       const epsilon = Duration(milliseconds: 50);
       try {
         await _engine.seek(start + epsilon);
       } catch (_) {}
-      // If we just stepped backwards, we may have left the engine in a
-      // completed state already (rare on whole-book audio). Resume playback if
+      // Stepping back can leave the engine in a finished state. Resume if
       // the user was already listening.
       if (_playingAudio && next < previousPage) {
         unawaited(_engine.play());
@@ -808,7 +775,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     }
   }
 
-  /// Celebrate finishing the whole story with a calm, encouraging dialog.
+  // Show a calm, happy dialog when the whole story is finished.
   Future<void> _showFinishDialog() async {
     if (!mounted || _finishShowing) return;
     _finishShowing = true;
@@ -835,7 +802,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     _finishShowing = false;
   }
 
-  /// Jump back to page one and start reading again from the top.
+  // Go back to page one and start reading from the top.
   Future<void> _restartStory() async {
     _reachedEnd = false;
     _sessionRecorded = false;
@@ -962,9 +929,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               onPageChanged: _onPageChanged,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (context, index) {
-                // Highlight is active during Gemini-TTS narration AND during
-                // playback of a caregiver-uploaded whole-book recording, since
-                // both paths now feed per-word spans into the position stream.
+                // Highlighting is on for both Gemini voice and uploaded
+                // recordings, since both feed word spans to the listener.
                 final narrating = _playingAudio &&
                     (_naturalPlaying || (!_useTts && _audioReady));
                 final page = _StorybookPage(
@@ -981,13 +947,10 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                   author: _audiobook?.author,
                   textScale: textScale,
                 );
-                // PageView's natural horizontal slide is the page-flip
-                // animation now. The earlier 3D rotation looked book-like
-                // in stills but produced unavoidable diagonal dark wedges
-                // mid-swipe (overlapping perspective trapezoids of two
-                // pages at different rotations) — no shadow setting made
-                // them go away. Plain slide is shadow-free and still reads
-                // as "turning a page" when paired with the storybook frame.
+                // The page flip is just PageView's slide. An earlier 3D
+                // rotation looked nice in stills but made dark wedges
+                // mid-swipe, so we dropped it. The plain slide is clean
+                // and still feels like turning a page.
                 return page;
               },
             ),
@@ -1071,9 +1034,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     final speed = settings.readingSpeed;
     final textScale = settings.textScale;
     final currentVoice = settings.narratorVoice;
-    // _useTts is auto-set by _loadAudiobook based on whether the book has a
-    // pre-recorded audio file; we no longer expose a Read Along/Audio toggle
-    // since most books only have one playback path and the choice was confusing.
+    // _loadAudiobook sets _useTts based on whether the book has a recording.
+    // There's no manual toggle — most books have only one way to play.
     return SoftCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1122,9 +1084,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               label: '${speed.toStringAsFixed(1)}x',
               onChanged: (value) async {
                 _applySettingsChange((s) => s.copyWith(readingSpeed: value));
-                // Narration and audio-file playback both run through the engine.
-                // The speed is pitch-corrected and the read-along spans are in
-                // media time, so they stay in sync after a live speed change.
+                // Both voice and audio play through the engine. Speed is
+                // pitch-corrected and read-along uses media time, so they
+                // stay in sync when the speed changes.
                 if (_naturalPlaying || (!_useTts && _audioReady)) {
                   await _engine.setSpeed(value);
                 }
@@ -1204,8 +1166,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     );
   }
 
-  /// Maps the speed slider value to the descriptor shown next to the value
-  /// pill ("Slow" / "Normal" / "Fast").
+  // Pick the speed label ("Slow" / "Normal" / "Fast") for the slider value.
   String _speedDescriptorKey(double speed) {
     if (speed <= 0.85) return 'player.speed_slow';
     if (speed >= 1.15) return 'player.speed_fast';
@@ -1215,7 +1176,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   Future<void> _setVoice(NarratorVoice voice) async {
     final wasNarrating = _naturalPlaying;
     _applySettingsChange((s) => s.copyWith(narratorVoice: voice));
-    // If we were narrating, restart this page so the new voice is heard.
+    // If we were reading, restart this page so the new voice is heard.
     if (wasNarrating && mounted) {
       await _stopNaturalVoice();
       if (!mounted) return;
@@ -1225,19 +1186,18 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 }
 
-/// One renderable storybook page: its narration text and (optional) image.
+// One storybook page: its text and optional image.
 class _PlayerPage {
   final String text;
   final String? imageUrl;
-  /// Offset (ms) where this page starts in the caregiver's whole-book audio.
-  /// Null on page 1 (implicitly 0) and on unmarked books — the player falls
-  /// back to its word-count heuristic when this is missing.
+  /* Where this page starts in the recording, in ms. Null on page 1 and on
+     unmarked books — the player guesses from word counts when it's missing. */
   final int? audioStartMs;
   const _PlayerPage({required this.text, this.imageUrl, this.audioStartMs});
 }
 
-/// A word's character range plus the audio time window it is spoken in, used to
-/// drive karaoke-style highlighting for the (timestamp-less) Gemini voice.
+/* A word's character range and the time window it's spoken in, used for
+   karaoke-style highlighting. */
 class _WordSpan {
   final int charStart;
   final int charEnd;
@@ -1246,7 +1206,7 @@ class _WordSpan {
   const _WordSpan(this.charStart, this.charEnd, this.start, this.end);
 }
 
-/// Calm celebration shown when the child finishes the whole story.
+// The happy dialog shown when the child finishes the story.
 class _FinishReadingDialog extends StatelessWidget {
   final String storyTitle;
   final VoidCallback onReadAgain;
@@ -1471,9 +1431,8 @@ class _StorybookPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Expanded(
-            // _HighlightedText owns its own ScrollController so it can keep
-            // the currently-narrated word in view automatically — wrapping it
-            // in another SingleChildScrollView here would defeat that.
+            // _HighlightedText has its own ScrollController to keep the
+            // spoken word in view, so don't wrap it in another scroll view.
             child: _HighlightedText(
               text: text,
               highlightStart: highlightStart,
@@ -1512,11 +1471,9 @@ class _Illustration extends StatelessWidget {
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
                 width: double.infinity,
-                // Decode at a reduced size — the AI images are 1024x1024
-                // (~1.4MB) and decoding several at full size can fail on
-                // low-memory devices. CachedNetworkImage keeps a disk copy
-                // separate from this decode size, so re-views are instant
-                // even after eviction from the in-memory cache.
+                // Decode smaller — the AI images are 1024x1024 and decoding
+                // several at full size can crash low-memory devices. The
+                // disk copy is kept full-size, so re-views are still instant.
                 memCacheWidth: 800,
                 placeholder: (_, _) => _placeholder(loading: true),
                 errorWidget: (_, _, _) => _placeholder(),
@@ -1550,11 +1507,9 @@ class _Illustration extends StatelessWidget {
   }
 }
 
-/// Page text with karaoke-style word highlighting that auto-scrolls to keep
-/// the spoken word in view. When the narrator's position moves past the
-/// bottom of the visible region (or back above the top after a page turn),
-/// the scroll view animates so the highlight sits in the upper third of the
-/// viewport — the child doesn't have to scroll manually to follow along.
+/* Page text with karaoke-style highlighting that auto-scrolls to keep the
+   spoken word in view, so the child doesn't have to scroll to follow along.
+   The highlight is kept in the upper third of the view. */
 class _HighlightedText extends StatefulWidget {
   final String text;
   final int highlightStart;
@@ -1585,9 +1540,7 @@ class _HighlightedTextState extends State<_HighlightedText> {
   @override
   void didUpdateWidget(covariant _HighlightedText old) {
     super.didUpdateWidget(old);
-    // When the page text itself changes (page-turn), snap back to the top so
-    // the next page starts at the beginning instead of inheriting the
-    // previous scroll offset.
+    // On a page turn, jump back to the top so the new page starts fresh.
     if (widget.text != old.text) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -1602,10 +1555,9 @@ class _HighlightedTextState extends State<_HighlightedText> {
     }
   }
 
-  /// If the highlighted word is outside the viewport (or close to its edge),
-  /// animate the scroll so it sits ~30% from the top — leaves room above for
-  /// the child to glance back at the words they've heard, and room below for
-  /// the next words coming up.
+  /* If the highlighted word is off-screen or near the edge, scroll so it
+     sits about a third from the top — room above to look back, room below
+     for what's next. */
   void _ensureHighlightVisible() {
     if (!mounted || !_scroll.hasClients) return;
     final ctx = _textKey.currentContext;
@@ -1617,8 +1569,8 @@ class _HighlightedTextState extends State<_HighlightedText> {
     final end = widget.highlightEnd;
     if (end <= start || start < 0 || end > widget.text.length) return;
 
-    // Lay out the same TextSpan we render so the offsets line up exactly
-    // (the highlighted span is bolder, which subtly shifts line breaks).
+    // Lay out the same TextSpan we render so the positions match (the bold
+    // highlight shifts line breaks slightly).
     final painter = TextPainter(
       text: _buildSpan(),
       textDirection: TextDirection.ltr,
@@ -1635,8 +1587,8 @@ class _HighlightedTextState extends State<_HighlightedText> {
     if (maxScroll <= 0) return;
 
     final desired = (wordTopY - viewport * 0.3).clamp(0.0, maxScroll);
-    // Already roughly where we want to be — skip the animation so a flurry
-    // of position events doesn't churn the scroll position.
+    // Already close enough — skip the animation so rapid ticks don't jitter
+    // the scroll.
     if ((desired - current).abs() < 8) return;
 
     _scroll.animateTo(
@@ -1694,8 +1646,8 @@ class _HighlightedTextState extends State<_HighlightedText> {
   }
 }
 
-/// Small banner shown above the settings panel during a caregiver preview —
-/// reminds them that voice/speed/text-size changes apply to this preview only.
+/* Small banner shown in caregiver preview — reminds them that voice/speed/
+   text-size changes only affect this preview. */
 class _PreviewNotice extends StatelessWidget {
   const _PreviewNotice();
 
@@ -1844,8 +1796,8 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-/// Section header inside the settings panel: small leading icon + bold label,
-/// and an optional value pill on the right (e.g. "0.7x · Slow").
+/* Settings-panel section header: icon + bold label, with an optional value
+   pill on the right (e.g. "0.7x · Slow"). */
 class _SettingSectionLabel extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1874,8 +1826,8 @@ class _SettingSectionLabel extends StatelessWidget {
   }
 }
 
-/// Soft, slightly-rounded "pill" that shows a value (and an optional subtitle
-/// after a thin divider, e.g. "0.7x · Slow").
+/* Rounded pill showing a value, with an optional subtitle after a thin
+   divider (e.g. "0.7x · Slow"). */
 class _ValuePill extends StatelessWidget {
   final String value;
   final String? subtitle;
@@ -1919,9 +1871,8 @@ class _ValuePill extends StatelessWidget {
   }
 }
 
-/// Narrator-voice chip with a per-voice category icon and soft tinted
-/// background. When selected, fills with primary blue and shows a checkmark
-/// so it's obvious at a glance which voice is active.
+/* Narrator-voice chip with an icon and soft tint. When selected, it turns
+   blue with a checkmark so the active voice is obvious. */
 class _VoicePill extends StatelessWidget {
   final NarratorVoice voice;
   final String label;
@@ -1942,8 +1893,7 @@ class _VoicePill extends StatelessWidget {
     NarratorVoice.soothingElder: Icons.elderly_rounded,
   };
 
-  // Subtle per-voice tint so the chips are visually distinct in the
-  // unselected state without breaking the calm pastel palette.
+  // A soft tint per voice so unselected chips look distinct but still calm.
   static const _tints = <NarratorVoice, Color>{
     NarratorVoice.calmFemale: AppColors.softPink,
     NarratorVoice.gentleFemale: AppColors.softLavender,

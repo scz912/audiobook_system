@@ -7,11 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/**
- * Latest cache of Gemini's listening-behaviour analysis for one child (UC-9).
- * The `items` JSON holds the list of suggestions with per-item status; the
- * caregiver resolves each one with accept / edit / dismiss in UC-10.
- */
+/* The latest saved Gemini tips for one child. The `items` JSON holds
+   each tip and its status; the caregiver accepts, edits, or dismisses
+   them one by one. */
 class AiSuggestion extends Model
 {
     use HasFactory;

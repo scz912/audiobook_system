@@ -58,7 +58,7 @@ class ChildInsight {
   }
 }
 
-/// One day in the last-seven-days mini chart.
+// One day in the last-seven-days mini chart.
 class DayMinutes {
   final String date; // YYYY-MM-DD (KL local)
   final String dayLabel; // short weekday name, e.g. "Mon"
@@ -77,7 +77,7 @@ class DayMinutes {
       );
 }
 
-/// One row in the "top stories" list.
+// One row in the "top stories" list.
 class TopStory {
   final String audiobookId;
   final String title;
@@ -102,7 +102,7 @@ class TopStory {
       );
 }
 
-/// One row in the recent activity feed.
+// One row in the recent activity feed.
 class RecentSession {
   final String historyId;
   final String childId;
@@ -116,7 +116,7 @@ class RecentSession {
   final bool completed;
   final String? mood;
 
-  /// "YYYY-MM-DD HH:MM" in KL local time.
+  // "YYYY-MM-DD HH:MM" in KL local time.
   final String at;
 
   const RecentSession({

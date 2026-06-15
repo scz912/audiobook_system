@@ -45,9 +45,7 @@ class Caregiver extends Model
         'is_active' => 'boolean',
     ];
 
-    /**
-     * Columns that should receive auto-generated UUIDs on creation.
-     */
+    // Columns that get an auto UUID when created.
     public function uniqueIds(): array
     {
         return ['caregiver_id'];
@@ -55,7 +53,7 @@ class Caregiver extends Model
 
     public function setPinAttribute(string $value): void
     {
-        // If a 60-char bcrypt hash is passed in (during re-hydration), keep it.
+        // If it's already a bcrypt hash, keep it as-is.
         $this->attributes['pin'] = strlen($value) === 60 && str_starts_with($value, '$2y$')
             ? $value
             : Hash::make($value);

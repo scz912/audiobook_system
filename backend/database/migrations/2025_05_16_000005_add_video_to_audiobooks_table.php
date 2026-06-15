@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('video_file', 500)->nullable()->after('audio_file');
         });
 
-        // Add 'Video' to the type enum (raw statement avoids needing doctrine/dbal).
+        // Add 'Video' to the type enum.
         DB::statement("ALTER TABLE audiobooks MODIFY COLUMN type ENUM('Audio','Text','Video') NOT NULL DEFAULT 'Text'");
     }
 

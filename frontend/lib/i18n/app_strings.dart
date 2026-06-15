@@ -1,14 +1,14 @@
-/// Bilingual (English / Bahasa Malaysia) strings for the app.
-///
-/// Keep this file flat and grouped by screen for easy searching. When you add
-/// a key, add it to BOTH 'en' and 'ms' so untranslated strings can't slip in
-/// silently. The lookup falls back to English if a key is missing in Malay.
+/* Bilingual (English / Bahasa Malaysia) strings for the app.
+
+   Keep this file flat and grouped by screen for easy searching. When you add
+   a key, add it to BOTH 'en' and 'ms' so untranslated strings can't slip in
+   silently. The lookup falls back to English if a key is missing in Malay. */
 class AppStrings {
   AppStrings._();
 
   static const supportedCodes = ['en', 'ms'];
 
-  /// Human-readable name for a language code (used in the picker).
+  // Human-readable name for a language code (used in the picker).
   static const Map<String, String> languageNames = {
     'en': 'English',
     'ms': 'Bahasa Malaysia',
@@ -22,7 +22,7 @@ class AppStrings {
     'ms': _ms,
   };
 
-  // ---------------- ENGLISH ----------------
+  // English strings
   static const Map<String, String> _en = {
     // Common
     'common.save': 'Save',
@@ -418,7 +418,7 @@ class AppStrings {
     'insights.time_days_ago': 'd ago',
   };
 
-  // ---------------- BAHASA MALAYSIA ----------------
+  // Bahasa Malaysia strings
   static const Map<String, String> _ms = {
     // Common
     'common.save': 'Simpan',
@@ -776,7 +776,7 @@ class AppStrings {
     'insights.mood.curious': 'Ingin tahu',
     'insights.mood.sleepy': 'Mengantuk',
 
-    // UC-9: Cadangan AI berdasarkan tingkah laku mendengar
+    // Cadangan AI berdasarkan tingkah laku mendengar
     'insights.suggestions_title': 'Cadangan AI',
     'insights.suggestions_sub':
         'Pelarasan yang Gemini fikir boleh membantu kanak-kanak ini, berdasarkan aktiviti mendengar terkini.',

@@ -6,13 +6,10 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Offset (in milliseconds) from the start of the whole-book recording
-     * where this page begins. Page 1 is implicitly 0. When pages 2..N have
-     * this set, the player uses these exact boundaries to flip pages and
-     * carve up the read-along word spans, instead of the word-count
-     * heuristic that drifts on uneven narration pacing.
-     */
+    /* Where this page starts in the whole-book recording, in milliseconds.
+       Page 1 is 0. When the other pages have this set, the player uses
+       these exact marks to flip pages and line up the read-along words,
+       instead of guessing from word counts. */
     public function up(): void
     {
         Schema::table('audiobook_pages', function (Blueprint $table) {

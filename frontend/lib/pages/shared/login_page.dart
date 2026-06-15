@@ -157,10 +157,8 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: _busy
                         ? null
                         : () => setState(() => _isRegisterMode = !_isRegisterMode),
-                    // The prefix question stays neutral grey, the action verb
-                    // takes a warm contrasting colour + underline so it reads
-                    // as the obvious clickable bit instead of blending into
-                    // the primary blue of the Sign in button above.
+                    // The question stays grey; the action verb is coloured +
+                    // underlined so it clearly looks tappable.
                     child: Text.rich(
                       TextSpan(
                         style: const TextStyle(fontSize: 14),

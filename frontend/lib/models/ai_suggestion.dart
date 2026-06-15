@@ -1,28 +1,28 @@
 import '_json_helpers.dart';
 
-/// One Gemini-suggested setting tweak for a child (UC-9). The caregiver
-/// resolves each item by accepting, editing then accepting, or dismissing it.
+// One item from the `items` array in `ai_suggestions`. 
+// Represents one suggested setting change.
 class AiSuggestionItem {
   final String id;
 
-  /// One of: reading_speed, narrator_voice, volume, text_scale,
-  /// reduced_animations, auto_play_next, read_along.
+  /* One of: reading_speed, narrator_voice, volume, text_scale,
+     reduced_animations, auto_play_next, read_along. */
   final String settingKey;
 
-  /// Whatever the child's current setting is right now — useful so the UI can
-  /// show "currently 1.00 → suggested 0.90".
+  /* Whatever the child's current setting is right now — useful so the UI can
+     show "currently 1.00 → suggested 0.90". */
   final dynamic currentValue;
 
-  /// The value Gemini suggested (numbers, booleans, or enum strings).
+  // The value Gemini suggested (numbers, booleans, or enum strings).
   final dynamic suggestedValue;
 
-  /// The value actually written to child_settings when the caregiver accepted
-  /// (possibly after editing). Null while still pending.
+  /* The value actually written to child_settings when the caregiver accepted
+     (possibly after editing). Null while still pending. */
   final dynamic appliedValue;
 
   final String reason;
 
-  /// pending | accepted | edited | dismissed
+  // pending | accepted | edited | dismissed
   final String status;
 
   const AiSuggestionItem({
@@ -52,19 +52,19 @@ class AiSuggestionItem {
   bool get isDismissed => status == 'dismissed';
 }
 
-/// One row from `ai_suggestions`. Wraps the cached snapshot of Gemini's most
-/// recent listening-behaviour analysis for a child.
+/* One row from `ai_suggestions`. Wraps the cached snapshot of Gemini's most
+   recent listening-behaviour analysis for a child. */
 class AiSuggestion {
   final String? suggestionId;
   final String childId;
 
-  /// 'low' when there were fewer than ~5 sessions in the analysis window —
-  /// the UI shows a "low confidence" hint when this is set.
+  /* 'low' when there were fewer than ~5 sessions in the analysis window —
+     the UI shows a "low confidence" hint when this is set. */
   final String confidence;
 
-  /// True when the latest analyse call failed and we re-served this previous
-  /// snapshot (UC-9 exception flow E2). The UI shows a "couldn't refresh"
-  /// banner when this is set.
+  /* True when the latest analyse call failed and we re-served this previous
+     snapshot (UC-9 exception flow E2). The UI shows a "couldn't refresh"
+     banner when this is set. */
   final bool isStale;
 
   final DateTime? generatedAt;

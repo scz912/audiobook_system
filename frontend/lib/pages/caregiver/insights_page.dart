@@ -25,13 +25,12 @@ class _InsightsPageState extends State<InsightsPage> {
   InsightsOverview _data = InsightsOverview.empty();
   bool _loading = true;
   String? _error;
-  // null = all children (the default); otherwise the child whose stats we're
-  // scoped to. Stays across rebuilds so chip selection persists.
+  // null = all children (the default), else the one child we're showing.
+  // Kept across rebuilds so the chip choice sticks.
   String? _selectedChildId;
 
-  // UC-9: AI listening-behaviour suggestions for the currently-selected child.
-  // Suggestions are inherently per-child (the analysis prompt is scoped that
-  // way), so this only loads when _selectedChildId is non-null.
+  // AI tips for the selected child. Tips are per-child, so this only loads
+  // when one child is selected.
   AiSuggestion? _suggestions;
   bool _suggestionsLoading = false;
   bool _analyzing = false;
@@ -76,7 +75,7 @@ class _InsightsPageState extends State<InsightsPage> {
     if (_selectedChildId == childId) return;
     setState(() {
       _selectedChildId = childId;
-      // Drop the previous child's suggestions while we fetch the new one's.
+      // Clear the old child's tips while we load the new one's.
       _suggestions = null;
     });
     _load();
@@ -132,8 +131,7 @@ class _InsightsPageState extends State<InsightsPage> {
     if (!mounted) return;
     if (resp.success && resp.data is AiSuggestion) {
       setState(() => _suggestions = resp.data as AiSuggestion);
-      // The applied value also lives in child_settings now — re-load so the
-      // global cache picks it up before the player opens.
+      // The value is in child_settings now — re-load so the player sees it.
       // ignore: use_build_context_synchronously
       await context.read<SettingsState>().loadForChild(childId);
     } else {
@@ -364,8 +362,7 @@ class _InsightsPageState extends State<InsightsPage> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 14,
       crossAxisSpacing: 14,
-      // Just shy of square — enough vertical room for the two-line labels
-      // without leaving empty space beneath them.
+      // Just shy of square — fits the two-line labels with no gap below.
       childAspectRatio: 1.05,
       children: cards
           .map((s) => StatCard(
@@ -381,8 +378,8 @@ class _InsightsPageState extends State<InsightsPage> {
   bool get _hasMoodData => _data.moodBreakdown.values.any((v) => v > 0);
 }
 
-/// Horizontal child-scope selector — "All children" + one chip per child.
-/// Tapping a chip refetches the insights for just that child.
+/* Row to pick whose insights to show — "All children" plus one chip per
+   child. Tapping a chip reloads the insights for that child. */
 class _ChildScopeSelector extends StatelessWidget {
   final String? selectedChildId;
   final void Function(String? childId) onSelect;
@@ -534,7 +531,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// Small bar chart of the last 7 days' listening minutes.
+// Small bar chart of listening minutes for the last 7 days.
 class _WeekChart extends StatelessWidget {
   final List<DayMinutes> days;
   final String minutesShort;
@@ -575,7 +572,7 @@ class _WeekChart extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Bar — grows from the bottom.
+                  // Bar grows up from the bottom.
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, c) {
@@ -874,7 +871,7 @@ class _RecentTile extends StatelessWidget {
   }
 
   String _shortWhen(String iso) {
-    // "2026-05-29 13:14" → "May 29, 13:14"; keeps it compact in the trailing slot.
+    // "2026-05-29 13:14" → "May 29, 13:14" so it fits the small slot.
     try {
       final parts = iso.split(' ');
       if (parts.length != 2) return iso;
@@ -1114,12 +1111,10 @@ class _Badge extends StatelessWidget {
   }
 }
 
-// ============================================================
-// UC-9: AI listening-behaviour suggestions
-// ============================================================
+// AI listening-behaviour suggestions
 
-/// Per-setting icon + tint, so each suggestion tile is visually distinct at a
-/// glance instead of being a wall of grey text.
+/* An icon and tint per setting, so each tip tile looks distinct instead of
+   a wall of grey text. */
 class _SettingVisual {
   final IconData icon;
   final Color tint;
@@ -1149,8 +1144,8 @@ _SettingVisual _visualFor(String key) {
   }
 }
 
-/// "5 min ago" style relative time, with the absolute timestamp as the
-/// tooltip — friendlier than a raw timestamp in the footer.
+/* "5 min ago" style time, with the full timestamp in the tooltip —
+   friendlier than a raw timestamp. */
 String _relativeWhen(BuildContext context, DateTime when) {
   final diff = DateTime.now().difference(when);
   if (diff.inSeconds < 60) return context.tr('insights.time_just_now');
@@ -1173,10 +1168,9 @@ String _absoluteWhen(DateTime when) {
       '${when.minute.toString().padLeft(2, '0')}';
 }
 
-/// Renders Gemini's per-child suggestion list with per-item Accept / Edit &
-/// accept / Dismiss actions. Always visible when a child is selected, so the
-/// caregiver has a clear call-to-action ("Run AI analysis") even before the
-/// first analysis has been requested.
+/* Shows Gemini's tips with Accept / Edit & accept / Dismiss on each one.
+   Always there when a child is selected, so "Run AI analysis" is visible
+   even before the first run. */
 class _SuggestionsCard extends StatelessWidget {
   final AiSuggestion? suggestion;
   final bool loading;
@@ -1275,9 +1269,8 @@ class _SuggestionsCard extends StatelessWidget {
   }
 }
 
-/// Top of the suggestions card — gradient AI badge, title, and a pending
-/// count chip so the caregiver can see at a glance how many items need
-/// attention without scrolling.
+/* Top of the card — AI badge, title, and a chip showing how many tips
+   still need attention. */
 class _Header extends StatelessWidget {
   final int pendingCount;
   final bool hasItems;
@@ -1378,7 +1371,7 @@ class _PendingChip extends StatelessWidget {
   }
 }
 
-/// Bottom of the card — relative-time stamp + prominent Run/Refresh button.
+// Bottom of the card — the time stamp and the Run/Refresh button.
 class _Footer extends StatelessWidget {
   final DateTime? generatedAt;
   final bool analyzing;
@@ -1444,9 +1437,8 @@ class _Footer extends StatelessWidget {
   }
 }
 
-/// What the user sees when a child is selected but no analysis has run yet.
-/// A friendly icon + the "Run AI analysis" wording lifts the tone vs. a
-/// plain two-line text empty state.
+/* Shown when a child is selected but no analysis has run yet — a friendly
+   icon and the "Run AI analysis" prompt. */
 class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1548,8 +1540,7 @@ class _SuggestionTile extends StatelessWidget {
         : _renderValue(context, item.settingKey, item.currentValue);
     final resolved = !item.isPending;
 
-    // Resolved items fade back so the caregiver's eye lands on what still
-    // needs attention. We render the whole tile in a translucent wrapper.
+    // Resolved tiles fade back so attention falls on the pending ones.
     return Opacity(
       opacity: resolved ? 0.55 : 1.0,
       child: Container(
@@ -1562,7 +1553,7 @@ class _SuggestionTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row: setting icon + name + resolved badge.
+            // Header row: setting icon, name, and resolved badge.
             Row(
               children: [
                 Container(
@@ -1588,7 +1579,7 @@ class _SuggestionTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            // Now → Suggested comparison.
+            // Now vs. suggested.
             _ValueComparison(
               currentLabel: context.tr('insights.current_value'),
               suggestedLabel: context.tr('insights.suggested_value'),
@@ -1597,7 +1588,7 @@ class _SuggestionTile extends StatelessWidget {
               tint: visual.tint,
             ),
             const SizedBox(height: 12),
-            // Reason — soft callout with a lightbulb on the leading edge.
+            // Reason — soft callout with a lightbulb.
             _ReasonCallout(text: item.reason),
             if (item.isPending) ...[
               const SizedBox(height: 12),
@@ -1646,8 +1637,8 @@ class _SuggestionTile extends StatelessWidget {
   }
 }
 
-/// Side-by-side "Now value → Suggested value" block with a clear arrow
-/// between the two so the direction of the change is unambiguous.
+/* "Now → Suggested" shown side by side with an arrow, so the change is
+   clear. */
 class _ValueComparison extends StatelessWidget {
   final String currentLabel;
   final String suggestedLabel;
@@ -1750,8 +1741,8 @@ class _ValueBox extends StatelessWidget {
   }
 }
 
-/// Quoted callout — soft tint, leading lightbulb, left accent stripe. Makes
-/// Gemini's reasoning feel like a friendly note, not body text.
+/* Callout with a soft tint, lightbulb, and left stripe — makes the reason
+   feel like a friendly note. */
 class _ReasonCallout extends StatelessWidget {
   final String text;
   const _ReasonCallout({required this.text});
@@ -1789,8 +1780,8 @@ class _ReasonCallout extends StatelessWidget {
   }
 }
 
-/// Per-item Accept / Edit & accept / Dismiss row. Accept is the
-/// largest primary-coloured chip; Dismiss is the quietest.
+/* Accept / Edit & accept / Dismiss row. Accept stands out most, Dismiss
+   the least. */
 class _ActionBar extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onEditAccept;
@@ -1841,9 +1832,8 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-/// Coloured pill with a leading icon shown next to a resolved suggestion,
-/// replacing the plain text badge so accepted/dismissed status is visually
-/// distinct at a glance.
+/* Coloured pill with an icon shown on a resolved tip, so accepted vs.
+   dismissed is clear at a glance. */
 class _StatusBadge extends StatelessWidget {
   final AiSuggestionItem item;
   const _StatusBadge({required this.item});
@@ -1881,9 +1871,8 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-/// Edit dialog opened from a suggestion's "Edit & accept" button. The control
-/// type matches the setting's underlying type: slider for numerics, dropdown
-/// for the voice enum, switch for booleans.
+/* Dialog from the "Edit & accept" button. The control fits the setting:
+   slider for numbers, dropdown for the voice, switch for on/off. */
 class _EditValueDialog extends StatefulWidget {
   final AiSuggestionItem item;
   const _EditValueDialog({required this.item});
@@ -1987,8 +1976,7 @@ class _EditValueDialogState extends State<_EditValueDialog> {
           divisions: divisions,
           label: label,
           onChanged: (v) => setState(() {
-            // Snap to the step so the saved value is one of the values the
-            // backend's validator expects.
+            // Snap to the step so the saved value passes the backend check.
             _value = (v / step).round() * step;
           }),
         ),

@@ -28,18 +28,21 @@ Route::prefix('auth')->group(function () {
 
 // All routes below require a valid session token.
 Route::middleware('session.auth')->group(function () {
+    // Auth and session management
     Route::prefix('auth')->group(function () {
         Route::post('/me',         [AuthController::class, 'me']);
         Route::post('/logout',     [AuthController::class, 'logout']);
         Route::post('/verify-pin', [AuthController::class, 'verifyPin']);
     });
 
+    // User settings
     Route::prefix('settings')->group(function () {
         Route::post('/',           [SettingsController::class, 'show']);
         Route::post('/update',     [SettingsController::class, 'update']);
         Route::post('/change-pin', [SettingsController::class, 'changePin']);
     });
 
+    // Child profiles and settings
     Route::prefix('child-profiles')->group(function () {
         Route::post('/',                 [ChildProfileController::class, 'index']);
         Route::post('/create',           [ChildProfileController::class, 'store']);
@@ -49,10 +52,12 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{childId}/settings/update', [ChildProfileController::class, 'updateSettings'])->whereUuid('childId');
     });
 
+    // Audiobook data retrieval
     Route::prefix('audiobooks')->group(function () {
         Route::post('/{audiobookId}', [AudiobookController::class, 'getAudiobookData'])->whereUuid('audiobookId');
     });
 
+    // Content management (caregiver-only)
     Route::prefix('content')->group(function () {
         Route::post('/summary',  [ContentManagementController::class, 'getContentSummary']);
         Route::post('/list',     [ContentManagementController::class, 'getContentList']);
@@ -65,14 +70,15 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{audiobookId}/pages/{pageId}/delete', [ContentManagementController::class, 'deletePage'])->whereUuid(['audiobookId', 'pageId']);
     });
 
+    // Listening history
     Route::prefix('listening-history')->group(function () {
         Route::post('/record',            [ListeningHistoryController::class, 'record']);
         Route::post('/child/{childId}',   [ListeningHistoryController::class, 'forProfile'])->whereUuid('childId');
     });
 
+    // Insights and suggestions
     Route::prefix('insights')->group(function () {
         Route::post('/overview', [InsightsController::class, 'overview']);
-        // UC-9 — Analyse Listening Behaviour. Per-child suggestions.
         Route::post('/{childId}/analyse',     [InsightsController::class, 'analyse'])->whereUuid('childId');
         Route::post('/{childId}/suggestions', [InsightsController::class, 'suggestions'])->whereUuid('childId');
         Route::post('/{childId}/suggestions/apply',   [InsightsController::class, 'applySuggestion'])->whereUuid('childId');

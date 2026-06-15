@@ -13,9 +13,9 @@ import '../pages/child/child_shell.dart';
 import '../pages/child/story_library_page.dart';
 import '../pages/shared/login_page.dart';
 
-/// Centralised route table. To navigate from anywhere:
-///   Navigator.of(context).pushNamed(AppRoutes.uploadContent);
-///   AppNavigationService.pushNamed(AppRoutes.audioPlayer, arguments: {...});
+/* Centralised route table. To navigate from anywhere:
+     Navigator.of(context).pushNamed(AppRoutes.uploadContent);
+     AppNavigationService.pushNamed(AppRoutes.audioPlayer, arguments: {...}); */
 class AppRoutes {
   AppRoutes._();
 
@@ -38,8 +38,7 @@ class AppRoutes {
   static const String storyLibrary = '/child/stories';
   static const String audioPlayer = '/child/audio-player';
 
-  /// Plain routes — no arguments needed.
-  /// NOTE: do not register '/' here — MaterialApp.home handles it.
+  // For static routes that need no arguments, we can use a simple routes table.
   static final Map<String, WidgetBuilder> staticRoutes = <String, WidgetBuilder>{
     login: (_) => const LoginPage(),
     caregiverShell: (_) => const CaregiverShell(),
@@ -54,13 +53,12 @@ class AppRoutes {
     storyLibrary: (_) => const StoryLibraryPage(),
   };
 
-  /// Routes that need typed arguments. Example:
-  /// ```dart
-  /// Navigator.pushNamed(context, AppRoutes.audioPlayer, arguments: {
-  ///   'title': book.title,
-  ///   'audiobookId': book.audiobookId,
-  /// });
-  /// ```
+  /* Routes that need typed arguments. Example:
+     Navigator.pushNamed(context, AppRoutes.audioPlayer, arguments: {
+       'title': book.title,
+       'audiobookId': book.audiobookId,
+     });
+     */
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case audioPlayer:

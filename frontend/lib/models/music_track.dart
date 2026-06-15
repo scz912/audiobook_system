@@ -35,7 +35,7 @@ class MusicTrack {
     );
   }
 
-  /// Display label used in the picker list and search.
+  // Display label used in the picker list and search.
   String get label => composer != null && composer!.isNotEmpty
       ? '$title - $composer'
       : title;

@@ -74,8 +74,7 @@ class ContentManagementController extends ApiController
                 $query->where('age_group', $request->input('age_group'));
             }
 
-            // Language filter — books default to 'en' but the caregiver can
-            // generate Malay stories now, so let the library narrow to one.
+            // Let the library filter by language (en or ms).
             if ($request->filled('language')) {
                 $query->where('language', strtolower($request->input('language')));
             }
@@ -120,11 +119,9 @@ class ContentManagementController extends ApiController
             'is_generated' => 'nullable|boolean',
             'language'     => 'nullable|in:en,ms',
             'source_file'  => 'nullable|file|mimes:pdf,txt,mp3,wav|max:10240',
-            // Use mimetypes (content sniffing) rather than mimes (filename
-            // extension) and cover the common variants Android / iOS pickers
-            // actually return for MP3, WAV, M4A, AAC and Ogg files — Laravel's
-            // strict "mp3,wav" map sometimes rejects valid MP3s that come
-            // through as audio/mpeg or audio/mp4 on real devices.
+            /* Check the file's real type, not its name, and cover the
+               audio types phone pickers send. The plain "mp3,wav" rule
+               sometimes wrongly rejects valid files. */
             'audio_file'   => 'nullable|file|max:20480|mimetypes:audio/mpeg,audio/mp3,audio/mpga,audio/wav,audio/x-wav,audio/wave,audio/vnd.wave,audio/x-pn-wav,audio/mp4,audio/x-m4a,audio/aac,audio/x-aac,audio/ogg,audio/vorbis,audio/flac,audio/webm',
             'video_file'   => 'nullable|file|mimes:mp4,mov,webm|max:51200',
             'cover_image'  => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
@@ -203,10 +200,8 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Generate a story (and optional cover image) with Gemini AI and save it
-     * as a new audiobook. Used by the caregiver "Generate with AI" flow (UC-6).
-     */
+    /* Make a story (and cover) with Gemini and save it as a new audiobook.
+       This is the caregiver's "Generate with AI" flow. */
     public function generateContent(Request $request, GeminiService $gemini): JsonResponse
     {
         $this->logEvent('Content', 'generateContent called', [
@@ -261,18 +256,15 @@ class ContentManagementController extends ApiController
 
             $generateImages = $request->boolean('generate_image');
 
-            // The story text is ready instantly. Each page image takes ~12s, so
-            // we save the book as "processing", then draw every page via the
-            // GenerateAudiobookImages job and flip it to "available".
-            //
-            // With QUEUE_CONNECTION=sync (the default here) the job runs inline
-            // during this request — no separate worker needed — so the book is
-            // already finished when we respond. With QUEUE_CONNECTION=database it
-            // runs in the background (needs `php artisan queue:work`) and the app
-            // shows a pending state until the job finishes.
+            /* Text is ready now, but each page image takes ~12s. So we
+               save the book as "processing", then the GenerateAudiobookImages
+               job draws the pictures and flips it to "available".
+
+               With QUEUE_CONNECTION=sync (the default) the job runs right
+               here, so the book is done when we reply. With =database it
+               runs in the background and the app shows a pending state. */
             $content = Audiobook::create([
-                // Keep the caregiver's typed text as the title — don't rename it
-                // to the AI's invented title.
+                // Keep the caregiver's title, not the AI's made-up one.
                 'title'            => trim((string) $request->input('topic')),
                 'topic'            => $request->input('topic'),
                 'category'         => $request->input('category'),
@@ -305,8 +297,7 @@ class ContentManagementController extends ApiController
                 $content->refresh(); // 'available' now if the job ran inline (sync)
             }
 
-            // Pre-warm TTS cache for every page with the default voice so the
-            // caregiver's first preview plays without a generation delay.
+            // Make the voice clips now so the first preview plays fast.
             if ($gemini->isConfigured()) {
                 foreach ($content->pages as $pg) {
                     if (!empty($pg->text)) {
@@ -341,11 +332,8 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Update the caregiver-editable fields of an existing audiobook (title,
-     * description, language, etc.). Doesn't touch the page content, audio
-     * file, or cover — those go through separate upload flows.
-     */
+    /* Update an audiobook's details like title, description and language.
+       Doesn't change the pages, audio, or cover, those have their own flows. */
     public function update(Request $request, string $audiobookId): JsonResponse
     {
         $this->logEvent('Content', 'update called', [
@@ -398,10 +386,8 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Delete an audiobook. The schema's ON DELETE CASCADE cleans up the
-     * related audiobook_pages and listening_history rows automatically.
-     */
+    /* Delete an audiobook. The database cleans up its pages and listening
+       history on its own (ON DELETE CASCADE). */
     public function destroy(Request $request, string $audiobookId): JsonResponse
     {
         $this->logEvent('Content', 'destroy called', [
@@ -431,12 +417,9 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Update a single page of an existing audiobook (text and/or image
-     * replacement and/or audio-boundary tweak). Multipart so a new image
-     * file can be sent alongside text changes; image is optional — if the
-     * caregiver isn't replacing the picture they just omit the field.
-     */
+    /* Update one page (text, image, or audio boundary). Multipart so a new
+       image can come with the text. The image is optional — leave it out to
+       keep the current one. */
     public function updatePage(Request $request, string $audiobookId, string $pageId): JsonResponse
     {
         $this->logEvent('Content', 'updatePage called', [
@@ -520,11 +503,8 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Delete a single page from an audiobook. Page numbers of remaining
-     * pages aren't auto-shifted — the caller can renumber via updatePage
-     * if it matters for the reader.
-     */
+    /* Delete one page. The other pages keep their numbers — the caller can
+       renumber with updatePage if needed. */
     public function deletePage(Request $request, string $audiobookId, string $pageId): JsonResponse
     {
         $this->logEvent('Content', 'deletePage called', [
@@ -563,10 +543,8 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /**
-     * Add a single page (text + optional image) to an existing audiobook.
-     * Multipart request: text, image (file), page_number.
-     */
+    /* Add one page (text + optional image) to an audiobook.
+       Multipart: text, image file, page_number. */
     public function addPage(Request $request, string $audiobookId, GeminiService $gemini): JsonResponse
     {
         $this->logEvent('Content', 'addPage called', [
@@ -585,7 +563,7 @@ class ContentManagementController extends ApiController
             'text'           => 'nullable|string',
             'page_number'    => 'nullable|integer|min:1',
             'image'          => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
-            // Caregiver-supplied page boundary on the whole-book recording.
+            // Where this page starts in the whole-book recording.
             'audio_start_ms' => 'nullable|integer|min:0',
         ]);
 
@@ -617,14 +595,13 @@ class ContentManagementController extends ApiController
                     : null,
             ]);
 
-            // First page's image doubles as the cover when none is set.
+            // Use page 1's image as the cover if there isn't one.
             if ($imagePath && empty($book->cover_image) && $pageNumber === 1) {
                 $book->cover_image = $imagePath;
                 $book->save();
             }
 
-            // Pre-warm the TTS cache with the default voice so the first
-            // playback returns instantly instead of waiting for generation.
+            // Make the voice clip now so the first playback is instant.
             if (!empty($page->text) && $gemini->isConfigured()) {
                 try { $gemini->generateSpeech(trim($page->text), 'Kore'); } catch (\Throwable $_) {}
             }
@@ -699,36 +676,32 @@ class ContentManagementController extends ApiController
         ];
     }
 
-    /**
-     * If the request contains a track_id, use it. Otherwise, if BGM is
-     * enabled (track_id key present but null/empty), pick the best matching
-     * track from the library based on the story's content keywords.
-     */
+    /* Pick the music track. Use the caregiver's choice if they made one.
+       If they turned music on but left it on auto, pick the best match
+       from the story words. If music is off, return null. */
     private function resolveTrackId(Request $request, string $storyContent): ?string
     {
-        // Caregiver explicitly chose a track.
+        // Caregiver picked a track.
         if ($request->filled('track_id')) {
             return $request->input('track_id');
         }
 
-        // track_id key absent entirely → BGM disabled.
+        // No track_id at all → music is off.
         if (!$request->has('track_id')) {
             return null;
         }
 
-        // track_id present but blank → auto-select by content vibe.
+        // track_id is there but blank → auto-pick from the story.
         return $this->autoSelectTrack($storyContent);
     }
 
-    /**
-     * Score each active track against the story content and return the
-     * track_id of the best match, or null if nothing scores.
-     */
+    /* Score each track against the story words and return the best match,
+       or null if nothing scores. */
     private function autoSelectTrack(string $content): ?string
     {
         $content = strtolower($content);
 
-        // Keyword → mood tag mapping used for scoring.
+        // Word → mood tags, used for scoring.
         $keywords = [
             'happy'       => ['Happy', 'Upbeat', 'Energetic'],
             'fun'         => ['Playful', 'Energetic', 'Happy'],
@@ -777,7 +750,7 @@ class ContentManagementController extends ApiController
         arsort($scores);
         $best = array_key_first($scores);
 
-        // Only return a match if at least one keyword fired.
+        // Only match if at least one word scored.
         return ($best !== null && $scores[$best] > 0) ? $best : ($tracks->first()?->track_id);
     }
 }

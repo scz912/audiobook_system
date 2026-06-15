@@ -83,8 +83,7 @@ class CaregiverDashboardPage extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 14,
           crossAxisSpacing: 14,
-          // Just shy of square — fits the two-line labels without leaving
-          // empty space underneath.
+          // Just shy of square — fits the two-line labels with no gap below.
           childAspectRatio: 1.05,
           children: [
             StatCard(
@@ -319,15 +318,14 @@ class _LogoutDialog extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           onPressed: () async {
-            // Capture references before popping the dialog so we don't use a
-            // deactivated context after the await.
+            // Grab these before popping the dialog so we don't use a dead
+            // context after the await.
             final auth = context.read<AuthState>();
             final navigator = AppNavigationService.navigatorKey.currentState;
             Navigator.pop(context);
             await auth.logout();
-            // Entering/exiting Child Mode replaces AuthGate via pushReplacement,
-            // so reset the stack to a fresh AuthGate — now signed out, it shows
-            // the LoginPage.
+            // Child Mode swaps out AuthGate, so reset the stack to a fresh
+            // one — now signed out, it shows the LoginPage.
             navigator?.pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const AuthGate()),
               (route) => false,

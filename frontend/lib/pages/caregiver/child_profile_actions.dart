@@ -8,15 +8,15 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import 'add_child_dialog.dart';
 
-/// Shared edit + remove actions for a child profile, used by both the
-/// Caregiver Dashboard and the Profiles page. Centralising the dialogs here
-/// means the confirmation copy and snackbar handling stay consistent.
+/* Shared edit + remove actions for a child profile, used by both the
+   Caregiver Dashboard and the Profiles page. Centralising the dialogs here
+   means the confirmation copy and snackbar handling stay consistent. */
 class ChildProfileActions {
   ChildProfileActions._();
 
-  /// Open the AddChildDialog in edit mode for [profile]. Resolves when the
-  /// dialog closes; the caller doesn't need the result because
-  /// [ProfilesState] is already notified by the dialog.
+  /* Open the AddChildDialog in edit mode for [profile]. Resolves when the
+     dialog closes; the caller doesn't need the result because
+     [ProfilesState] is already notified by the dialog. */
   static Future<void> openEdit(BuildContext context, ChildProfile profile) {
     return showDialog(
       context: context,
@@ -24,8 +24,8 @@ class ChildProfileActions {
     );
   }
 
-  /// Ask "are you sure?", then delete on confirm. Surfaces an error snackbar
-  /// if the backend rejects the delete.
+  /* Ask "are you sure?", then delete on confirm. Surfaces an error snackbar
+     if the backend rejects the delete. */
   static Future<void> confirmRemove(
       BuildContext context, ChildProfile profile) async {
     final confirmed = await showDialog<bool>(
@@ -66,8 +66,8 @@ class ChildProfileActions {
   }
 }
 
-/// Edit + Delete icon pair, sized to live in the trailing slot of a child
-/// profile card. Tapping each fires the shared dialog flow.
+/* Edit + Delete icon pair, sized to live in the trailing slot of a child
+   profile card. Tapping each fires the shared dialog flow. */
 class ChildProfileActionIcons extends StatelessWidget {
   final ChildProfile profile;
   const ChildProfileActionIcons({super.key, required this.profile});

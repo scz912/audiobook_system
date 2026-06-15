@@ -6,11 +6,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Tracks every pause-tap and forward-seek the child made during a listening
-     * session. Used by UC-9 (Analyse Listening Behaviour) to derive pause rate
-     * and skip rate per child for Gemini's sensory-preference analysis.
-     */
+    /* Count how often the child paused or skipped in a session. Gemini
+       uses these to work out pause and skip rates. */
     public function up(): void
     {
         Schema::table('listening_history', function (Blueprint $table) {

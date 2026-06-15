@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Global navigator + scaffold-messenger keys so any layer (services,
-/// background callbacks) can push routes or show snackbars without a
-/// BuildContext.
+/* Global navigator + scaffold-messenger keys so any layer (services,
+   background callbacks) can push routes or show snackbars without a
+   BuildContext. */
 class AppNavigationService {
   AppNavigationService._();
 

@@ -14,10 +14,8 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 
 class SettingsPage extends StatefulWidget {
-  /// Called when the back arrow in the page header is tapped. The shell uses
-  /// this to switch back to the Dashboard tab — pop() doesn't work here
-  /// because the page is rendered inside the shell's tab body, not pushed
-  /// onto the navigator.
+  /* Called when the header back arrow is tapped. The shell uses it to go
+     back to the Dashboard tab, since pop() doesn't work for a tab body. */
   final VoidCallback? onBack;
   const SettingsPage({super.key, this.onBack});
 
@@ -26,7 +24,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // The child we've asked SettingsState to load (guards against re-scheduling).
+  // The child we asked SettingsState to load (stops us asking twice).
   String? _pendingLoad;
 
   @override
@@ -34,8 +32,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final profiles = context.watch<ProfilesState>().profiles;
     final settings = context.watch<SettingsState>();
 
-    // Pick which child to configure: keep the current one if it still exists,
-    // otherwise default to the first child.
+    // Use the current child if it still exists, else the first one.
     String? activeChildId = settings.childId;
     final validCurrent =
         activeChildId != null && profiles.any((p) => p.childId == activeChildId);
@@ -100,7 +97,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-/// Horizontal picker of the caregiver's children — choose whose settings to edit.
+// Row of the caregiver's children — pick whose settings to edit.
 class _ChildSelector extends StatelessWidget {
   final List<ChildProfile> profiles;
   final String? selectedId;
@@ -392,7 +389,7 @@ class _TextSizeCard extends StatelessWidget {
           Text(context.tr('settings.text_size_sub'),
               style: const TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 12),
-          // Live preview of the chosen size.
+          // Shows the chosen size live.
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -438,8 +435,8 @@ class _TextSizeCard extends StatelessWidget {
   }
 }
 
-/// App-wide language toggle (English / Bahasa Malaysia). Affects both the UI
-/// text and AI-generated story language.
+/* Language toggle (English / Bahasa Malaysia). Changes both the app text
+   and the AI story language. */
 class _LanguageCard extends StatelessWidget {
   const _LanguageCard();
 

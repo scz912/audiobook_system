@@ -11,16 +11,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Generates the per-page illustrations for an AI storybook in the background.
- *
- * The audiobook is created with status "processing"; this job draws each page's
- * image via Gemini and only flips the book to "available" once every page has
- * been processed. That way the app can show a pending state and the finished
- * book appears only when all pictures are ready.
- *
- * Requires a queue worker:  php artisan queue:work
- */
+/* Draws the page pictures for an AI storybook in the background.
+   The book starts as "processing"; this job makes each picture with
+   Gemini and sets the book to "available" once they're all done.
+   Needs a queue worker: php artisan queue:work */
 class GenerateAudiobookImages implements ShouldQueue
 {
     use Dispatchable;
@@ -28,7 +22,7 @@ class GenerateAudiobookImages implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    /** Give the whole book plenty of time (many slow image requests). */
+    // Plenty of time — image requests are slow.
     public int $timeout = 1200;
     public int $tries = 1;
 
@@ -88,7 +82,7 @@ class GenerateAudiobookImages implements ShouldQueue
         ]);
     }
 
-    /** If the job blows up, don't leave the book stuck on "processing". */
+    // If the job crashes, don't leave the book stuck on "processing".
     public function failed(\Throwable $e): void
     {
         $book = Audiobook::find($this->audiobookId);

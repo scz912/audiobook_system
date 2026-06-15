@@ -31,7 +31,7 @@ class MusicTrack extends Model
         });
     }
 
-    /** Return tags as a clean array of trimmed strings. */
+    // Tags as a clean list of trimmed strings.
     public function tagsArray(): array
     {
         return array_values(array_filter(

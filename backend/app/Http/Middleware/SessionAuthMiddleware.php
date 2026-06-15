@@ -53,7 +53,7 @@ class SessionAuthMiddleware
                 return $this->unauthorized('Invalid or expired session token', 'INVALID_SESSION');
             }
 
-            // Sliding expiry: if less than 1h left, extend by 24h.
+            // If under 1h left, push the expiry out 24h.
             $minutesLeft = Carbon::now('Asia/Kuala_Lumpur')->diffInMinutes($caregiver->session_expires, false);
             if ($minutesLeft < 60) {
                 $caregiver->session_expires = Carbon::now('Asia/Kuala_Lumpur')->addHours(24);

@@ -14,7 +14,7 @@ class GeminiService
     private string $imageModel;
     private string $base = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-    /** Human-readable reason the last image generation failed (null when it succeeded). */
+    // Why the last image call failed (null = it worked).
     private ?string $lastImageError = null;
 
     public function __construct()
@@ -29,17 +29,15 @@ class GeminiService
         return $this->key !== '';
     }
 
-    /** Reason the last generateCoverImage() call failed, or null on success. */
+    // Why the last image call failed (null = it worked).
     public function imageError(): ?string
     {
         return $this->lastImageError;
     }
 
-    /**
-     * Generate an illustration via Gemini and persist it to local storage.
-     * Returns a public path like "storage/uploads/covers/<uuid>.jpg", or null
-     * if generation failed (see imageError() for the human-readable reason).
-     */
+    /* Make a picture with Gemini and save it. Returns the path like
+       "storage/uploads/covers/<uuid>.jpg", or null if it failed.
+       Check imageError() for the reason. */
     public function downloadImage(string $prompt): ?string
     {
         $this->lastImageError = null;
@@ -55,11 +53,9 @@ class GeminiService
         return $result;
     }
 
-    /**
-     * Generate natural-voice narration for a piece of text using Gemini TTS
-     * (free tier). Returns a public "storage/tts/<hash>.wav" path, or null on
-     * failure. Cached by text+voice so a page isn't regenerated (saves quota).
-     */
+    /* Make a voice clip from text using Gemini TTS. Cached by text + voice
+       so we don't re-make the same one. Returns "storage/tts/<hash>.wav"
+       or null on failure. */
     public function generateSpeech(string $text, string $voice = 'Kore'): ?string
     {
         $text = trim($text);
@@ -119,8 +115,8 @@ class GeminiService
                 return null;
             }
 
-            // Gemini returns 16-bit signed PCM, 24 kHz, mono — wrap it in a WAV
-            // container so the app can play it with a normal audio player.
+            // Gemini gives us raw PCM audio. Wrap it in a WAV header so the
+            // app can play it.
             Storage::disk('public')->put($path, $this->pcmToWav($pcm, 24000, 1, 16));
             Log::info('[Gemini] generateSpeech success', [
                 'path'  => $path,
@@ -133,7 +129,7 @@ class GeminiService
         }
     }
 
-    /** Wrap raw PCM bytes in a minimal 44-byte WAV header. */
+    // Add a 44-byte WAV header to raw PCM bytes.
     private function pcmToWav(string $pcm, int $sampleRate, int $channels, int $bits): string
     {
         $byteRate   = $sampleRate * $channels * intdiv($bits, 8);
@@ -147,27 +143,9 @@ class GeminiService
             . 'data' . pack('V', $dataLen) . $pcm;
     }
 
-    /**
-     * Ask Gemini to suggest sensory-friendly adjustments to a child's settings,
-     * based on aggregated listening behaviour stats. Returns a list of items
-     * shaped like:
-     *
-     *   [
-     *     'setting_key'     => 'reading_speed',
-     *     'suggested_value' => 0.9,
-     *     'reason'          => 'High pause and skip rates suggest the
-     *                           narration may be too fast for comfortable
-     *                           processing.',
-     *   ]
-     *
-     * Returns an empty list on Gemini error or quota — the caller (UC-9) is
-     * responsible for falling back to the cached row.
-     *
-     * @param array<string,mixed> $stats Aggregated stats: avg_session_minutes,
-     *  completion_rate, pause_rate, skip_rate, early_drop_rate, mood_breakdown,
-     *  sessions_count, current_settings.
-     * @return list<array{setting_key:string, suggested_value:mixed, reason:string}>
-     */
+    /* Ask Gemini for setting tweaks based on the child's listening stats.
+       Each item has setting_key, suggested_value, and reason. Returns []
+       on error — the caller falls back to the cached row. */
     public function analyseListening(array $stats): array
     {
         Log::info('[Gemini] analyseListening called', [
@@ -223,10 +201,8 @@ PROMPT;
                                         'type'       => 'OBJECT',
                                         'properties' => [
                                             'setting_key'     => ['type' => 'STRING'],
-                                            // suggested_value is a string here so Gemini can
-                                            // emit numbers, booleans, or enum strings without
-                                            // the schema rejecting the response. We coerce on
-                                            // the way out.
+                                            /* String here so Gemini can send numbers,
+                                               booleans, or enums. We convert later. */
                                             'suggested_value' => ['type' => 'STRING'],
                                             'reason'          => ['type' => 'STRING'],
                                         ],
@@ -256,7 +232,7 @@ PROMPT;
             $parsed = json_decode($text, true);
             $items = is_array($parsed) ? ($parsed['items'] ?? []) : [];
 
-            // Normalise into the simple shape callers expect.
+            // Clean up to the simple shape callers expect.
             $clean = [];
             foreach ($items as $item) {
                 if (!is_array($item)) {
@@ -285,7 +261,7 @@ PROMPT;
         }
     }
 
-    /** Wrap a scene description in a consistent, calming illustration style. */
+    // Add a soft, calm illustration style to the prompt.
     private function styledPrompt(string $prompt): string
     {
         return 'A soft, calming, child-friendly storybook illustration. '
@@ -293,12 +269,7 @@ PROMPT;
             . 'Scene: ' . $prompt;
     }
 
-    /**
-     * Generate a paginated, autism-friendly story.
-     *
-     * @return array{title:string, content:string, image_prompt:string, pages:list<array{text:string, image_prompt:string}>}
-     * @throws \RuntimeException
-     */
+    // Make a paged, autism-friendly story.
     public function generateStory(string $topic, ?string $ageGroup, ?string $sourceText, ?int $pageCount = null, ?string $language = null): array
     {
         Log::info('[Gemini] generateStory called', [
@@ -313,17 +284,15 @@ PROMPT;
             ? "Rewrite the following text into a calming, autism-friendly children's story.\n\nTEXT:\n" . trim($sourceText)
             : "Write a calming, autism-friendly children's story about: {$topic}";
 
-        // Page count: honour the caregiver's request when given, otherwise let
-        // the model pick — but cap "Auto" to a few pages, because each page is a
-        // separate (~12s) image, so more pages = a much longer generation wait.
+        /* Use the caregiver's page count if given. Otherwise keep it small
+           since each page is a separate image (~12s). */
         $lengthRule = ($pageCount !== null && $pageCount > 0)
             ? "Split the story into exactly {$pageCount} short pages, like a picture book."
             : 'Split the story into between 4 and 6 short pages, like a picture book — '
                 . 'choose a sensible length for the topic and age.';
 
-        // Map app language code to a clear instruction. Image prompts always
-        // stay in English so the image model gets predictable, unambiguous
-        // descriptions even when the story text is Malay.
+        /* Tell Gemini what language to write in. Image prompts stay English
+           so the image model gets clear, simple words. */
         $code = strtolower($language ?? 'en');
         $languageRule = match ($code) {
             'ms' => "Write the story TEXT (the 'text' field for every page, and the 'title') in Bahasa Malaysia (standard Malay). Keep \"image_prompt\" in English — it goes to the image generator and must stay clear and literal.",
@@ -409,7 +378,7 @@ PROMPT;
         $parsed = json_decode($text, true);
         $title = trim((string) ($parsed['title'] ?? ($topic !== '' ? $topic : 'A Gentle Story')));
 
-        // Normalise the pages array; fall back to a single page if needed.
+        // Clean up the pages list. Fall back to one page if needed.
         $pages = [];
         if (is_array($parsed) && !empty($parsed['pages']) && is_array($parsed['pages'])) {
             foreach ($parsed['pages'] as $page) {
@@ -425,7 +394,7 @@ PROMPT;
         }
 
         if (empty($pages)) {
-            // Model didn't return usable pages — treat the whole reply as one page.
+            // No usable pages — use the whole reply as one page.
             $body = (is_array($parsed) && !empty($parsed['story']))
                 ? trim((string) $parsed['story'])
                 : trim((string) $text);
@@ -444,7 +413,7 @@ PROMPT;
         ];
     }
 
-    /** Image generation via Google Gemini (requires a billing-enabled key). */
+    // Make a picture with Gemini. Needs a billing-enabled key.
     private function generateWithGemini(string $fullPrompt): ?string
     {
         Log::info('[Gemini] generateWithGemini calling API', [
@@ -458,8 +427,7 @@ PROMPT;
                         ['parts' => [['text' => $fullPrompt]]],
                     ],
                     'generationConfig' => [
-                        // Image only — don't also generate descriptive text we'd
-                        // throw away (saves output tokens / cost).
+                        // Image only — skip the text to save tokens.
                         'responseModalities' => ['IMAGE'],
                     ],
                 ]
@@ -482,12 +450,8 @@ PROMPT;
                     if ($binary === false) {
                         continue;
                     }
-                    // Gemini returns 1024x1024 PNGs (~1.4-1.7 MB each), which
-                    // makes the page reader feel slow on emulators because every
-                    // page has to download AND decode that much data. Shrink to
-                    // ~768px JPEG before persisting — typically ~120-200 KB,
-                    // so the static file served from storage/uploads/covers/
-                    // loads roughly 7-10x faster without visible quality loss.
+                    /* Gemini's PNGs are 1024x1024 (~1.5 MB). Shrink to
+                       ~768px JPEG (~120-200 KB) so pages load faster. */
                     [$saveBytes, $ext] = $this->shrinkForWeb($binary);
                     $path = 'uploads/covers/' . Str::uuid() . '.' . $ext;
                     Storage::disk('public')->put($path, $saveBytes);
@@ -505,7 +469,7 @@ PROMPT;
         }
     }
 
-    /** Turn an image-generation HTTP failure into a short, caregiver-friendly reason. */
+    // Turn an image API error into a short message for the caregiver.
     private function imageErrorMessage(int $status, ?array $json): string
     {
         if ($status === 429) {
@@ -523,10 +487,8 @@ PROMPT;
             : "Image generation failed (HTTP {$status}). The story text was saved.";
     }
 
-    /**
-     * Build a friendly message from a Gemini 429 (quota) response, including
-     * the suggested retry delay when the API provides one.
-     */
+    /* Build a friendly message from a 429 (quota) reply. Includes the
+       retry delay if the API tells us one. */
     private function quotaMessage(?array $json): string
     {
         $seconds = null;
@@ -546,13 +508,9 @@ PROMPT;
         return $msg;
     }
 
-    /**
-     * Downscale image bytes to a max edge and re-encode as JPEG.
-     *
-     * Returns a [bytes, extension] tuple. Falls back to ['png', original bytes]
-     * if PHP's GD extension isn't available or the operation fails, so image
-     * generation always succeeds — just with a larger file in that case.
-     */
+    /* Shrink image bytes to a max edge and re-encode as JPEG.
+       Returns [bytes, extension]. Falls back to the original PNG if GD
+       isn't there or something fails — so image gen never breaks. */
     private function shrinkForWeb(string $original, int $maxEdge = 768, int $quality = 82): array
     {
         if (!function_exists('imagecreatefromstring')) {
@@ -576,8 +534,8 @@ PROMPT;
             if (!$dst) {
                 return [$original, 'png'];
             }
-            // JPEG has no alpha — paint a white backing first so PNG transparency
-            // becomes white, not black.
+            // JPEG has no alpha — paint white first so PNG transparency
+            // becomes white instead of black.
             $white = imagecolorallocate($dst, 255, 255, 255);
             imagefilledrectangle($dst, 0, 0, $tw, $th, $white);
             imagecopyresampled($dst, $src, 0, 0, 0, 0, $tw, $th, $w, $h);

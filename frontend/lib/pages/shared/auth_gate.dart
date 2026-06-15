@@ -7,18 +7,7 @@ import '../../state/settings_state.dart';
 import '../caregiver/caregiver_shell.dart';
 import 'login_page.dart';
 
-/// Switches between the LoginPage and CaregiverShell based on auth status,
-/// and — crucially — fires the side effects that keep ProfilesState and
-/// SettingsState in sync with the signed-in caregiver.
-///
-/// This used to live on a separate `_SessionScopedLoader` widget that
-/// wrapped AuthGate at MaterialApp.home, but caregiver-mode entry/exit and
-/// the logout button both use Navigator.pushReplacement / pushAndRemoveUntil
-/// which unmount that wrapper. The result: a second login after a child-
-/// mode round-trip never re-fetched profiles, and the dashboard came up
-/// empty. Keeping the side effect on AuthGate itself means it works
-/// anywhere AuthGate is mounted, no matter how the route stack was
-/// reshuffled.
+// Decides whether to show the login page or the main app.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -35,9 +24,7 @@ class _AuthGateState extends State<AuthGate> {
     final auth = context.watch<AuthState>();
     final caregiverId = auth.user?.caregiverId;
 
-    // Fire the cross-state sync after the current frame paints — running
-    // it synchronously here would call notifyListeners on other states
-    // mid-build, which Provider asserts against.
+    // Only act when the login status or caregiver changes.
     if (auth.status != _lastStatus || caregiverId != _lastCaregiverId) {
       _lastStatus = auth.status;
       _lastCaregiverId = caregiverId;
@@ -62,10 +49,8 @@ class _AuthGateState extends State<AuthGate> {
     final profiles = context.read<ProfilesState>();
     final settings = context.read<SettingsState>();
     if (status == AuthStatus.signedIn) {
-      // Re-fetch profiles for whichever caregiver just signed in.
-      // ProfilesState.refresh() drops the previous list when the caregiver
-      // changes, so this also handles the "different account on the same
-      // device" case without leaking the previous caregiver's children.
+      // On sign-in, load this caregiver's profiles. On sign-out, clear them
+      // so the next caregiver doesn't see old data.
       final caregiverId = context.read<AuthState>().user?.caregiverId;
       settings.clear();
       profiles.refresh(caregiverId: caregiverId);

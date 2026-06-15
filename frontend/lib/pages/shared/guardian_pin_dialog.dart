@@ -4,8 +4,8 @@ import '../../i18n/i18n.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 
-/// Shows the Guardian PIN gate. Resolves to `true` when the correct PIN
-/// is entered, `false` if the user cancels.
+/* Shows the Guardian PIN gate. Resolves to `true` when the correct PIN
+   is entered, `false` if the user cancels. */
 Future<bool> showGuardianPinDialog(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,

@@ -5,9 +5,9 @@ class AudiobookPage {
   final int pageNumber;
   final String? text;
   final String? image;
-  /// Offset (ms) from the start of the whole-book audio where this page
-  /// begins. Page 1 is implicitly 0; pages 2..N are null until the caregiver
-  /// marks boundaries in the upload screen.
+  /* Offset (ms) from the start of the whole-book audio where this page
+     begins. Page 1 is implicitly 0; pages 2..N are null until the caregiver
+     marks boundaries in the upload screen. */
   final int? audioStartMs;
 
   const AudiobookPage({

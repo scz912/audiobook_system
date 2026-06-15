@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// A calm, autism-friendly placeholder shown when a list / grid has no data.
-/// Centers a soft circular icon, a title, and an optional subtitle + action.
+/* A calm, autism-friendly placeholder shown when a list / grid has no data.
+   Centers a soft circular icon, a title, and an optional subtitle + action. */
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;

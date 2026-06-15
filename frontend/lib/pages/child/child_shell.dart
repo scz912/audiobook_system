@@ -23,7 +23,7 @@ class _ChildShellState extends State<ChildShell> {
   @override
   void initState() {
     super.initState();
-    // Load the active child's narration & sensory settings for Child Mode.
+    // Load the active child's settings for Child Mode.
     final childId = context.read<ProfilesState>().activeProfile?.childId;
     if (childId != null) {
       context.read<SettingsState>().loadForChild(childId);
@@ -44,8 +44,8 @@ class _ChildShellState extends State<ChildShell> {
       case 0:
         return const ChildHomePage();
       case 1:
-        // Back arrow on the Library tab goes back to Home; pop() can't do it
-        // because the Library is rendered as a tab body, not pushed.
+        // Library's back arrow goes to Home — pop() can't, since it's a tab
+        // body, not a pushed route.
         return StoryLibraryPage(onBack: () => setState(() => _index = 0));
       default:
         return const SizedBox.shrink();

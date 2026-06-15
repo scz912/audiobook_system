@@ -14,9 +14,8 @@ class _AvatarOption {
 }
 
 class AddChildDialog extends StatefulWidget {
-  /// When set, the dialog runs in edit mode: title becomes "Edit child",
-  /// the form is pre-filled, and Save calls updateProfile instead of
-  /// addProfile. Pass null (or omit) to add a new child.
+  /* Set this to edit a child: the form pre-fills and Save updates instead
+     of adding. Leave null to add a new child. */
   final ChildProfile? existing;
 
   const AddChildDialog({super.key, this.existing});

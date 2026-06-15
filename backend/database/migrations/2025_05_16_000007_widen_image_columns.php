@@ -3,10 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-/**
- * AI illustrations are stored as image URLs (which can be long), so widen the
- * image columns from VARCHAR(500) to VARCHAR(1000).
- */
+/* Image URLs can be long, so widen the image columns from 500 to 1000. */
 return new class extends Migration
 {
     public function up(): void

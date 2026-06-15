@@ -37,7 +37,7 @@ class ChildSettings extends Model
         'read_along'         => 'boolean',
     ];
 
-    // Defaults so a freshly-created row (before reload) serialises correctly.
+    // Defaults so a brand-new row shows the right values.
     protected $attributes = [
         'narrator_voice'     => 'calm_female',
         'reading_speed'      => 1.00,

@@ -8,13 +8,8 @@ use Illuminate\Http\Request;
 
 class MusicTrackController extends ApiController
 {
-    /**
-     * List active music tracks. Supports optional tag-combo filter and title
-     * search. Returns tracks matching ALL selected tags (intersection).
-     *
-     * POST /music-tracks/list
-     * Body: { tags?: string[], search?: string }
-     */
+    /* List active music tracks. Can filter by tags and search by title.
+       A track must have all the chosen tags to show. */
     public function list(Request $request): JsonResponse
     {
         $this->logEvent('MusicTrack', 'list called', [
@@ -24,7 +19,7 @@ class MusicTrackController extends ApiController
 
         $tracks = MusicTrack::where('status', 'active')->get();
 
-        // Tag filter: every requested tag must be present on the track.
+        // Keep only tracks that have every chosen tag.
         $filterTags = $request->input('tags', []);
         if (is_array($filterTags) && count($filterTags) > 0) {
             $tracks = $tracks->filter(function (MusicTrack $t) use ($filterTags) {
@@ -38,7 +33,7 @@ class MusicTrackController extends ApiController
             });
         }
 
-        // Title/composer search.
+        // Search by title or composer.
         $search = trim((string) $request->input('search', ''));
         if ($search !== '') {
             $lower = strtolower($search);
@@ -53,12 +48,8 @@ class MusicTrackController extends ApiController
         ]);
     }
 
-    /**
-     * Return all distinct tags that appear on active tracks, sorted.
-     * Used to populate the filter chips in the picker UI.
-     *
-     * POST /music-tracks/tags
-     */
+    /* All the tags used on active tracks, sorted. Fills the filter chips
+       in the picker. */
     public function allTags(): JsonResponse
     {
         $this->logEvent('MusicTrack', 'allTags called');
@@ -74,22 +65,16 @@ class MusicTrackController extends ApiController
         return $this->successResponse('OK', ['tags' => $tags]);
     }
 
-    /**
-     * Given a set of currently-selected tags, return only the tags that still
-     * form a valid combination (i.e. at least one active track has ALL of the
-     * selected tags PLUS the candidate tag). This drives the "hide impossible
-     * tags" behaviour in the picker UI.
-     *
-     * POST /music-tracks/compatible-tags
-     * Body: { selected_tags: string[] }
-     */
+    /* Given the tags already picked, return the other tags that can still
+       be added (a track exists with all of them). Lets the picker hide
+       tags that would give no results. */
     public function compatibleTags(Request $request): JsonResponse
     {
         $selected = $request->input('selected_tags', []);
 
         $active = MusicTrack::where('status', 'active')->get();
 
-        // Tracks that already match the current selection.
+        // Tracks that match what's picked so far.
         $matching = $active->filter(function (MusicTrack $t) use ($selected) {
             $tt = array_map('strtolower', $t->tagsArray());
             foreach ($selected as $s) {
@@ -100,8 +85,7 @@ class MusicTrackController extends ApiController
             return true;
         });
 
-        // Tags that appear on at least one matching track (excluding already-
-        // selected ones so they don't get shown as available to add again).
+        // Tags on those tracks, minus the ones already picked.
         $selectedLower = array_map('strtolower', array_map('trim', $selected));
 
         $compatible = $matching

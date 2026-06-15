@@ -19,7 +19,7 @@ class CaregiverShell extends StatefulWidget {
 class _CaregiverShellState extends State<CaregiverShell> {
   late int _index = widget.initialIndex;
 
-  // Tab labels are translation keys; resolved in build via context.tr().
+  // Menu bottom nav specs
   static const _tabs = <_TabSpec>[
     _TabSpec(Icons.home_outlined, 'caregiver.tab_dashboard', AppColors.primaryBlue),
     _TabSpec(Icons.people_outline, 'caregiver.tab_profiles', AppColors.primaryBlue),
@@ -29,9 +29,7 @@ class _CaregiverShellState extends State<CaregiverShell> {
   ];
 
   Widget _pageFor(int i) {
-    // Back arrows on tab pages need to jump back to Dashboard, not pop the
-    // navigator — these pages are tab bodies, not pushed routes, so
-    // Navigator.maybePop() finds nothing on the stack.
+    // Back arrow means go back to caregiver dashboard 
     void backToDashboard() => setState(() => _index = 0);
     switch (i) {
       case 0:
@@ -64,7 +62,7 @@ class _CaregiverShellState extends State<CaregiverShell> {
 
 class _TabSpec {
   final IconData icon;
-  /// Translation key (e.g. 'caregiver.tab_dashboard') — resolved at render time.
+  // Translation key (e.g. 'caregiver.tab_dashboard'), resolved when shown.
   final String labelKey;
   final Color highlight;
   const _TabSpec(this.icon, this.labelKey, this.highlight);
@@ -114,10 +112,8 @@ class _CaregiverBottomNav extends StatelessWidget {
                         child: Icon(t.icon, size: 22, color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 4),
-                      // FittedBox shrinks longer labels (e.g. Bahasa "Papan
-                      // Pemuka", "Pengurusan Kandungan") so they fit a single
-                      // line instead of wrapping inside the narrow tab cell.
-                      // Shorter labels render at full size unchanged.
+                      // FittedBox shrinks long labels (like the Bahasa ones)
+                      // to fit one line; short labels stay full size.
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.center,

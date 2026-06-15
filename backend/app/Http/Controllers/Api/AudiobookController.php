@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Validator;
 
 class AudiobookController extends ApiController
 {
+    /*Get Audiobook data by ID, including its pages 
+    and associated music track if available*/
     public function getAudiobookData(Request $request, string $audiobookId): JsonResponse
     {
         $this->logEvent('Audiobook', 'getAudiobookData called', [

@@ -11,11 +11,10 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
 
-/// Full edit screen for an existing audiobook. Lets the caregiver change the
-/// metadata (title, description, language) AND edit each page's text + image
-/// in place, plus add and delete pages. Each section saves independently so
-/// the caregiver gets immediate confirmation per change instead of losing
-/// everything if one save fails.
+/* Edit screen for an audiobook. The caregiver can change the details
+   (title, description, language), edit each page's text and image, and add
+   or delete pages. Each part saves on its own, so one failed save doesn't
+   lose the rest. */
 class EditContentPage extends StatefulWidget {
   final String audiobookId;
   const EditContentPage({super.key, required this.audiobookId});
@@ -28,17 +27,15 @@ class _EditContentPageState extends State<EditContentPage> {
   bool _loading = true;
   Audiobook? _audiobook;
 
-  // Metadata edit state — controllers + the language chip selection.
+  // Details form — text controllers and the chosen language.
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _language = 'en';
   bool _savingMeta = false;
 
-  // Per-page edit state — one draft per page, each holding its own text
-  // controller and pending image change.
+  // One draft per page, holding its text controller and any new image.
   final List<_PageDraft> _pages = [];
-  // Page IDs currently saving / deleting, so the corresponding cards can
-  // show a spinner and lock interaction.
+  // Pages currently saving / deleting, so their cards show a spinner.
   final Set<String> _savingPages = {};
   final Set<String> _deletingPages = {};
   bool _addingPage = false;
@@ -80,7 +77,7 @@ class _EditContentPageState extends State<EditContentPage> {
     setState(() => _loading = false);
   }
 
-  // ---------- metadata ----------
+  // metadata
 
   Future<void> _saveMetadata() async {
     final patch = <String, dynamic>{};
@@ -105,7 +102,7 @@ class _EditContentPageState extends State<EditContentPage> {
     if (!mounted) return;
     setState(() => _savingMeta = false);
     if (resp.success) {
-      // Re-load so any backend-side normalisation (trimming etc.) is shown.
+      // Re-load so any tidying the backend did (trimming, etc.) shows.
       await _load();
       if (mounted) {
         AppSnackbar.success(context.trRead('content.metadata_saved'),
@@ -119,7 +116,7 @@ class _EditContentPageState extends State<EditContentPage> {
     }
   }
 
-  // ---------- per-page ----------
+  // per-page
 
   Future<void> _pickImageFor(_PageDraft p) async {
     final file =
@@ -141,8 +138,8 @@ class _EditContentPageState extends State<EditContentPage> {
     if (!mounted) return;
     setState(() => _savingPages.remove(pageId));
     if (resp.success) {
-      // Adopt server-side values (image URL, etc.) and clear the pending
-      // file path now that the upload is complete.
+      // Take the saved values (image URL, etc.) and clear the pending file
+      // now that it's uploaded.
       if (resp.data is Map<String, dynamic>) {
         final m = resp.data as Map<String, dynamic>;
         setState(() {
@@ -239,7 +236,7 @@ class _EditContentPageState extends State<EditContentPage> {
     }
   }
 
-  // ---------- build ----------
+  // build
 
   @override
   Widget build(BuildContext context) {
@@ -331,9 +328,8 @@ class _EditContentPageState extends State<EditContentPage> {
   }
 }
 
-/// Top-of-page card with the audiobook's title/description/language and its
-/// own save button. Independent of the per-page save flow so the caregiver
-/// can edit metadata without having to also touch every page.
+/* Top card with the book's title, description, and language, plus its own
+   save button — so details can be edited without touching the pages. */
 class _MetadataCard extends StatelessWidget {
   final TextEditingController titleCtrl;
   final TextEditingController descCtrl;
@@ -426,9 +422,9 @@ class _MetadataCard extends StatelessWidget {
   }
 }
 
-/// One editable page card. Image preview + change-image button at the top,
-/// multi-line text field below, save + delete buttons at the bottom. Locks
-/// itself with a spinner while save / delete are in flight.
+/* One editable page card: image and change-image button up top, text field
+   in the middle, save + delete at the bottom. Shows a spinner while saving
+   or deleting. */
 class _PageEditor extends StatelessWidget {
   final _PageDraft draft;
   final bool saving;
@@ -553,9 +549,9 @@ class _PageEditor extends StatelessWidget {
   }
 }
 
-/// 64×64 image preview for a page. Prefers the newly-picked file (so the
-/// caregiver sees their change immediately before save), falls back to the
-/// server-side image URL, and finally to a generic placeholder.
+/* 64×64 page image preview. Shows the newly-picked file first (so the
+   change is visible before saving), then the saved image, then a
+   placeholder. */
 class _PageImageThumb extends StatelessWidget {
   final String? newImagePath;
   final String? imageUrl;
@@ -567,18 +563,16 @@ class _PageImageThumb extends StatelessWidget {
     final url = imageUrl;
     Widget content;
     if (newPath != null) {
-      // Newly picked file from the gallery, not yet uploaded — preview from
-      // a file:// URL so we don't have to import dart:io for FileImage in
-      // a UI layer.
+      // A just-picked file, not uploaded yet — preview it from a file://
+      // URL so we don't need dart:io here.
       content = Image.network(
         Uri.file(newPath).toString(),
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     } else if (url != null && url.isNotEmpty) {
-      // CachedNetworkImage keeps a disk copy of the page's existing image
-      // so reopening the edit screen is instant and editing 30 pages
-      // doesn't hammer the dev server with re-downloads.
+      // CachedNetworkImage keeps a disk copy so reopening the edit screen
+      // is instant and doesn't re-download every page.
       content = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
@@ -605,10 +599,9 @@ class _PageImageThumb extends StatelessWidget {
       );
 }
 
-/// Mutable working copy of one page while the caregiver is editing it. Has
-/// its own TextEditingController so typing doesn't rebuild the whole list,
-/// plus separate slots for the existing-server image URL and a freshly
-/// picked file path that hasn't been uploaded yet.
+/* A working copy of one page being edited. Has its own text controller so
+   typing doesn't rebuild the whole list, plus slots for the saved image URL
+   and a just-picked file not yet uploaded. */
 class _PageDraft {
   final String? pageId;
   final int pageNumber;

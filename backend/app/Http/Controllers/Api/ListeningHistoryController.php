@@ -65,7 +65,7 @@ class ListeningHistoryController extends ApiController
             'skip_count'  => (int) $history->skip_count,
         ]);
 
-        // Increment the rolling per-profile counter.
+        // Bump the running total for this child.
         if ($request->filled('duration_seconds')) {
             $profile->increment(
                 'listening_minutes',

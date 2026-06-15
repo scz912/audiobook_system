@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Validator;
 
 class TtsController extends ApiController
 {
-    /** Map the app's narrator-voice values to Gemini prebuilt voices. */
+    // Match the app's voice names to Gemini's voices.
     private const VOICE_MAP = [
         'calm_female'    => 'Kore',   // firm, warm female
         'gentle_female'  => 'Leda',   // soft, youthful female
@@ -18,10 +18,8 @@ class TtsController extends ApiController
         'soothing_elder' => 'Charon', // deep, calm
     ];
 
-    /**
-     * Generate natural-voice narration for a page of text (Gemini TTS, free).
-     * Returns a URL to a cached WAV the app can play.
-     */
+    /* Make a voice clip for a page of text with Gemini TTS.
+       Returns a URL to a cached WAV the app can play. */
     public function speak(Request $request, GeminiService $gemini): JsonResponse
     {
         $this->logEvent('Tts', 'speak called', [

@@ -5,10 +5,7 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    /**
-     * Add the 'gentle_female' option to the caregiver_settings.narrator_voice
-     * enum so caregivers can pick a second female narrator voice.
-     */
+    // Add 'gentle_female' as a second female narrator voice.
     public function up(): void
     {
         DB::statement(
@@ -20,7 +17,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Fall back any rows on the new voice before narrowing the enum again.
+        // Move rows off the new voice before removing it.
         DB::table('caregiver_settings')
             ->where('narrator_voice', 'gentle_female')
             ->update(['narrator_voice' => 'calm_female']);

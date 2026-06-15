@@ -43,10 +43,10 @@ const _palettes = <AppSnackKind, _SnackPalette>{
 class AppSnackbar {
   AppSnackbar._();
 
-  /// Show a soft, themed snackbar.
-  ///
-  /// Falls back to the global ScaffoldMessenger when no [BuildContext] is
-  /// supplied, so it works from services / background callbacks.
+  /* Show a soft, themed snackbar.
+
+     Falls back to the global ScaffoldMessenger when no [BuildContext] is
+     supplied, so it works from services / background callbacks. */
   static void show(
     String message, {
     BuildContext? context,

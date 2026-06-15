@@ -31,7 +31,7 @@ class DatabaseService {
   static const String kCaregiverEmail = 'caregiver_email';
   static const String kCaregiverMobile = 'caregiver_mobile';
 
-  // ---------- shared helpers ----------
+  // shared helpers
 
   static Future<bool> _hasNetworkConnection() async {
     try {
@@ -105,7 +105,7 @@ class DatabaseService {
     }
   }
 
-  // ---------- auth ----------
+  // auth
 
   static Future<ApiResponse> register({
     required String name,
@@ -206,7 +206,7 @@ class DatabaseService {
     return resp.success;
   }
 
-  // ---------- settings ----------
+  // settings
 
   static Future<ApiResponse> getSettings() async {
     final resp = await _post('/settings/');
@@ -246,7 +246,7 @@ class DatabaseService {
     });
   }
 
-  /// Per-child narration & sensory/playback settings.
+  // Per-child narration & sensory/playback settings.
   static Future<ApiResponse> getChildSettings(String childId) async {
     final resp = await _post('/child-profiles/$childId/settings');
     if (resp.success && resp.data is Map<String, dynamic>) {
@@ -277,7 +277,7 @@ class DatabaseService {
     return resp;
   }
 
-  // ---------- child profiles ----------
+  // child profiles
 
   static Future<ApiResponse> listChildProfiles() async {
     final resp = await _post('/child-profiles/');
@@ -323,7 +323,7 @@ class DatabaseService {
     return _post('/child-profiles/$childId/delete');
   }
 
-  // ---------- audiobooks ----------
+  // audiobooks
 
   static Future<ApiResponse> getAudiobookData(String audiobookId) async {
     final resp = await _post('/audiobooks/$audiobookId');
@@ -337,7 +337,7 @@ class DatabaseService {
     return resp;
   }
 
-  // ---------- content management ----------
+  // content management
 
   static Future<ApiResponse> getContentSummary() async {
     final resp = await _post('/content/summary');
@@ -382,9 +382,8 @@ class DatabaseService {
     return _post('/content/create', body: payload);
   }
 
-  /// Update editable text fields on an audiobook (title, description,
-  /// language, etc.). Only the keys you pass are sent to the backend;
-  /// missing keys are left alone.
+  /* Update a book's text fields (title, description, language, etc.).
+     Only the keys you pass are sent. */
   static Future<ApiResponse> updateContent(
     String audiobookId,
     Map<String, dynamic> patch,
@@ -400,15 +399,14 @@ class DatabaseService {
     return resp;
   }
 
-  /// Delete an audiobook. Cascades to its pages and listening history
-  /// automatically via the schema's ON DELETE CASCADE.
+  /* Delete a book. The database also removes its pages and history. */
   static Future<ApiResponse> deleteContent(String audiobookId) {
     return _post('/content/$audiobookId/delete');
   }
 
-  /// Update a single page on an existing audiobook. [imagePath] is optional
-  /// — when omitted the existing image is left in place; when provided it
-  /// replaces the current image via multipart upload.
+  /* Update a single page on an existing audiobook. [imagePath] is optional
+     — when omitted the existing image is left in place; when provided it
+     replaces the current image via multipart upload. */
   static Future<ApiResponse> updateAudiobookPage({
     required String audiobookId,
     required String pageId,
@@ -464,7 +462,7 @@ class DatabaseService {
     }
   }
 
-  /// Delete a single page from an audiobook.
+  // Delete a single page from an audiobook.
   static Future<ApiResponse> deleteAudiobookPage({
     required String audiobookId,
     required String pageId,
@@ -472,8 +470,8 @@ class DatabaseService {
     return _post('/content/$audiobookId/pages/$pageId/delete');
   }
 
-  /// Create an audiobook with an optional cover-image file (multipart).
-  /// Returns the created ContentItem (with its audiobook_id) on success.
+  /* Create an audiobook with an optional cover-image file (multipart).
+     Returns the created ContentItem (with its audiobook_id) on success. */
   static Future<ApiResponse> createContentWithCover({
     required String title,
     String? topic,
@@ -557,14 +555,14 @@ class DatabaseService {
     }
   }
 
-  /// Add one page (text + optional image file) to an audiobook via multipart.
+  // Add one page (text + optional image file) to an audiobook via multipart.
   static Future<ApiResponse> addAudiobookPage({
     required String audiobookId,
     required int pageNumber,
     String? text,
     String? imagePath,
-    /// Offset (ms) of this page in the whole-book audio. Null = unmarked;
-    /// page 1 is implicitly 0 so passing 0 is also fine.
+    /* Offset (ms) of this page in the whole-book audio. Null = unmarked;
+       page 1 is implicitly 0 so passing 0 is also fine. */
     int? audioStartMs,
   }) async {
     if (!await _hasNetworkConnection()) {
@@ -612,8 +610,8 @@ class DatabaseService {
     }
   }
 
-  /// Ask Gemini AI to generate a story (and optionally a cover image) and save
-  /// it as a new audiobook. Returns the created ContentItem on success.
+  /* Ask Gemini AI to generate a story (and optionally a cover image) and save
+     it as a new audiobook. Returns the created ContentItem on success. */
   static Future<ApiResponse> generateAiContent({
     required String topic,
     String? ageGroup,
@@ -656,8 +654,8 @@ class DatabaseService {
     return resp;
   }
 
-  /// Generate (or reuse) natural-voice narration for a page of text via Gemini
-  /// TTS. Returns the audio URL string in `data` on success.
+  /* Generate (or reuse) natural-voice narration for a page of text via Gemini
+     TTS. Returns the audio URL string in `data` on success. */
   static Future<ApiResponse> getNaturalVoiceUrl({
     required String text,
     String? voice,
@@ -680,7 +678,7 @@ class DatabaseService {
     return resp;
   }
 
-  // ---------- listening history ----------
+  // listening history
 
   static Future<ApiResponse> recordListeningSession({
     required String childId,
@@ -708,7 +706,7 @@ class DatabaseService {
     return _post('/listening-history/child/$childId');
   }
 
-  // ---------- insights ----------
+  // insights
 
   static Future<ApiResponse> getInsightsOverview({String? childId}) async {
     final resp = await _post('/insights/overview', body: {
@@ -724,26 +722,26 @@ class DatabaseService {
     return resp;
   }
 
-  // ---------- UC-9: AI listening-behaviour suggestions ----------
+  // UC-9: AI listening-behaviour suggestions
 
-  /// Fetch the cached suggestion snapshot for [childId] without triggering a
-  /// new Gemini call. Used by the insights page when it first opens.
+  /* Fetch the cached suggestion snapshot for [childId] without triggering a
+     new Gemini call. Used by the insights page when it first opens. */
   static Future<ApiResponse> getSuggestions(String childId) async {
     final resp = await _post('/insights/$childId/suggestions');
     return _wrapSuggestionResponse(resp);
   }
 
-  /// Run a fresh listening-behaviour analysis for [childId]. May take a few
-  /// seconds (Gemini text call); on failure the backend re-serves the previous
-  /// cached snapshot with `isStale = true`.
+  /* Run a fresh listening-behaviour analysis for [childId]. May take a few
+     seconds (Gemini text call); on failure the backend re-serves the previous
+     cached snapshot with `isStale = true`. */
   static Future<ApiResponse> analyseListening(String childId) async {
     final resp = await _post('/insights/$childId/analyse');
     return _wrapSuggestionResponse(resp);
   }
 
-  /// Accept a single suggestion item, optionally overriding the suggested
-  /// value (UC-9 A2). The backend writes the value straight into the child's
-  /// settings row and marks the suggestion as accepted/edited.
+  /* Accept a single suggestion item, optionally overriding the suggested
+     value (UC-9 A2). The backend writes the value straight into the child's
+     settings row and marks the suggestion as accepted/edited. */
   static Future<ApiResponse> applySuggestion({
     required String childId,
     required String itemId,
@@ -756,7 +754,7 @@ class DatabaseService {
     return _wrapSuggestionResponse(resp);
   }
 
-  /// Mark a suggestion as dismissed without touching child_settings.
+  // Mark a suggestion as dismissed without touching child_settings.
   static Future<ApiResponse> dismissSuggestion({
     required String childId,
     required String itemId,
@@ -778,10 +776,10 @@ class DatabaseService {
     return resp;
   }
 
-  // ---------- music tracks ----------
+  // music tracks
 
-  /// List active music tracks. [tags] filters to tracks that have ALL listed
-  /// tags. [search] matches against "title-composer" label.
+  /* List active music tracks. [tags] filters to tracks that have ALL listed
+     tags. [search] matches against "title-composer" label. */
   static Future<ApiResponse> listMusicTracks({
     List<String>? tags,
     String? search,
@@ -800,7 +798,7 @@ class DatabaseService {
     return resp;
   }
 
-  /// Return all distinct tags across active tracks (sorted).
+  // Return all distinct tags across active tracks (sorted).
   static Future<ApiResponse> getMusicTrackTags() async {
     final resp = await _post('/music-tracks/tags');
     if (resp.success && resp.data is Map<String, dynamic>) {
@@ -811,7 +809,7 @@ class DatabaseService {
     return resp;
   }
 
-  /// Given already-selected tags, return only tags that still produce results.
+  // Given already-selected tags, return only tags that still produce results.
   static Future<ApiResponse> getCompatibleMusicTags(List<String> selected) async {
     final resp = await _post('/music-tracks/compatible-tags', body: {
       'selected_tags': selected,

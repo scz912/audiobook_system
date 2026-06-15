@@ -18,10 +18,8 @@ import 'edit_content_page.dart';
 import 'upload_content_page.dart';
 
 class ContentManagementPage extends StatefulWidget {
-  /// Called when the back arrow in the page header is tapped. The shell uses
-  /// this to switch back to the Dashboard tab — pop() doesn't work here
-  /// because the page is rendered inside the shell's tab body, not pushed
-  /// onto the navigator.
+  /* Called when the header back arrow is tapped. The shell uses it to go
+     back to the Dashboard tab, since pop() doesn't work for a tab body. */
   final VoidCallback? onBack;
   const ContentManagementPage({super.key, this.onBack});
 
@@ -37,7 +35,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   String _langFilter = 'all'; // 'all' | 'en' | 'ms'
   final TextEditingController _searchCtrl = TextEditingController();
 
-  // While any book is still generating, quietly re-check until it's ready.
+  // While a book is still generating, keep re-checking until it's done.
   Timer? _pollTimer;
 
   @override
@@ -85,8 +83,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => EditContentPage(audiobookId: id)),
     );
-    // Always refresh on return — the caregiver may have edited the title,
-    // pages, or images, all of which surface in the list tile.
+    // Always refresh on return — the title, pages, or images may have changed.
     if (mounted) await _refresh(silent: true);
   }
 
@@ -131,8 +128,8 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     }
   }
 
-  /// Open the audiobook in the same player the child uses, so the caregiver
-  /// can preview exactly what the child will see and hear.
+  /* Open the book in the same player the child uses, so the caregiver sees
+     and hears exactly what the child will. */
   void _openPreview(ContentItem item) {
     if (item.status == 'processing') {
       AppSnackbar.info(
@@ -155,8 +152,8 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     );
   }
 
-  /// Poll every few seconds while something is still "processing", and stop
-  /// once everything is ready — so generated books appear without a manual pull.
+  /* Check every few seconds while a book is generating, and stop once all
+     are done — so new books appear without a pull-to-refresh. */
   void _syncPolling() {
     final stillGenerating = _items.any((i) => i.status == 'processing');
     if (stillGenerating) {
@@ -197,10 +194,8 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
               ),
               FilledButton.icon(
                 onPressed: () async {
-                  // Wait for the upload / AI-generation page to pop, then
-                  // refresh the library so the new book shows up immediately
-                  // (otherwise the user would have to pull-down to see it
-                  // unless polling happened to catch it).
+                  // After the upload page closes, refresh so the new book
+                  // shows up right away.
                   await Navigator.of(context).push(
                     MaterialPageRoute(
                         builder: (_) => const UploadContentPage()),
@@ -367,19 +362,16 @@ class _ContentTile extends StatelessWidget {
     final processing = item.status == 'processing';
     final showMenu =
         !processing && (onEdit != null || onDelete != null);
-    // Resolve menu labels here in the widget tree's build context.
-    // PopupMenuButton's itemBuilder runs lazily in an Overlay route, where
-    // calling `ctx.tr(...)` (which uses watch<LanguageState>) throws
-    // "Tried to listen to a value exposed with provider, from outside of
-    // the widget tree" and silently aborts the menu before it can open.
+    // Resolve the menu labels here, in the widget tree. PopupMenuButton's
+    // itemBuilder runs in an overlay where ctx.tr(...) can't reach the
+    // Provider and would throw, stopping the menu from opening.
     final editLabel = context.tr('content.edit_label');
     final deleteLabel = context.tr('content.delete_label');
     final tapToPreviewLabel = context.tr('content.tap_to_preview');
 
-    // Material gives us a single surface for both the ink ripple and the
-    // popup menu's overlay positioning. InkWell wraps ONLY the left preview
-    // area (so it can't capture taps meant for the menu). The popup menu
-    // sits as a sibling Row child — same card surface, separate hit area.
+    // Material is the card surface. The InkWell wraps only the left preview
+    // area so it can't steal taps from the menu, which sits beside it as a
+    // separate Row child.
     return Material(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -540,8 +532,8 @@ class _ContentTile extends StatelessWidget {
   }
 }
 
-/// Leading thumbnail for a content row: shows the cover image when present,
-/// otherwise a coloured circle with the content-type icon.
+/* Thumbnail for a content row: the cover image if there is one,
+   otherwise a coloured circle with the content-type icon. */
 class _Thumbnail extends StatelessWidget {
   final String? imageUrl;
   final ({IconData icon, Color bg, String label}) meta;
@@ -554,7 +546,7 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // While generating, the cover isn't ready yet — show a spinner tile.
+    // No cover yet while generating — show a spinner.
     if (processing) {
       return Container(
         width: 48,
@@ -575,10 +567,9 @@ class _Thumbnail extends StatelessWidget {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        // CachedNetworkImage keeps a disk copy so scrolling the list back
-        // and forth — or popping back from preview — doesn't re-fetch
-        // every thumbnail over HTTP. Tiny memCacheWidth saves decoded
-        // RAM since these are 48x48 on screen.
+        // CachedNetworkImage keeps a disk copy so scrolling the list
+        // doesn't re-download thumbnails. Tiny memCacheWidth saves RAM
+        // since these are 48x48 on screen.
         child: CachedNetworkImage(
           imageUrl: imageUrl!,
           width: 48,

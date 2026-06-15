@@ -131,10 +131,8 @@ class ChildProfileController extends ApiController
         return $this->successResponse('Profile deleted');
     }
 
-    /**
-     * Per-child narration & sensory/playback settings. Creates a default row
-     * the first time it's requested.
-     */
+    /* Per-child voice and playback settings. Makes a default row the
+       first time it's asked for. */
     public function showSettings(Request $request, string $id): JsonResponse
     {
         $this->logEvent('ChildProfile', 'showSettings called', [
