@@ -3,11 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../state/language_state.dart';
 
-// Extension on BuildContext to easily access localized strings from LanguageState.
+// Adds context.tr('key') for translated text.
 extension I18nContext on BuildContext {
-  // Use in widget build methods (subscribes to changes).
+  // Use in build() — rebuilds when the language changes.
   String tr(String key) => watch<LanguageState>().tr(key);
 
-  // Use in callbacks or places where you don't want to subscribe to changes.
+  // Use in callbacks — doesn't rebuild.
   String trRead(String key) => read<LanguageState>().tr(key);
 }

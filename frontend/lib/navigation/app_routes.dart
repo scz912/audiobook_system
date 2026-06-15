@@ -38,7 +38,7 @@ class AppRoutes {
   static const String storyLibrary = '/child/stories';
   static const String audioPlayer = '/child/audio-player';
 
-  // For static routes that need no arguments, we can use a simple routes table.
+  // Routes that take no arguments.
   static final Map<String, WidgetBuilder> staticRoutes = <String, WidgetBuilder>{
     login: (_) => const LoginPage(),
     caregiverShell: (_) => const CaregiverShell(),
@@ -53,12 +53,8 @@ class AppRoutes {
     storyLibrary: (_) => const StoryLibraryPage(),
   };
 
-  /* Routes that need typed arguments. Example:
-     Navigator.pushNamed(context, AppRoutes.audioPlayer, arguments: {
-       'title': book.title,
-       'audiobookId': book.audiobookId,
-     });
-     */
+  /* Routes that need typed arguments (like the audio player, which needs a
+     title and audiobook id). */
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case audioPlayer:
@@ -71,7 +67,7 @@ class AppRoutes {
           ),
         );
       default:
-        return null; // Falls through to the routes table or unknown handler.
+        return null; // Let the routes table handle it.
     }
   }
 }

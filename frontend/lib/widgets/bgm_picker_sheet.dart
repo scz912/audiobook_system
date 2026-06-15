@@ -7,9 +7,8 @@ import '../models/music_track.dart';
 import '../services/database_service.dart';
 import '../theme/app_colors.dart';
 
-/* Bottom sheet that lets the caregiver browse and select a background music
-   track. Returns the chosen [MusicTrack] via [Navigator.pop], or null if the
-   sheet is dismissed without a selection. */
+/* Bottom sheet to browse and pick a background-music track. Returns the
+   chosen [MusicTrack], or null if closed without picking. */
 class BgmPickerSheet extends StatefulWidget {
   final MusicTrack? initialTrack;
 
@@ -289,9 +288,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   }
 }
 
-/* Chip row that hides tags incompatible with the current selection.
-   Max visible height is ~2.5 chip rows (non-scrollable; extra chips are
-   clipped — the selection logic prevents reaching unreachable combinations). */
+/* Chip row that hides tags which wouldn't match the current selection. */
 class _TagFilterWrap extends StatelessWidget {
   final List<String> allTags;
   final List<String> compatibleTags;
@@ -307,8 +304,8 @@ class _TagFilterWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Keep selected tags even if they fall out of compatibleTags (they define
-    // the current filter — removing the tag re-opens the set).
+    // Keep the picked tags shown even if the server omits them — they're
+    // what's doing the filtering.
     final visible = allTags
         .where((t) => selectedTags.contains(t) || compatibleTags.contains(t))
         .toList();
@@ -453,7 +450,7 @@ class _TrackTile extends StatelessWidget {
                     fontSize: 12, color: AppColors.textSecondary),
               ),
             const SizedBox(width: 4),
-            // Preview play/pause button — tapping does NOT select the track.
+            // Preview play/pause — does not pick the track.
             GestureDetector(
               onTap: onPlayTap,
               behavior: HitTestBehavior.opaque,

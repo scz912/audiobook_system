@@ -404,9 +404,8 @@ class DatabaseService {
     return _post('/content/$audiobookId/delete');
   }
 
-  /* Update a single page on an existing audiobook. [imagePath] is optional
-     — when omitted the existing image is left in place; when provided it
-     replaces the current image via multipart upload. */
+  /* Update one page. [imagePath] is optional — leave it out to keep the
+     current image, or pass one to replace it. */
   static Future<ApiResponse> updateAudiobookPage({
     required String audiobookId,
     required String pageId,
@@ -470,8 +469,8 @@ class DatabaseService {
     return _post('/content/$audiobookId/pages/$pageId/delete');
   }
 
-  /* Create an audiobook with an optional cover-image file (multipart).
-     Returns the created ContentItem (with its audiobook_id) on success. */
+  /* Create a book with an optional cover image. Returns the new
+     ContentItem (with its id) on success. */
   static Future<ApiResponse> createContentWithCover({
     required String title,
     String? topic,
@@ -561,8 +560,8 @@ class DatabaseService {
     required int pageNumber,
     String? text,
     String? imagePath,
-    /* Offset (ms) of this page in the whole-book audio. Null = unmarked;
-       page 1 is implicitly 0 so passing 0 is also fine. */
+    /* Where this page starts in the recording, in ms. Null = not marked;
+       page 1 is 0. */
     int? audioStartMs,
   }) async {
     if (!await _hasNetworkConnection()) {
@@ -610,8 +609,8 @@ class DatabaseService {
     }
   }
 
-  /* Ask Gemini AI to generate a story (and optionally a cover image) and save
-     it as a new audiobook. Returns the created ContentItem on success. */
+  /* Ask Gemini to make a story (and maybe a cover) and save it as a new
+     book. Returns the new ContentItem on success. */
   static Future<ApiResponse> generateAiContent({
     required String topic,
     String? ageGroup,
@@ -654,8 +653,8 @@ class DatabaseService {
     return resp;
   }
 
-  /* Generate (or reuse) natural-voice narration for a page of text via Gemini
-     TTS. Returns the audio URL string in `data` on success. */
+  /* Get a Gemini voice clip for a page of text (reused if already made).
+     Returns the audio URL in `data`. */
   static Future<ApiResponse> getNaturalVoiceUrl({
     required String text,
     String? voice,
@@ -724,24 +723,22 @@ class DatabaseService {
 
   // UC-9: AI listening-behaviour suggestions
 
-  /* Fetch the cached suggestion snapshot for [childId] without triggering a
-     new Gemini call. Used by the insights page when it first opens. */
+  /* Get the saved tips for [childId] without calling Gemini. Used when the
+     insights page first opens. */
   static Future<ApiResponse> getSuggestions(String childId) async {
     final resp = await _post('/insights/$childId/suggestions');
     return _wrapSuggestionResponse(resp);
   }
 
-  /* Run a fresh listening-behaviour analysis for [childId]. May take a few
-     seconds (Gemini text call); on failure the backend re-serves the previous
-     cached snapshot with `isStale = true`. */
+  /* Run a fresh analysis for [childId]. Takes a few seconds; if it fails the
+     backend returns the old tips marked `isStale`. */
   static Future<ApiResponse> analyseListening(String childId) async {
     final resp = await _post('/insights/$childId/analyse');
     return _wrapSuggestionResponse(resp);
   }
 
-  /* Accept a single suggestion item, optionally overriding the suggested
-     value (UC-9 A2). The backend writes the value straight into the child's
-     settings row and marks the suggestion as accepted/edited. */
+  /* Accept one tip, optionally with an edited value. The backend writes it
+     to the child's settings and marks the tip accepted. */
   static Future<ApiResponse> applySuggestion({
     required String childId,
     required String itemId,
@@ -778,8 +775,8 @@ class DatabaseService {
 
   // music tracks
 
-  /* List active music tracks. [tags] filters to tracks that have ALL listed
-     tags. [search] matches against "title-composer" label. */
+  /* List music tracks. [tags] keeps only tracks with all the given tags;
+     [search] matches the title or composer. */
   static Future<ApiResponse> listMusicTracks({
     List<String>? tags,
     String? search,

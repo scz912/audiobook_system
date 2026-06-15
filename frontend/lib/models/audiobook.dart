@@ -5,9 +5,8 @@ class AudiobookPage {
   final int pageNumber;
   final String? text;
   final String? image;
-  /* Offset (ms) from the start of the whole-book audio where this page
-     begins. Page 1 is implicitly 0; pages 2..N are null until the caregiver
-     marks boundaries in the upload screen. */
+  /* Where this page starts in the recording, in ms. Page 1 is 0; later
+     pages are null until the caregiver marks them in the upload screen. */
   final int? audioStartMs;
 
   const AudiobookPage({
@@ -53,9 +52,9 @@ class Audiobook {
   final List<AudiobookPage> pages;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final String? trackId;         // BGM track UUID (null = no BGM)
+  final String? trackId;         // music track id (null = no music)
   final int bgmVolume;           // 0-100, default 30
-  final String? musicTrackFileUrl; // resolved URL of the music file
+  final String? musicTrackFileUrl; // full URL of the music file
 
   Audiobook({
     this.audiobookId,

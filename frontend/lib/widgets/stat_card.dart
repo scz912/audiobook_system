@@ -25,9 +25,8 @@ class StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.cardBorder),
       ),
-      // Label sits right under the value (start alignment + min size). Pages
-      // using this widget keep labels uniform (all 1-line or all 2-line) so
-      // the grid's fixed-height cells don't leave dead space at the bottom.
+      // Label sits right under the value. Pages keep labels the same number
+      // of lines so the cards don't leave a gap at the bottom.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -42,8 +41,7 @@ class StatCard extends StatelessWidget {
             child: Icon(icon, size: 20, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 12),
-          // FittedBox shrinks the value to fit the available width so
-          // long values (e.g. "5h 12m", "+12%") never overflow the card.
+          // FittedBox shrinks the value so long ones (like "5h 12m") fit.
           SizedBox(
             width: double.infinity,
             child: FittedBox(

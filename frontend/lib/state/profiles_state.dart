@@ -14,8 +14,8 @@ class ProfilesState extends ChangeNotifier {
   List<ChildProfile> get profiles => List.unmodifiable(_profiles);
   ChildProfile? get activeProfile => _activeProfile;
 
-  /* The mood the child last selected on the Child Home screen
-     (happy / calm / curious / sleepy). Attached to the next listening session. */
+  /* The mood the child picked on the Home screen. Saved with the next
+     listening session. */
   String? get currentMood => _currentMood;
   bool get loading => _loading;
   String? get lastError => _lastError;
@@ -31,7 +31,7 @@ class ProfilesState extends ChangeNotifier {
   int get averageEngagement => _profiles.isEmpty ? 0 : 87;
 
   Future<void> refresh({String? caregiverId}) async {
-    // loading profiles for a different caregiver, clear the existing 
+    // Switching caregiver — clear the old list first.
     if (caregiverId != null && caregiverId != _ownerCaregiverId) {
       _profiles = const [];
       _activeProfile = null;
@@ -45,8 +45,7 @@ class ProfilesState extends ChangeNotifier {
       _profiles = resp.data as List<ChildProfile>;
       _lastError = null;
     } else {
-      // Keep any existing list on failure so a transient error doesn't wipe
-      // a caregiver's children.
+      // Keep the old list on failure so a brief error doesn't wipe it.
       _lastError = resp.message;
     }
     _loading = false;
@@ -77,8 +76,7 @@ class ProfilesState extends ChangeNotifier {
     return false;
   }
 
-  /* Update one or more editable fields on a child profile. Only the fields
-     you pass are sent to the backend; unset fields are left alone. */
+  /* Update a child's fields. Only the ones you pass are sent. */
   Future<bool> updateProfile(
     String childId, {
     String? name,

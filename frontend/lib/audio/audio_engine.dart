@@ -17,7 +17,7 @@ class AudioEngine {
     _sessionConfigured = true;
   }
 
-  // Loads url and returns the clip's total duration (when known).
+  // Load a url and return the clip's length (if known).
   Future<Duration?> loadAudio(String url) async {
     await _ensureSession();
     return _player.setUrl(url);
@@ -34,7 +34,7 @@ class AudioEngine {
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
-  // Emits once each time playback of the loaded file reaches the end.
+  // Fires each time the clip finishes playing.
   Stream<void> get onComplete => _player.processingStateStream
       .where((s) => s == ProcessingState.completed)
       .map((_) {});

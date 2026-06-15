@@ -1,5 +1,5 @@
-// Tolerant JSON coercion helpers used by all model fromJson factories.
-// Backend may send integers as strings, booleans as 0/1, etc.
+// Safe JSON readers used by every model's fromJson.
+// The backend may send numbers as strings, booleans as 0/1, etc.
 
 bool safeBool(dynamic value, [bool defaultValue = false]) {
   if (value == null) return defaultValue;
