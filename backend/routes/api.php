@@ -4,7 +4,11 @@ use App\Http\Controllers\Api\AudiobookController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildProfileController;
 use App\Http\Controllers\Api\ContentManagementController;
+use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\FriendshipController;
+use App\Http\Controllers\Api\HubController;
 use App\Http\Controllers\Api\InsightsController;
+use App\Http\Controllers\Api\InviteController;
 use App\Http\Controllers\Api\ListeningHistoryController;
 use App\Http\Controllers\Api\MusicTrackController;
 use App\Http\Controllers\Api\SettingsController;
@@ -93,5 +97,47 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/list',             [MusicTrackController::class, 'list']);
         Route::post('/tags',             [MusicTrackController::class, 'allTags']);
         Route::post('/compatible-tags',  [MusicTrackController::class, 'compatibleTags']);
+    });
+
+    // Community membership and invites (private hub gate)
+    Route::prefix('community')->group(function () {
+        Route::post('/status',        [InviteController::class, 'status']);
+        Route::post('/join',          [InviteController::class, 'join']);
+        Route::post('/invites',       [InviteController::class, 'myInvites']);
+        Route::post('/invites/create', [InviteController::class, 'create']);
+        Route::post('/invites/accept', [InviteController::class, 'accept']);
+    });
+
+    // Friends and member profiles
+    Route::prefix('friends')->group(function () {
+        Route::post('/',        [FriendshipController::class, 'friends']);
+        Route::post('/search',  [FriendshipController::class, 'search']);
+        Route::post('/request', [FriendshipController::class, 'requestFriend']);
+        Route::post('/respond', [FriendshipController::class, 'respond']);
+        Route::post('/remove',  [FriendshipController::class, 'remove']);
+        Route::post('/pending', [FriendshipController::class, 'pending']);
+        Route::post('/profile', [FriendshipController::class, 'profile']);
+    });
+
+    // Chat (direct + group)
+    Route::prefix('chat')->group(function () {
+        Route::post('/',        [ConversationController::class, 'index']);
+        Route::post('/direct',  [ConversationController::class, 'direct']);
+        Route::post('/group',   [ConversationController::class, 'group']);
+        Route::post('/{conversationId}/messages',  [ConversationController::class, 'messages'])->whereUuid('conversationId');
+        Route::post('/{conversationId}/send',      [ConversationController::class, 'send'])->whereUuid('conversationId');
+        Route::post('/{conversationId}/read',      [ConversationController::class, 'markRead'])->whereUuid('conversationId');
+    });
+
+    // Audiobook hub (share, like, comment)
+    Route::prefix('hub')->group(function () {
+        Route::post('/feed',   [HubController::class, 'feed']);
+        Route::post('/create', [HubController::class, 'create']);
+        Route::post('/{postId}/delete', [HubController::class, 'destroy'])->whereUuid('postId');
+        Route::post('/{postId}/like',   [HubController::class, 'like'])->whereUuid('postId');
+        Route::post('/{postId}/unlike', [HubController::class, 'unlike'])->whereUuid('postId');
+        Route::post('/{postId}/comments',    [HubController::class, 'comments'])->whereUuid('postId');
+        Route::post('/{postId}/comments/add', [HubController::class, 'addComment'])->whereUuid('postId');
+        Route::post('/{postId}/comments/{commentId}/delete', [HubController::class, 'deleteComment'])->whereUuid(['postId', 'commentId']);
     });
 });

@@ -15,6 +15,12 @@ import '../models/content_summary.dart';
 import '../models/music_track.dart';
 import '../models/insights_overview.dart';
 import '../models/user_settings.dart';
+import '../models/community/chat_message.dart';
+import '../models/community/community_invite.dart';
+import '../models/community/conversation.dart';
+import '../models/community/hub_comment.dart';
+import '../models/community/hub_post.dart';
+import '../models/community/member.dart';
 import 'api_service.dart';
 
 class DatabaseService {
@@ -815,6 +821,193 @@ class DatabaseService {
       final raw = (resp.data as Map<String, dynamic>)['tags'];
       final list = raw is List ? raw.map((t) => t.toString()).toList() : <String>[];
       return ApiResponse(success: true, message: resp.message, data: list);
+    }
+    return resp;
+  }
+
+  // community: membership + invites
+
+  // Is the current caregiver a community member yet? (data has is_member)
+  static Future<ApiResponse> communityStatus() => _post('/community/status');
+
+  // Opt in to the community.
+  static Future<ApiResponse> joinCommunity() => _post('/community/join');
+
+  // Make an invite code to share with another family.
+  static Future<ApiResponse> createInvite({String? email}) async {
+    final resp = await _post('/community/invites/create', body: {
+      'email': ?email,
+    });
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: CommunityInvite.fromJson(resp.data as Map<String, dynamic>),
+      );
+    }
+    return resp;
+  }
+
+  // Invite codes I created.
+  static Future<ApiResponse> myInvites() async {
+    final resp = await _post('/community/invites');
+    return _wrapList(resp, CommunityInvite.fromJson);
+  }
+
+  // Redeem an invite code to join.
+  static Future<ApiResponse> acceptInvite(String code) =>
+      _post('/community/invites/accept', body: {'code': code});
+
+  // community: friends + profiles
+
+  // Search members by name or email.
+  static Future<ApiResponse> searchMembers(String term) async {
+    final resp = await _post('/friends/search', body: {'search': term});
+    return _wrapList(resp, Member.fromJson);
+  }
+
+  // My accepted friends.
+  static Future<ApiResponse> listFriends() async {
+    final resp = await _post('/friends');
+    return _wrapList(resp, Member.fromJson);
+  }
+
+  // Friend requests other people sent me (as Members tagged request_received).
+  static Future<ApiResponse> pendingRequests() async {
+    final resp = await _post('/friends/pending');
+    if (resp.success && resp.data is List) {
+      final list = (resp.data as List).whereType<Map<String, dynamic>>().map((row) {
+        final person = Map<String, dynamic>.from(row['person'] as Map? ?? {});
+        person['friendship_id'] = row['friendship_id'];
+        person['relation'] = 'request_received';
+        return Member.fromJson(person);
+      }).toList();
+      return ApiResponse(success: true, message: resp.message, data: list);
+    }
+    return resp;
+  }
+
+  static Future<ApiResponse> sendFriendRequest(String caregiverId) =>
+      _post('/friends/request', body: {'caregiver_id': caregiverId});
+
+  static Future<ApiResponse> respondFriendRequest(String friendshipId, bool accept) =>
+      _post('/friends/respond', body: {
+        'friendship_id': friendshipId,
+        'action': accept ? 'accept' : 'decline',
+      });
+
+  static Future<ApiResponse> removeFriend(String caregiverId) =>
+      _post('/friends/remove', body: {'caregiver_id': caregiverId});
+
+  // A member's profile plus how many books they've shared.
+  static Future<ApiResponse> memberProfile(String caregiverId) async {
+    final resp = await _post('/friends/profile', body: {'caregiver_id': caregiverId});
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: Member.fromJson(resp.data as Map<String, dynamic>),
+      );
+    }
+    return resp;
+  }
+
+  // community: chat
+
+  static Future<ApiResponse> listConversations() async {
+    final resp = await _post('/chat');
+    return _wrapList(resp, Conversation.fromJson);
+  }
+
+  // Start or reuse a one-to-one chat.
+  static Future<ApiResponse> startDirectChat(String caregiverId) async {
+    final resp = await _post('/chat/direct', body: {'caregiver_id': caregiverId});
+    return _wrapOne(resp, Conversation.fromJson);
+  }
+
+  static Future<ApiResponse> createGroupChat(String title, List<String> participantIds) async {
+    final resp = await _post('/chat/group', body: {
+      'title': title,
+      'participant_ids': participantIds,
+    });
+    return _wrapOne(resp, Conversation.fromJson);
+  }
+
+  static Future<ApiResponse> conversationMessages(String conversationId) async {
+    final resp = await _post('/chat/$conversationId/messages');
+    return _wrapList(resp, ChatMessage.fromJson);
+  }
+
+  static Future<ApiResponse> sendChatMessage(String conversationId, String body) async {
+    final resp = await _post('/chat/$conversationId/send', body: {'body': body});
+    return _wrapOne(resp, ChatMessage.fromJson);
+  }
+
+  static Future<ApiResponse> markConversationRead(String conversationId) =>
+      _post('/chat/$conversationId/read');
+
+  // community: hub
+
+  static Future<ApiResponse> hubFeed() async {
+    final resp = await _post('/hub/feed');
+    return _wrapList(resp, HubPost.fromJson);
+  }
+
+  static Future<ApiResponse> sharePost({
+    required String audiobookId,
+    String? caption,
+    bool includeMusic = false,
+  }) async {
+    final resp = await _post('/hub/create', body: {
+      'audiobook_id': audiobookId,
+      'caption': ?caption,
+      'include_music': includeMusic,
+    });
+    return _wrapOne(resp, HubPost.fromJson);
+  }
+
+  static Future<ApiResponse> deleteHubPost(String postId) =>
+      _post('/hub/$postId/delete');
+
+  static Future<ApiResponse> likePost(String postId) =>
+      _post('/hub/$postId/like');
+
+  static Future<ApiResponse> unlikePost(String postId) =>
+      _post('/hub/$postId/unlike');
+
+  static Future<ApiResponse> postComments(String postId) async {
+    final resp = await _post('/hub/$postId/comments');
+    return _wrapList(resp, HubComment.fromJson);
+  }
+
+  static Future<ApiResponse> addPostComment(String postId, String body) async {
+    final resp = await _post('/hub/$postId/comments/add', body: {'body': body});
+    return _wrapOne(resp, HubComment.fromJson);
+  }
+
+  static Future<ApiResponse> deletePostComment(String postId, String commentId) =>
+      _post('/hub/$postId/comments/$commentId/delete');
+
+  // Parse a list-returning response into typed models.
+  static ApiResponse _wrapList<T>(ApiResponse resp, T Function(Map<String, dynamic>) build) {
+    if (resp.success && resp.data is List) {
+      final list = (resp.data as List)
+          .whereType<Map<String, dynamic>>()
+          .map(build)
+          .toList();
+      return ApiResponse(success: true, message: resp.message, data: list);
+    }
+    return resp;
+  }
+
+  // Parse a single-object response into a typed model.
+  static ApiResponse _wrapOne<T>(ApiResponse resp, T Function(Map<String, dynamic>) build) {
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: build(resp.data as Map<String, dynamic>),
+      );
     }
     return resp;
   }

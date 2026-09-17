@@ -5,6 +5,7 @@ import '../../i18n/i18n.dart';
 import '../../models/child_profile.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
 import '../child/child_shell.dart';
 import 'add_child_dialog.dart';
@@ -56,7 +57,32 @@ class ProfilesPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        for (final p in profiles) ...[
+        if (profiles.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: EmptyState(
+              icon: Icons.child_care_rounded,
+              title: context.tr('caregiver.no_children'),
+              subtitle: context.tr('profiles.empty_subtitle'),
+              action: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: AppColors.textPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(context.tr('profiles.add_child')),
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const AddChildDialog(),
+                ),
+              ),
+            ),
+          )
+        else
+          for (final p in profiles) ...[
           SoftCard(
             child: Row(
               children: [

@@ -31,6 +31,10 @@ class Caregiver extends Model
         'session_expires',
         'is_active',
         'last_login_at',
+        'is_community_member',
+        'bio',
+        'avatar_emoji',
+        'avatar_color',
     ];
 
     protected $hidden = [
@@ -43,6 +47,7 @@ class Caregiver extends Model
         'session_expires' => 'datetime',
         'last_login_at' => 'datetime',
         'is_active' => 'boolean',
+        'is_community_member' => 'boolean',
     ];
 
     // Columns that get an auto UUID when created.
@@ -72,5 +77,10 @@ class Caregiver extends Model
     public function settings(): HasOne
     {
         return $this->hasOne(CaregiverSettings::class, 'caregiver_id', 'caregiver_id');
+    }
+
+    public function hubPosts(): HasMany
+    {
+        return $this->hasMany(HubPost::class, 'shared_by', 'caregiver_id');
     }
 }

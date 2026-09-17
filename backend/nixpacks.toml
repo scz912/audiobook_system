@@ -1,0 +1,8 @@
+# Railway (Nixpacks) build + run config for the Laravel backend.
+# Build installs PHP deps; start runs migrations, links storage, then serves.
+
+[phases.install]
+cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev"]
+
+[start]
+cmd = "php artisan migrate --force && (php artisan storage:link || true) && php artisan serve --host 0.0.0.0 --port $PORT"

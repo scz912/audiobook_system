@@ -47,6 +47,16 @@ abstract class ApiController
         ], $statusCode);
     }
 
+    /* Stop the request if the caregiver hasn't joined the community.
+       Returns an error response to send back, or null when they're a member. */
+    protected function ensureMember($caregiver): ?JsonResponse
+    {
+        if (!$caregiver || !$caregiver->is_community_member) {
+            return $this->errorResponse('Join the community first', 'NOT_A_MEMBER', 403);
+        }
+        return null;
+    }
+
     /* Make a full URL from a stored path using the request's host, so it
        works for emulator and real devices alike. Full URLs (Gemini images)
        are left as-is. */

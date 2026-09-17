@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../i18n/i18n.dart';
 import '../../theme/app_colors.dart';
+import '../community/community_page.dart';
 import 'caregiver_dashboard_page.dart';
 import 'content_management_page.dart';
 import 'insights_page.dart';
@@ -25,6 +26,7 @@ class _CaregiverShellState extends State<CaregiverShell> {
     _TabSpec(Icons.people_outline, 'caregiver.tab_profiles', AppColors.primaryBlue),
     _TabSpec(Icons.upload_outlined, 'caregiver.tab_content', AppColors.softPeach),
     _TabSpec(Icons.bar_chart_outlined, 'caregiver.tab_insights', AppColors.softMint),
+    _TabSpec(Icons.diversity_3_outlined, 'caregiver.tab_community', AppColors.softLavender),
     _TabSpec(Icons.settings_outlined, 'caregiver.tab_settings', AppColors.softMint),
   ];
 
@@ -41,6 +43,8 @@ class _CaregiverShellState extends State<CaregiverShell> {
       case 3:
         return const InsightsPage();
       case 4:
+        return const CommunityPage();
+      case 5:
         return SettingsPage(onBack: backToDashboard);
       default:
         return const SizedBox.shrink();

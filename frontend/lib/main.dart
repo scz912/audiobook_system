@@ -7,6 +7,10 @@ import 'navigation/app_routes.dart';
 
 // State
 import 'state/auth_state.dart';
+import 'state/chat_state.dart';
+import 'state/community_state.dart';
+import 'state/friends_state.dart';
+import 'state/hub_state.dart';
 import 'state/language_state.dart';
 import 'state/profiles_state.dart';
 import 'state/settings_state.dart';
@@ -37,6 +41,10 @@ class AudiobookApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthState()..bootstrap()),
         ChangeNotifierProvider(create: (_) => ProfilesState()),
         ChangeNotifierProvider(create: (_) => SettingsState()),
+        ChangeNotifierProvider(create: (_) => CommunityState()),
+        ChangeNotifierProvider(create: (_) => FriendsState()),
+        ChangeNotifierProvider(create: (_) => ChatState()),
+        ChangeNotifierProvider(create: (_) => HubState()),
       ],
       child: MaterialApp(
         title: 'Audiobook for Autism', 

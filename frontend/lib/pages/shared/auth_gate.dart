@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
+import '../../state/chat_state.dart';
+import '../../state/community_state.dart';
+import '../../state/friends_state.dart';
+import '../../state/hub_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../caregiver/caregiver_shell.dart';
@@ -57,6 +61,11 @@ class _AuthGateState extends State<AuthGate> {
     } else if (status == AuthStatus.signedOut) {
       profiles.clear();
       settings.clear();
+      // Clear community data too, so nothing leaks to the next caregiver.
+      context.read<CommunityState>().clear();
+      context.read<FriendsState>().clear();
+      context.read<ChatState>().clear();
+      context.read<HubState>().clear();
     }
   }
 }

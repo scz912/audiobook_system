@@ -87,6 +87,7 @@ class AppStrings {
     'caregiver.tab_content': 'Content',
     'caregiver.tab_settings': 'Settings',
     'caregiver.tab_insights': 'Insights',
+    'caregiver.tab_community': 'Community',
     'caregiver.no_children': 'No child profiles yet',
     'caregiver.no_children_hint': 'Add a child to start.',
     'caregiver.enter_child_mode': 'Enter Child Mode',
@@ -110,6 +111,7 @@ class AppStrings {
     // Profiles page
     'profiles.title': 'Child Profiles',
     'profiles.add_child': 'Add Child',
+    'profiles.empty_subtitle': 'Add your first child to start creating and playing stories.',
     'profiles.remove_confirm': 'Remove this child profile?',
     'profiles.remove_confirm_body':
         'This will also remove the child\'s listening history. This cannot be undone.',
@@ -484,6 +486,7 @@ class AppStrings {
     'caregiver.tab_content': 'Kandungan',
     'caregiver.tab_settings': 'Tetapan',
     'caregiver.tab_insights': 'Wawasan',
+    'caregiver.tab_community': 'Komuniti',
     'caregiver.no_children': 'Belum ada profil kanak-kanak',
     'caregiver.no_children_hint': 'Tambah seorang kanak-kanak untuk mula.',
     'caregiver.enter_child_mode': 'Masuk Mod Kanak-kanak',
@@ -507,6 +510,7 @@ class AppStrings {
     // Profiles page
     'profiles.title': 'Profil Kanak-kanak',
     'profiles.add_child': 'Tambah Kanak-kanak',
+    'profiles.empty_subtitle': 'Tambah kanak-kanak pertama anda untuk mula mencipta dan memainkan cerita.',
     'profiles.remove_confirm': 'Buang profil kanak-kanak ini?',
     'profiles.remove_confirm_body':
         'Sejarah mendengar kanak-kanak ini juga akan dibuang. Ini tidak boleh dibatalkan.',
