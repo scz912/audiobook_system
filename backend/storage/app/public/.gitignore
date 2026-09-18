@@ -1,2 +1,10 @@
 *
 !.gitignore
+
+# Commit existing media so it deploys to Railway.
+# uploads = covers, page images, uploaded audio. bgm = music tracks.
+# tts stays ignored — those AI voice clips regenerate on playback.
+!uploads/
+!uploads/**
+!bgm/
+!bgm/**
