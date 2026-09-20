@@ -28,7 +28,7 @@ class HubController extends ApiController
         return $this->successResponse('OK', $out);
     }
 
-    // Share one of my audiobooks to the hub.
+    // Share a post: an audiobook, some text, or both.
     public function create(Request $request): JsonResponse
     {
         $caregiver = $request->get('auth_caregiver');
@@ -37,8 +37,8 @@ class HubController extends ApiController
         }
 
         $validator = Validator::make($request->all(), [
-            'audiobook_id'  => 'required|uuid',
-            'caption'       => 'nullable|string|max:300',
+            'audiobook_id'  => 'nullable|uuid',
+            'caption'       => 'nullable|string|max:1000',
             'include_music' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {
@@ -49,15 +49,25 @@ class HubController extends ApiController
             );
         }
 
-        $book = Audiobook::where('audiobook_id', $request->input('audiobook_id'))->first();
-        if (!$book) {
-            return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
+        $audiobookId = $request->input('audiobook_id');
+        $caption = trim((string) $request->input('caption'));
+
+        // A post must carry something — a story, some text, or both.
+        if ($audiobookId === null && $caption === '') {
+            return $this->errorResponse('Add a story or some text', 'EMPTY_POST', 422);
+        }
+
+        if ($audiobookId !== null) {
+            $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+            if (!$book) {
+                return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
+            }
         }
 
         $post = HubPost::create([
-            'audiobook_id'  => $book->audiobook_id,
+            'audiobook_id'  => $audiobookId,
             'shared_by'     => $caregiver->caregiver_id,
-            'caption'       => $request->input('caption'),
+            'caption'       => $caption === '' ? null : $caption,
             'include_music' => $request->boolean('include_music'),
         ]);
 
@@ -173,13 +183,12 @@ class HubController extends ApiController
         return $this->successResponse('Deleted');
     }
 
-    // Full post shape for the feed. Returns null if the book was deleted.
+    // Full post shape for the feed. Text-only posts have a null audiobook.
     private function serializePost(HubPost $post, string $meId): ?array
     {
-        $book = Audiobook::where('audiobook_id', $post->audiobook_id)->first();
-        if (!$book) {
-            return null;
-        }
+        $book = $post->audiobook_id
+            ? Audiobook::where('audiobook_id', $post->audiobook_id)->first()
+            : null;
         $author = Caregiver::where('caregiver_id', $post->shared_by)->first();
 
         return [
@@ -193,13 +202,13 @@ class HubController extends ApiController
                 'avatar_emoji' => $author->avatar_emoji,
                 'avatar_color' => $author->avatar_color,
             ] : null,
-            'audiobook'     => [
+            'audiobook'     => $book ? [
                 'audiobook_id' => $book->audiobook_id,
                 'title'        => $book->title,
                 'author'       => $book->author,
                 'language'     => $book->language,
                 'cover_image'  => $this->mediaUrl($book->cover_image),
-            ],
+            ] : null,
             'like_count'    => HubLike::where('post_id', $post->post_id)->count(),
             'comment_count' => HubComment::where('post_id', $post->post_id)->count(),
             'liked_by_me'   => HubLike::where('post_id', $post->post_id)

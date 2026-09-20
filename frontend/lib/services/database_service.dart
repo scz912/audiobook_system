@@ -954,12 +954,12 @@ class DatabaseService {
   }
 
   static Future<ApiResponse> sharePost({
-    required String audiobookId,
+    String? audiobookId,
     String? caption,
     bool includeMusic = false,
   }) async {
     final resp = await _post('/hub/create', body: {
-      'audiobook_id': audiobookId,
+      'audiobook_id': ?audiobookId,
       'caption': ?caption,
       'include_music': includeMusic,
     });

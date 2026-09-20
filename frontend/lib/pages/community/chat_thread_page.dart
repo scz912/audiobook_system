@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/chat_message.dart';
 import '../../models/community/conversation.dart';
 import '../../services/database_service.dart';
@@ -117,9 +118,9 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _messages.isEmpty
-                      ? const Center(
-                          child: Text('Say hello 👋',
-                              style: TextStyle(color: AppColors.textSecondary)))
+                      ? Center(
+                          child: Text(context.tr('community.say_hello'),
+                              style: const TextStyle(color: AppColors.textSecondary)))
                       : ListView.builder(
                           controller: _scroll,
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -249,7 +250,7 @@ class _Composer extends StatelessWidget {
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(hintText: 'Message…'),
+                decoration: InputDecoration(hintText: context.tr('community.message_hint')),
               ),
             ),
             const SizedBox(width: 8),

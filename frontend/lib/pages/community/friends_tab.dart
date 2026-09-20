@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/member.dart';
 import '../../state/friends_state.dart';
 import '../../theme/app_colors.dart';
@@ -58,7 +59,7 @@ class _FriendsTabState extends State<FriendsTab> {
             controller: _searchCtrl,
             onChanged: _runSearch,
             decoration: InputDecoration(
-              hintText: 'Find families by name or email',
+              hintText: context.tr('community.find_families'),
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _searchMode
                   ? IconButton(
@@ -91,12 +92,12 @@ class _FriendsTabState extends State<FriendsTab> {
       ];
     }
     if (friends.searchResults.isEmpty) {
-      return const [
+      return [
         Padding(
-          padding: EdgeInsets.symmetric(vertical: 30),
+          padding: const EdgeInsets.symmetric(vertical: 30),
           child: Center(
-            child: Text('No families found',
-                style: TextStyle(color: AppColors.textSecondary)),
+            child: Text(context.tr('community.no_families'),
+                style: const TextStyle(color: AppColors.textSecondary)),
           ),
         ),
       ];
@@ -107,22 +108,22 @@ class _FriendsTabState extends State<FriendsTab> {
   List<Widget> _buildFriendsAndRequests(FriendsState friends) {
     return [
       if (friends.pending.isNotEmpty) ...[
-        const _SectionLabel('Requests'),
+        _SectionLabel(context.tr('community.requests')),
         ...friends.pending.map((m) => _RequestRow(member: m)),
         const SizedBox(height: 16),
       ],
-      const _SectionLabel('Friends'),
+      _SectionLabel(context.tr('community.friends')),
       if (friends.loading && friends.friends.isEmpty)
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 30),
           child: Center(child: CircularProgressIndicator()),
         )
       else if (friends.friends.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
           child: Center(
-            child: Text('No friends yet — search above to connect.',
-                style: TextStyle(color: AppColors.textSecondary)),
+            child: Text(context.tr('community.no_friends'),
+                style: const TextStyle(color: AppColors.textSecondary)),
           ),
         )
       else
@@ -199,8 +200,8 @@ class _RelationAction extends StatelessWidget {
       case 'friends':
         return const Icon(Icons.people_rounded, color: AppColors.primaryBlueDark);
       case 'request_sent':
-        return const Text('Requested',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12));
+        return Text(context.tr('community.requested'),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12));
       case 'request_received':
         return const Icon(Icons.mark_email_unread_rounded,
             color: AppColors.warning);
@@ -211,7 +212,8 @@ class _RelationAction extends StatelessWidget {
           onPressed: () async {
             final ok = await friends.sendRequest(member.caregiverId);
             if (context.mounted && ok) {
-              AppSnackbar.success('Request sent', context: context);
+              AppSnackbar.success(context.trRead('community.request_sent'),
+                  context: context);
             }
           },
         );
@@ -237,7 +239,7 @@ class _RequestRow extends StatelessWidget {
                 emoji: member.avatarEmoji, colorHex: member.avatarColor, size: 44),
             const SizedBox(width: 12),
             Expanded(
-              child: Text('${member.name} wants to connect',
+              child: Text('${member.name} ${context.tr('community.wants_connect')}',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             IconButton(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../state/chat_state.dart';
 import '../../state/community_state.dart';
 import '../../state/friends_state.dart';
@@ -49,32 +50,41 @@ class _CommunityPageState extends State<CommunityPage> {
         children: [
           const SizedBox(height: 8),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: Row(
               children: [
-                const Text(
-                  'Community',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                Text(
+                  context.tr('community.title'),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                 ),
                 const Spacer(),
-                IconButton(
-                  tooltip: 'Invite a family',
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.softLavender,
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const InvitesPage()),
                   ),
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: Text(context.tr('community.invite'),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
           ),
-          const TabBar(
+          TabBar(
             labelColor: AppColors.primaryBlueDark,
             unselectedLabelColor: AppColors.textSecondary,
             indicatorColor: AppColors.primaryBlueDark,
             tabs: [
-              Tab(text: 'Hub'),
-              Tab(text: 'Chat'),
-              Tab(text: 'Friends'),
+              Tab(text: context.tr('community.hub')),
+              Tab(text: context.tr('community.chat')),
+              Tab(text: context.tr('community.friends')),
             ],
           ),
           const Expanded(
@@ -120,9 +130,11 @@ class _JoinGateState extends State<_JoinGate> {
     setState(() => _busy = false);
     if (ok) {
       _loadAll();
-      AppSnackbar.success('Welcome to the community!', context: context);
+      AppSnackbar.success(context.trRead('community.welcome'), context: context);
     } else {
-      AppSnackbar.error(community.lastError ?? 'Could not join', context: context);
+      AppSnackbar.error(
+          community.lastError ?? context.trRead('community.join_failed'),
+          context: context);
     }
   }
 
@@ -150,18 +162,16 @@ class _JoinGateState extends State<_JoinGate> {
                 size: 46, color: AppColors.primaryBlueDark),
           ),
           const SizedBox(height: 18),
-          const Text(
-            'A private space for families',
+          Text(
+            context.tr('community.join_title'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Connect with other families, chat, and share the stories you '
-            'create. This community is private and invite-only — nothing here '
-            'is ever public.',
+          Text(
+            context.tr('community.join_body'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, height: 1.5),
+            style: const TextStyle(color: AppColors.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -179,8 +189,8 @@ class _JoinGateState extends State<_JoinGate> {
                   ? const SizedBox(
                       width: 22, height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Join the community',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  : Text(context.tr('community.join_button'),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
           const SizedBox(height: 20),
@@ -188,13 +198,14 @@ class _JoinGateState extends State<_JoinGate> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Have an invite code?',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(context.tr('community.have_code'),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _codeCtrl,
                   textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(hintText: 'Enter code'),
+                  decoration: InputDecoration(
+                      hintText: context.tr('community.enter_code')),
                 ),
                 const SizedBox(height: 10),
                 Align(
@@ -203,7 +214,7 @@ class _JoinGateState extends State<_JoinGate> {
                     onPressed: _busy
                         ? null
                         : () => _join(code: _codeCtrl.text.trim().toUpperCase()),
-                    child: const Text('Redeem code'),
+                    child: Text(context.tr('community.redeem')),
                   ),
                 ),
               ],

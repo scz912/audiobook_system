@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/community_invite.dart';
 import '../../state/community_state.dart';
 import '../../theme/app_colors.dart';
@@ -34,7 +35,7 @@ class _InvitesPageState extends State<InvitesPage> {
     if (!mounted) return;
     setState(() => _creating = false);
     if (invite != null) {
-      AppSnackbar.success('Invite code created', context: context);
+      AppSnackbar.success(context.trRead('community.code_created'), context: context);
     }
   }
 
@@ -52,8 +53,8 @@ class _InvitesPageState extends State<InvitesPage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  const Text('Invite families',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(context.tr('community.invite_families'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -61,10 +62,9 @@ class _InvitesPageState extends State<InvitesPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                 children: [
-                  const Text(
-                    'Share a code with another family of an autistic child. '
-                    'Only people with a code can join — the hub never goes public.',
-                    style: TextStyle(color: AppColors.textSecondary, height: 1.5),
+                  Text(
+                    context.tr('community.invite_desc'),
+                    style: const TextStyle(color: AppColors.textSecondary, height: 1.5),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -83,14 +83,14 @@ class _InvitesPageState extends State<InvitesPage> {
                               width: 20, height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.add_rounded),
-                      label: const Text('Create a new code',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      label: Text(context.tr('community.create_code'),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
                     ),
                   ),
                   const SizedBox(height: 20),
                   if (community.invites.isNotEmpty)
-                    const Text('Your codes',
-                        style: TextStyle(
+                    Text(context.tr('community.your_codes'),
+                        style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
@@ -128,7 +128,10 @@ class _InviteTile extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                           letterSpacing: 2)),
                   const SizedBox(height: 2),
-                  Text(used ? 'Used' : 'Waiting to be used',
+                  Text(
+                      used
+                          ? context.tr('community.code_used')
+                          : context.tr('community.code_waiting'),
                       style: TextStyle(
                           color: used ? AppColors.textMuted : AppColors.success,
                           fontSize: 12)),
@@ -141,7 +144,8 @@ class _InviteTile extends StatelessWidget {
                     color: AppColors.primaryBlueDark),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: invite.code));
-                  AppSnackbar.success('Code copied', context: context);
+                  AppSnackbar.success(context.trRead('community.code_copied'),
+                      context: context);
                 },
               ),
           ],

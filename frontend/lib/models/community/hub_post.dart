@@ -9,8 +9,9 @@ class HubPost {
   final DateTime? createdAt;
   final Member? author;
 
-  final String audiobookId;
-  final String bookTitle;
+  // Null on text-only posts.
+  final String? audiobookId;
+  final String? bookTitle;
   final String? bookAuthor;
   final String? bookLanguage;
   final String? coverImage;
@@ -26,8 +27,8 @@ class HubPost {
     this.includeMusic = false,
     this.createdAt,
     this.author,
-    required this.audiobookId,
-    required this.bookTitle,
+    this.audiobookId,
+    this.bookTitle,
     this.bookAuthor,
     this.bookLanguage,
     this.coverImage,
@@ -37,8 +38,11 @@ class HubPost {
     this.isMine = false,
   });
 
+  // Whether this post shares an audiobook (vs. text only).
+  bool get hasBook => audiobookId != null && audiobookId!.isNotEmpty;
+
   factory HubPost.fromJson(Map<String, dynamic> json) {
-    final book = json['audiobook'] as Map<String, dynamic>? ?? {};
+    final book = json['audiobook'] as Map<String, dynamic>?;
     final author = json['author'];
     return HubPost(
       postId: safeString(json['post_id']),
@@ -46,11 +50,11 @@ class HubPost {
       includeMusic: safeBool(json['include_music']),
       createdAt: safeDate(json['created_at']),
       author: author is Map<String, dynamic> ? Member.fromJson(author) : null,
-      audiobookId: safeString(book['audiobook_id']),
-      bookTitle: safeString(book['title'], 'Story'),
-      bookAuthor: safeNullableString(book['author']),
-      bookLanguage: safeNullableString(book['language']),
-      coverImage: safeNullableString(book['cover_image']),
+      audiobookId: book == null ? null : safeNullableString(book['audiobook_id']),
+      bookTitle: book == null ? null : safeString(book['title'], 'Story'),
+      bookAuthor: book == null ? null : safeNullableString(book['author']),
+      bookLanguage: book == null ? null : safeNullableString(book['language']),
+      coverImage: book == null ? null : safeNullableString(book['cover_image']),
       likeCount: safeInt(json['like_count']) ?? 0,
       commentCount: safeInt(json['comment_count']) ?? 0,
       likedByMe: safeBool(json['liked_by_me']),

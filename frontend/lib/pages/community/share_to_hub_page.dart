@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
@@ -51,20 +52,23 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
 
   Future<void> _share() async {
     final book = _selected;
-    if (book?.audiobookId == null) {
-      AppSnackbar.warning('Pick a story to share', context: context);
+    final caption = _captionCtrl.text.trim();
+    // A post needs a story, some text, or both.
+    if (book?.audiobookId == null && caption.isEmpty) {
+      AppSnackbar.warning(context.trRead('community.pick_story_or_text'),
+          context: context);
       return;
     }
     setState(() => _sharing = true);
     final resp = await DatabaseService.sharePost(
-      audiobookId: book!.audiobookId!,
-      caption: _captionCtrl.text.trim().isEmpty ? null : _captionCtrl.text.trim(),
+      audiobookId: book?.audiobookId,
+      caption: caption.isEmpty ? null : caption,
       includeMusic: _includeMusic,
     );
     if (!mounted) return;
     setState(() => _sharing = false);
     if (resp.success) {
-      AppSnackbar.success('Shared to the hub', context: context);
+      AppSnackbar.success(context.trRead('community.shared_ok'), context: context);
       Navigator.of(context).pop();
     } else {
       AppSnackbar.error(resp.message, context: context);
@@ -84,43 +88,44 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  const Text('Share a story',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(context.tr('community.share_story'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _books.isEmpty
-                      ? const Center(
-                          child: Text('You have no finished stories to share yet.',
-                              style: TextStyle(color: AppColors.textSecondary)))
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                          children: [
-                            const Text('Choose a story',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary)),
-                            const SizedBox(height: 8),
-                            ..._books.map(_bookTile),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: _captionCtrl,
-                              minLines: 2,
-                              maxLines: 4,
-                              decoration: const InputDecoration(
-                                hintText: 'Say something about this story (optional)',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      children: [
+                        // Text to share — on its own, or alongside a story.
+                        TextField(
+                          controller: _captionCtrl,
+                          minLines: 3,
+                          maxLines: 6,
+                          decoration: InputDecoration(
+                            hintText: context.tr('community.write_something'),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Optionally attach one of your stories.
+                        if (_books.isNotEmpty) ...[
+                          Text(context.tr('community.choose_story_optional'),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary)),
+                          const SizedBox(height: 8),
+                          ..._books.map(_bookTile),
+                          const SizedBox(height: 12),
+                          if (_selected != null)
                             _MusicNotice(
                               value: _includeMusic,
                               onChanged: (v) => setState(() => _includeMusic = v),
                             ),
-                          ],
-                        ),
+                        ],
+                      ],
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -139,8 +144,8 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
                       ? const SizedBox(
                           width: 22, height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Share',
-                          style: TextStyle(
+                      : Text(context.tr('community.share'),
+                          style: const TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 16)),
                 ),
               ),
@@ -158,7 +163,8 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
       child: SoftCard(
         color: selected ? AppColors.iconCircleBlue : null,
         padding: const EdgeInsets.all(10),
-        onTap: () => setState(() => _selected = book),
+        // Tap again to unselect and post text only.
+        onTap: () => setState(() => _selected = selected ? null : book),
         child: Row(
           children: [
             ClipRRect(
@@ -215,12 +221,11 @@ class _MusicNotice extends StatelessWidget {
         children: [
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Include background music',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: const Text(
-              'Off by default. Only turn this on if the music is royalty-free — '
-              'shared stories otherwise include just the story, pictures, and voice.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            title: Text(context.tr('community.include_music'),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(
+              context.tr('community.include_music_note'),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             activeThumbColor: AppColors.primaryBlueDark,
             value: value,

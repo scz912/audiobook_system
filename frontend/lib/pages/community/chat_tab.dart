@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/conversation.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_colors.dart';
@@ -41,7 +42,8 @@ class _ChatTabState extends State<ChatTab> {
         },
         backgroundColor: AppColors.primaryBlueDark,
         icon: const Icon(Icons.group_add_rounded, color: Colors.white),
-        label: const Text('New group', style: TextStyle(color: Colors.white)),
+        label: Text(context.tr('community.new_group'),
+            style: const TextStyle(color: Colors.white)),
       ),
       body: RefreshIndicator(
         onRefresh: () => chat.refresh(),
@@ -49,21 +51,21 @@ class _ChatTabState extends State<ChatTab> {
             ? const Center(child: CircularProgressIndicator())
             : chat.conversations.isEmpty
                 ? ListView(
-                    children: const [
-                      SizedBox(height: 120),
+                    children: [
+                      const SizedBox(height: 120),
                       Center(
                         child: Column(
                           children: [
-                            Icon(Icons.forum_outlined,
+                            const Icon(Icons.forum_outlined,
                                 size: 64, color: AppColors.textMuted),
-                            SizedBox(height: 12),
-                            Text('No chats yet',
-                                style: TextStyle(
+                            const SizedBox(height: 12),
+                            Text(context.tr('community.no_chats_title'),
+                                style: const TextStyle(
                                     fontWeight: FontWeight.w700, fontSize: 16)),
-                            SizedBox(height: 6),
-                            Text('Message a friend from their profile,\nor start a group.',
+                            const SizedBox(height: 6),
+                            Text(context.tr('community.no_chats_body'),
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: AppColors.textSecondary)),
+                                style: const TextStyle(color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
@@ -133,7 +135,8 @@ class _ChatRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          conversation.lastMessageBody ?? 'No messages yet',
+                          conversation.lastMessageBody ??
+                              context.tr('community.no_messages'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

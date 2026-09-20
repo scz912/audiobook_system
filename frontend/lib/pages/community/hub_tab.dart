@@ -2,14 +2,28 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/hub_post.dart';
 import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
+import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
 import 'hub_post_detail_page.dart';
 import 'member_profile_page.dart';
 import 'share_to_hub_page.dart';
+
+// Open the shared story in the player (preview mode — no session recorded).
+void _listenToPost(BuildContext context, HubPost post) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => AudioPlayerPage(
+      title: post.bookTitle ?? 'Story',
+      audiobookId: post.audiobookId,
+      previewMode: true,
+    ),
+  ));
+}
 
 // The shared-audiobook feed with a button to share your own book.
 class HubTab extends StatefulWidget {
@@ -46,7 +60,8 @@ class _HubTabState extends State<HubTab> {
         onPressed: _openShare,
         backgroundColor: AppColors.primaryBlueDark,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('Share', style: TextStyle(color: Colors.white)),
+        label: Text(context.tr('community.share'),
+            style: const TextStyle(color: Colors.white)),
       ),
       body: RefreshIndicator(
         onRefresh: () => hub.refresh(),
@@ -74,15 +89,15 @@ class _EmptyHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        Icon(Icons.auto_stories_rounded, size: 64, color: AppColors.textMuted),
-        SizedBox(height: 12),
-        Text('No shared stories yet',
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-        SizedBox(height: 6),
-        Text('Tap Share to post one of your audiobooks.',
-            style: TextStyle(color: AppColors.textSecondary)),
+        const Icon(Icons.auto_stories_rounded, size: 64, color: AppColors.textMuted),
+        const SizedBox(height: 12),
+        Text(context.tr('community.no_posts_title'),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        const SizedBox(height: 6),
+        Text(context.tr('community.no_posts_body'),
+            style: const TextStyle(color: AppColors.textSecondary)),
       ],
     );
   }
@@ -135,7 +150,7 @@ class _PostCard extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded,
                         color: AppColors.textSecondary),
-                    onPressed: () => hub.removePost(post.postId),
+                    onPressed: () => _confirmDelete(context, hub, post),
                   ),
               ],
             ),
@@ -143,38 +158,57 @@ class _PostCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(post.caption!, style: const TextStyle(height: 1.4)),
             ],
-            const SizedBox(height: 12),
-            // The shared book.
-            GestureDetector(
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => HubPostDetailPage(post: post),
-              )),
-              child: Row(
-                children: [
-                  _Cover(url: post.coverImage),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(post.bookTitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 15)),
-                        if (post.bookAuthor != null && post.bookAuthor!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(post.bookAuthor!,
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary, fontSize: 12)),
-                          ),
-                      ],
+            // The shared book (only when the post includes one).
+            if (post.hasBook) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () => _listenToPost(context, post),
+                borderRadius: BorderRadius.circular(12),
+                child: Row(
+                  children: [
+                    _Cover(url: post.coverImage),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(post.bookTitle ?? 'Story',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15)),
+                          if (post.bookAuthor != null && post.bookAuthor!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(post.bookAuthor!,
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary, fontSize: 12)),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const Icon(Icons.play_circle_fill_rounded,
+                        color: AppColors.primaryBlueDark, size: 34),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: AppColors.textPrimary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _listenToPost(context, post),
+                  icon: const Icon(Icons.headphones_rounded),
+                  label: Text(context.tr('community.listen'),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
             const Divider(height: 22),
             // Like + comment actions.
             Row(
@@ -202,6 +236,40 @@ class _PostCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, HubState hub, HubPost post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(ctx.tr('community.delete_post_title')),
+        content: Text(
+          ctx.tr('community.delete_post_body'),
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(ctx.tr('common.cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(ctx.tr('community.delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final ok = await hub.removePost(post.postId);
+    if (context.mounted && !ok) {
+      AppSnackbar.error('Could not delete post', context: context);
+    }
   }
 }
 

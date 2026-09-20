@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/member.dart';
 import '../../services/database_service.dart';
 import '../../state/friends_state.dart';
@@ -41,11 +42,11 @@ class _NewGroupPageState extends State<NewGroupPage> {
   Future<void> _create() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
-      AppSnackbar.warning('Give the group a name', context: context);
+      AppSnackbar.warning(context.trRead('community.name_group'), context: context);
       return;
     }
     if (_selected.isEmpty) {
-      AppSnackbar.warning('Pick at least one friend', context: context);
+      AppSnackbar.warning(context.trRead('community.pick_friend'), context: context);
       return;
     }
     setState(() => _creating = true);
@@ -75,8 +76,8 @@ class _NewGroupPageState extends State<NewGroupPage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  const Text('New group',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(context.tr('community.new_group'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -84,16 +85,16 @@ class _NewGroupPageState extends State<NewGroupPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(hintText: 'Group name'),
+                decoration: InputDecoration(hintText: context.tr('community.group_name')),
               ),
             ),
             const SizedBox(height: 12),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Add friends',
-                    style: TextStyle(
+                child: Text(context.tr('community.add_friends'),
+                    style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         color: AppColors.textSecondary)),
               ),
@@ -101,9 +102,9 @@ class _NewGroupPageState extends State<NewGroupPage> {
             const SizedBox(height: 8),
             Expanded(
               child: friends.friends.isEmpty
-                  ? const Center(
-                      child: Text('Add some friends first.',
-                          style: TextStyle(color: AppColors.textSecondary)))
+                  ? Center(
+                      child: Text(context.tr('community.add_friends_first'),
+                          style: const TextStyle(color: AppColors.textSecondary)))
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       children: friends.friends.map(_friendTile).toList(),
@@ -126,7 +127,8 @@ class _NewGroupPageState extends State<NewGroupPage> {
                       ? const SizedBox(
                           width: 22, height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text('Create group (${_selected.length})',
+                      : Text(
+                          '${context.tr('community.create_group')} (${_selected.length})',
                           style: const TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 16)),
                 ),

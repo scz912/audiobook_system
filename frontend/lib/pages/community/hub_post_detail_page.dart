@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/hub_comment.dart';
 import '../../models/community/hub_post.dart';
 import '../../services/database_service.dart';
@@ -10,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
+import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
 
@@ -82,8 +84,8 @@ class _HubPostDetailPageState extends State<HubPostDetailPage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  const Text('Post',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(context.tr('community.post'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -93,8 +95,8 @@ class _HubPostDetailPageState extends State<HubPostDetailPage> {
                 children: [
                   _PostHeader(post: post),
                   const SizedBox(height: 16),
-                  Text('Comments',
-                      style: TextStyle(
+                  Text(context.tr('community.comments'),
+                      style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
@@ -104,11 +106,11 @@ class _HubPostDetailPageState extends State<HubPostDetailPage> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (_comments.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Center(
-                        child: Text('Be the first to comment',
-                            style: TextStyle(color: AppColors.textSecondary)),
+                        child: Text(context.tr('community.no_comments'),
+                            style: const TextStyle(color: AppColors.textSecondary)),
                       ),
                     )
                   else
@@ -173,40 +175,76 @@ class _PostHeader extends StatelessWidget {
             const SizedBox(height: 10),
             Text(live.caption!, style: const TextStyle(height: 1.4)),
           ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: (live.coverImage != null && live.coverImage!.isNotEmpty)
-                      ? CachedNetworkImage(
-                          imageUrl: live.coverImage!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 180,
-                          errorWidget: (_, _, _) => Container(
-                            color: AppColors.softLavender,
-                            child: const Icon(Icons.auto_stories_rounded,
-                                color: AppColors.primaryBlueDark),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.softLavender,
-                          child: const Icon(Icons.auto_stories_rounded,
-                              color: AppColors.primaryBlueDark),
-                        ),
+          if (live.hasBook) ...[
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AudioPlayerPage(
+                  title: live.bookTitle ?? 'Story',
+                  audiobookId: live.audiobookId,
+                  previewMode: true,
                 ),
+              )),
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: (live.coverImage != null && live.coverImage!.isNotEmpty)
+                          ? CachedNetworkImage(
+                              imageUrl: live.coverImage!,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 180,
+                              errorWidget: (_, _, _) => Container(
+                                color: AppColors.softLavender,
+                                child: const Icon(Icons.auto_stories_rounded,
+                                    color: AppColors.primaryBlueDark),
+                              ),
+                            )
+                          : Container(
+                              color: AppColors.softLavender,
+                              child: const Icon(Icons.auto_stories_rounded,
+                                  color: AppColors.primaryBlueDark),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(live.bookTitle ?? 'Story',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15)),
+                  ),
+                  const Icon(Icons.play_circle_fill_rounded,
+                      color: AppColors.primaryBlueDark, size: 34),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(live.bookTitle,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15)),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: AppColors.textPrimary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AudioPlayerPage(
+                    title: live.bookTitle ?? 'Story',
+                    audiobookId: live.audiobookId,
+                    previewMode: true,
+                  ),
+                )),
+                icon: const Icon(Icons.headphones_rounded),
+                label: Text(context.tr('community.listen'),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
-            ],
-          ),
+            ),
+          ],
           const Divider(height: 22),
           InkWell(
             onTap: () => hub.toggleLike(live),
@@ -224,7 +262,7 @@ class _PostHeader extends StatelessWidget {
                         : AppColors.textSecondary,
                   ),
                   const SizedBox(width: 6),
-                  Text('${live.likeCount} likes',
+                  Text('${live.likeCount} ${context.tr('community.likes')}',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -306,7 +344,8 @@ class _CommentBox extends StatelessWidget {
                 controller: controller,
                 minLines: 1,
                 maxLines: 4,
-                decoration: const InputDecoration(hintText: 'Write a comment…'),
+                decoration: InputDecoration(
+                    hintText: context.tr('community.write_comment')),
               ),
             ),
             const SizedBox(width: 8),

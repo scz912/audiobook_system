@@ -10,7 +10,6 @@ import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
-import '../../widgets/back_pill.dart';
 import '../../widgets/soft_chip.dart';
 import '../../widgets/stat_card.dart';
 import '../child/audio_player_page.dart';
@@ -172,13 +171,8 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          BackPill(
-            label: 'Back to Dashboard',
-            onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(

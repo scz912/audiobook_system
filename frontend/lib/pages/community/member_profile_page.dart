@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/i18n.dart';
 import '../../models/community/member.dart';
 import '../../services/database_service.dart';
 import '../../state/friends_state.dart';
@@ -46,7 +47,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
-      AppSnackbar.success('Request sent', context: context);
+      AppSnackbar.success(context.trRead('community.request_sent'), context: context);
       _load();
     }
   }
@@ -78,8 +79,8 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
-                  const Text('Profile',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(context.tr('community.profile'),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -87,9 +88,9 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _member == null
-                      ? const Center(
-                          child: Text('Could not load this profile',
-                              style: TextStyle(color: AppColors.textSecondary)))
+                      ? Center(
+                          child: Text(context.tr('community.profile_load_failed'),
+                              style: const TextStyle(color: AppColors.textSecondary)))
                       : _body(_member!),
             ),
           ],
@@ -125,11 +126,15 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _Stat(value: '${member.sharedCount}', label: 'Shared stories'),
+              _Stat(
+                  value: '${member.sharedCount}',
+                  label: context.tr('community.shared_stories')),
               Container(width: 1, height: 34, color: AppColors.cardBorder),
               _Stat(
-                value: member.relation == 'friends' ? 'Friends' : '—',
-                label: 'Status',
+                value: member.relation == 'friends'
+                    ? context.tr('community.friends')
+                    : '—',
+                label: context.tr('community.status'),
               ),
             ],
           ),
@@ -150,7 +155,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                 ),
                 onPressed: _busy ? null : _message,
                 icon: const Icon(Icons.chat_bubble_outline_rounded),
-                label: const Text('Message'),
+                label: Text(context.tr('community.message')),
               ),
             ),
           ],
@@ -165,7 +170,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
         style: _filledStyle(AppColors.softMintDark),
         onPressed: null,
         icon: const Icon(Icons.people_rounded),
-        label: const Text('Friends'),
+        label: Text(context.tr('community.friends')),
       );
     }
     if (member.relation == 'request_sent') {
@@ -173,14 +178,14 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
         style: _filledStyle(AppColors.cardBorder),
         onPressed: null,
         icon: const Icon(Icons.hourglass_top_rounded),
-        label: const Text('Requested'),
+        label: Text(context.tr('community.requested')),
       );
     }
     return FilledButton.icon(
       style: _filledStyle(AppColors.primaryBlue),
       onPressed: _busy ? null : _addFriend,
       icon: const Icon(Icons.person_add_alt_1_rounded),
-      label: const Text('Add friend'),
+      label: Text(context.tr('community.add_friend')),
     );
   }
 

@@ -10,7 +10,6 @@ import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
-import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -44,8 +43,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
-        BackPill(onTap: widget.onBack ?? () => Navigator.of(context).maybePop()),
-        const SizedBox(height: 16),
         Text(
           context.tr('settings.title'),
           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
