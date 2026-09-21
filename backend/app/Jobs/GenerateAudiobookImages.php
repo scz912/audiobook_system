@@ -47,17 +47,17 @@ class GenerateAudiobookImages implements ShouldQueue
         $succeeded = 0;
         $failed = 0;
 
+        // Build every page's prompt, then draw all the pictures at once.
+        $prompts = [];
         foreach ($book->pages as $page) {
-            $prompt = $page->image_prompt !== null && $page->image_prompt !== ''
+            $prompts[] = $page->image_prompt !== null && $page->image_prompt !== ''
                 ? $page->image_prompt
                 : (string) $page->text;
+        }
+        $paths = $gemini->downloadImages($prompts);
 
-            Log::info('[ImageJob] generating page', [
-                'audiobook_id' => $book->audiobook_id,
-                'page_number'  => $page->page_number,
-            ]);
-            $path = $gemini->downloadImage($prompt);
-
+        foreach ($book->pages as $i => $page) {
+            $path = $paths[$i] ?? null;
             $page->image = $path;
             $page->save();
 

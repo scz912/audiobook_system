@@ -291,20 +291,15 @@ class ContentManagementController extends ApiController
             }
 
             if ($generateImages) {
-                @set_time_limit(0); // inline image generation can take ~1 minute
+                @set_time_limit(0); // inline image generation can take a while
                 @ignore_user_abort(true); // finish even if the client navigates away
                 GenerateAudiobookImages::dispatch($content->audiobook_id);
                 $content->refresh(); // 'available' now if the job ran inline (sync)
             }
 
-            // Make the voice clips now so the first preview plays fast.
-            if ($gemini->isConfigured()) {
-                foreach ($content->pages as $pg) {
-                    if (!empty($pg->text)) {
-                        try { $gemini->generateSpeech(trim($pg->text), 'Kore'); } catch (\Throwable $_) {}
-                    }
-                }
-            }
+            // Note: we don't pre-make the voice clips here — that added a lot of
+            // time to generation. Each page's voice is made (and cached) the
+            // first time it's played instead.
 
             $ready = $content->status === 'available';
             $message = !$generateImages

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -51,6 +53,73 @@ class GeminiService
             'last_error' => $this->lastImageError,
         ]);
         return $result;
+    }
+
+    /* Make several pictures at once (all requests fire together). Returns a
+       path (or null) per prompt in the same order. On a paid key this is far
+       faster than one at a time — 4 images finish in ~one image's time. */
+    public function downloadImages(array $prompts): array
+    {
+        if (empty($prompts)) {
+            return [];
+        }
+        Log::info('[Gemini] downloadImages called', ['count' => count($prompts)]);
+
+        $responses = Http::pool(function (Pool $pool) use ($prompts) {
+            $requests = [];
+            foreach ($prompts as $i => $prompt) {
+                $requests[] = $pool->as((string) $i)->timeout(120)->post(
+                    "{$this->base}/{$this->imageModel}:generateContent?key={$this->key}",
+                    [
+                        'contents' => [
+                            ['parts' => [['text' => $this->styledPrompt((string) $prompt)]]],
+                        ],
+                        'generationConfig' => [
+                            'responseModalities' => ['IMAGE'],
+                        ],
+                    ]
+                );
+            }
+            return $requests;
+        });
+
+        $out = [];
+        foreach (array_keys($prompts) as $n => $key) {
+            $out[$key] = $this->saveImageFromResponse($responses[(string) $n] ?? null);
+        }
+        Log::info('[Gemini] downloadImages finished', [
+            'count'     => count($prompts),
+            'succeeded' => count(array_filter($out, fn ($p) => $p !== null)),
+        ]);
+        return $out;
+    }
+
+    /* Pull the image out of a Gemini response, shrink it, and save it.
+       Returns the public path, or null on any failure. */
+    private function saveImageFromResponse($response): ?string
+    {
+        if (!$response instanceof Response) {
+            return null;
+        }
+        if (!$response->successful()) {
+            $this->lastImageError = $this->imageErrorMessage($response->status(), $response->json());
+            return null;
+        }
+        $parts = data_get($response->json(), 'candidates.0.content.parts', []);
+        foreach ($parts as $part) {
+            $data = $part['inlineData']['data'] ?? $part['inline_data']['data'] ?? null;
+            if ($data) {
+                $binary = base64_decode($data, true);
+                if ($binary === false) {
+                    continue;
+                }
+                [$saveBytes, $ext] = $this->shrinkForWeb($binary);
+                $path = 'uploads/covers/' . Str::uuid() . '.' . $ext;
+                Storage::disk('public')->put($path, $saveBytes);
+                return 'storage/' . $path;
+            }
+        }
+        return null;
     }
 
     /* Make a voice clip from text using Gemini TTS. Cached by text + voice
