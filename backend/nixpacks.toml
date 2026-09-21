@@ -1,8 +1,13 @@
 # Railway (Nixpacks) build + run config for the Laravel backend.
-# Build installs PHP deps; start runs migrations, links storage, then serves.
+# Build installs PHP deps. Start: migrate, link storage, launch a background
+# queue worker (so AI image generation runs off to the side instead of blocking
+# the web server), then serve the app.
+#
+# The worker only does real background work when QUEUE_CONNECTION=database is set
+# on the Railway service. With QUEUE_CONNECTION=sync it's harmless (idle).
 
 [phases.install]
 cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev"]
 
 [start]
-cmd = "php artisan migrate --force && (php artisan storage:link || true) && php artisan serve --host 0.0.0.0 --port $PORT"
+cmd = "php artisan migrate --force && (php artisan storage:link || true) && (php artisan queue:work --sleep=1 --tries=1 --timeout=1800 &) && php artisan serve --host 0.0.0.0 --port $PORT"

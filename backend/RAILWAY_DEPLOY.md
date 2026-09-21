@@ -57,7 +57,7 @@ Open the backend service → **Variables** → add these (from `.env.example`):
 | `DB_DATABASE` | `${{ MySQL.MYSQLDATABASE }}` |
 | `DB_USERNAME` | `${{ MySQL.MYSQLUSER }}` |
 | `DB_PASSWORD` | `${{ MySQL.MYSQLPASSWORD }}` |
-| `QUEUE_CONNECTION` | `sync` |
+| `QUEUE_CONNECTION` | `database` |
 | `FILESYSTEM_DISK` | `public` |
 | `SESSION_DRIVER` | `database` |
 | `CACHE_STORE` | `database` |
@@ -68,6 +68,27 @@ Open the backend service → **Variables** → add these (from `.env.example`):
 > The `${{ MySQL.XXX }}` syntax pulls values straight from the MySQL service, so
 > you never paste the password. If your MySQL service isn't named exactly
 > "MySQL", change the prefix to match its name.
+
+> **`GEMINI_IMAGE_MODEL` must be exactly `gemini-2.5-flash-image`.** The
+> `-preview` variant 404s. If images never generate, check this value first.
+
+### Background AI generation (why images don't freeze the app)
+`QUEUE_CONNECTION=database` sends AI image generation to a **background worker**
+instead of running it inside the web request. `nixpacks.toml` starts that worker
+automatically alongside the web server, so:
+- the `/content/generate` request returns in a few seconds (book shows as
+  "processing"),
+- images render in the background, and the app's polling flips the book to
+  "available" when done — the server never freezes mid-generation.
+
+If you ever set `QUEUE_CONNECTION=sync`, generation runs inline again and blocks
+the single-threaded `php artisan serve` — don't, unless you have no worker.
+
+**More robust option (optional):** instead of the in-container worker, add a
+**second Railway service** from the same repo with the start command
+`php artisan queue:work --sleep=1 --tries=1 --timeout=1800` (Root Directory
+`backend`, same env vars). Railway keeps it alive and restarts it on crash. Then
+you can drop the `queue:work` part from `nixpacks.toml`'s start command.
 
 ---
 
