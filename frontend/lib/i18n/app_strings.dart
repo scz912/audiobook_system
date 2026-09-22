@@ -204,6 +204,11 @@ class AppStrings {
     'content.delete_confirm_body':
         "This also removes its pages, audio, and any child's listening history for this book. This cannot be undone.",
     'content.delete_button': 'Delete',
+    'content.cancel_confirm': 'Cancel generation?',
+    'content.cancel_confirm_body':
+        'This stops making this storybook and removes it. You can generate it again anytime.',
+    'content.cancel_generation': 'Cancel generation',
+    'content.keep_generating': 'Keep generating',
     'content.edit_save_error': 'Could not save changes',
     'content.delete_error': 'Could not delete this audiobook',
     'content.edit_screen_title': 'Edit audiobook',
@@ -678,6 +683,11 @@ class AppStrings {
     'content.delete_confirm_body':
         'Ini juga akan membuang halaman, audio, dan sejarah mendengar kanak-kanak untuk buku ini. Ini tidak boleh dibatalkan.',
     'content.delete_button': 'Padam',
+    'content.cancel_confirm': 'Batalkan penjanaan?',
+    'content.cancel_confirm_body':
+        'Ini menghentikan pembuatan buku cerita ini dan membuangnya. Anda boleh menjananya semula bila-bila masa.',
+    'content.cancel_generation': 'Batalkan penjanaan',
+    'content.keep_generating': 'Teruskan menjana',
     'content.edit_save_error': 'Tidak dapat menyimpan perubahan',
     'content.delete_error': 'Tidak dapat memadam buku audio ini',
     'content.edit_screen_title': 'Sunting buku audio',

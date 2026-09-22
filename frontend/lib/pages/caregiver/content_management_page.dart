@@ -127,6 +127,49 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     }
   }
 
+  /* Cancel a book that's stuck generating: confirm, then delete it. Any
+     queued image job for it becomes a no-op (the book is gone). */
+  Future<void> _cancelItem(ContentItem item) async {
+    final id = item.audiobookId;
+    if (id == null || id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(ctx.tr('content.cancel_confirm')),
+        content: Text(
+          ctx.tr('content.cancel_confirm_body'),
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(ctx.tr('content.keep_generating')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(ctx.tr('content.cancel_generation')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final resp = await DatabaseService.deleteContent(id);
+    if (!mounted) return;
+    if (resp.success) {
+      await _refresh(silent: true);
+    } else {
+      AppSnackbar.error(
+        '${context.trRead('content.delete_error')}: ${resp.message}',
+        context: context,
+      );
+    }
+  }
+
   /* Open the book in the same player the child uses, so the caregiver sees
      and hears exactly what the child will. */
   void _openPreview(ContentItem item) {
@@ -318,6 +361,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
                 onTap: () => _openPreview(item),
                 onEdit: () => _editItem(item),
                 onDelete: () => _deleteItem(item),
+                onCancel: () => _cancelItem(item),
               ),
               const SizedBox(height: 10),
             ],
@@ -332,11 +376,13 @@ class _ContentTile extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onCancel;
   const _ContentTile({
     required this.item,
     this.onTap,
     this.onEdit,
     this.onDelete,
+    this.onCancel,
   });
 
   static ({IconData icon, Color bg, String label}) _typeMetaFor(ContentItem item) {
@@ -356,12 +402,14 @@ class _ContentTile extends StatelessWidget {
     final processing = item.status == 'processing';
     final showMenu =
         !processing && (onEdit != null || onDelete != null);
+    final showCancel = processing && onCancel != null;
     // Resolve the menu labels here, in the widget tree. PopupMenuButton's
     // itemBuilder runs in an overlay where ctx.tr(...) can't reach the
     // Provider and would throw, stopping the menu from opening.
     final editLabel = context.tr('content.edit_label');
     final deleteLabel = context.tr('content.delete_label');
     final tapToPreviewLabel = context.tr('content.tap_to_preview');
+    final cancelLabel = context.tr('content.cancel_generation');
 
     // Material is the card surface. The InkWell wraps only the left preview
     // area so it can't steal taps from the menu, which sits beside it as a
@@ -379,7 +427,8 @@ class _ContentTile extends StatelessWidget {
             child: InkWell(
               onTap: onTap,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(18, 18, showMenu ? 4 : 18, 18),
+                padding: EdgeInsets.fromLTRB(
+                    18, 18, (showMenu || showCancel) ? 4 : 18, 18),
                 child: Row(
                   children: [
                     _Thumbnail(
@@ -480,6 +529,15 @@ class _ContentTile extends StatelessWidget {
                       ),
                     ),
                 ],
+              ),
+            ),
+          if (showCancel)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: IconButton(
+                tooltip: cancelLabel,
+                icon: const Icon(Icons.cancel_outlined, color: AppColors.danger),
+                onPressed: onCancel,
               ),
             ),
         ],
