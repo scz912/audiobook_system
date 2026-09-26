@@ -11,7 +11,7 @@ import '../../widgets/back_pill.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
 
-/* One chat thread. Messages refresh every few seconds by polling — simple
+/* One chat thread. Messages refresh every few seconds by polling - simple
    and works on any host. Swap for WebSockets later if you want live push. */
 class ChatThreadPage extends StatefulWidget {
   final Conversation conversation;

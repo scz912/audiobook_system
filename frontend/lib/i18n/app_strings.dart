@@ -168,7 +168,7 @@ class AppStrings {
     'settings.language_sub': 'Choose the language for the app and AI stories',
     'settings.no_children_title': 'No child profiles yet',
     'settings.no_children_body':
-        'Add a child profile first — narration and sensory settings are configured per child.',
+        'Add a child profile first. Narration and sensory settings are configured per child.',
 
     // Voice labels
     'voice.calm_female': 'Calm Female',
@@ -192,7 +192,7 @@ class AppStrings {
     'content.tap_to_preview': 'Tap to preview',
     'content.generating': 'Generating…',
     'content.preview_still_generating':
-        'Still generating — you can preview once the pictures are ready.',
+        'Still generating. You can preview once the pictures are ready.',
     'content.preview_no_book': 'Nothing to preview for this item yet.',
     'content.edit_label': 'Edit audiobook',
     'content.delete_label': 'Delete audiobook',
@@ -227,7 +227,7 @@ class AppStrings {
     'content.delete_page_confirm': 'Delete this page?',
     'content.delete_page_confirm_body':
         "Removing a page can't be undone. The other pages keep their numbers.",
-    'content.no_pages_yet': 'No pages yet — tap "Add page" to create the first one.',
+    'content.no_pages_yet': 'No pages yet. Tap "Add page" to create the first one.',
     'content.filter_by_language': 'Filter by language',
     'content.filter_lang_all': 'All languages',
     'content.filter_lang_en': 'English',
@@ -253,7 +253,7 @@ class AppStrings {
     'upload.submit': 'Submit',
     'upload.generate': 'Generate',
     'upload.pending':
-        'Generating — you can leave this page; the book will appear in your library when ready.',
+        'Generating. You can leave this page; the book will appear in your library when ready.',
     'upload.story_language': 'Story language',
     'upload.book_audio': 'Storybook audio (optional)',
     'upload.book_audio_hint':
@@ -323,9 +323,9 @@ class AppStrings {
     'player.helper_text':
         'Tap Listen to hear the story. Words light up as they are read.',
     'player.preview_helper':
-        'Preview only — changes are not saved to any child.',
+        'Preview only. Changes are not saved to any child.',
     'player.preview_banner':
-        'Preview mode — try the voice, speed and text size for this session. Changes are not saved.',
+        'Preview mode. Try the voice, speed and text size for this session. Changes are not saved.',
     'player.finish_title': 'You finished the story!',
     'player.finish_subtitle': 'Great reading! Well done. 💛',
     'player.read_again': 'Read Again',
@@ -374,7 +374,7 @@ class AppStrings {
     'insights.viewing': 'Viewing',
     'insights.viewing_all': 'All children',
 
-    // Mood labels (used by insights breakdown — match child mood keys)
+    // Mood labels (used by insights breakdown. Match child mood keys)
     'insights.mood.happy': 'Happy',
     'insights.mood.calm': 'Calm',
     'insights.mood.curious': 'Curious',
@@ -393,9 +393,9 @@ class AppStrings {
     'insights.no_suggestions_body':
         'Tap "Run AI analysis" to ask Gemini for personalised suggestions.',
     'insights.suggestions_low_confidence':
-        'Low confidence — based on very few sessions. Keep using the app for a while before relying on these.',
+        'Low confidence. Based on very few sessions. Keep using the app for a while before relying on these.',
     'insights.suggestions_stale':
-        'Could not refresh — showing previous suggestions.',
+        'Could not refresh. Showing previous suggestions.',
     'insights.suggestions_generated_at': 'Generated',
     'insights.accept': 'Accept',
     'insights.edit_accept': 'Edit & accept',
@@ -432,7 +432,7 @@ class AppStrings {
     'community.friends': 'Friends',
     'community.join_title': 'A private space for families',
     'community.join_body':
-        'Connect with other families, chat, and share the stories you create. This community is private and invite-only — nothing here is ever public.',
+        'Connect with other families, chat, and share the stories you create. This community is private and invite-only. Nothing here is ever public.',
     'community.join_button': 'Join the community',
     'community.have_code': 'Have an invite code?',
     'community.enter_code': 'Enter code',
@@ -459,7 +459,7 @@ class AppStrings {
     'community.caption_hint': 'Say something about this story (optional)',
     'community.include_music': 'Include background music',
     'community.include_music_note':
-        'Off by default. Only turn this on if the music is royalty-free — shared stories otherwise include just the story, pictures, and voice.',
+        'Off by default. Only turn this on if the music is royalty-free. Shared stories otherwise include just the story, pictures, and voice.',
     'community.no_finished': 'You have no finished stories to share yet.',
     'community.pick_story': 'Pick a story to share',
     'community.shared_ok': 'Shared to the hub',
@@ -471,7 +471,7 @@ class AppStrings {
     'community.message_hint': 'Message…',
     'community.find_families': 'Find families by name or email',
     'community.requests': 'Requests',
-    'community.no_friends': 'No friends yet — search above to connect.',
+    'community.no_friends': 'No friends yet. Search above to connect.',
     'community.no_families': 'No families found',
     'community.request_sent': 'Request sent',
     'community.requested': 'Requested',
@@ -490,7 +490,7 @@ class AppStrings {
     'community.pick_friend': 'Pick at least one friend',
     'community.invite_families': 'Invite families',
     'community.invite_desc':
-        'Share a code with another family of an autistic child. Only people with a code can join — the hub never goes public.',
+        'Share a code with another family of an autistic child. Only people with a code can join. The hub never goes public.',
     'community.create_code': 'Create a new code',
     'community.your_codes': 'Your codes',
     'community.code_used': 'Used',
@@ -647,7 +647,7 @@ class AppStrings {
         'Pilih bahasa untuk aplikasi dan cerita AI',
     'settings.no_children_title': 'Belum ada profil kanak-kanak',
     'settings.no_children_body':
-        'Tambah profil kanak-kanak dahulu — tetapan suara dan sensori ditetapkan untuk setiap kanak-kanak.',
+        'Tambah profil kanak-kanak dahulu. Tetapan suara dan sensori ditetapkan untuk setiap kanak-kanak.',
 
     // Voice labels
     'voice.calm_female': 'Perempuan Tenang',
@@ -671,7 +671,7 @@ class AppStrings {
     'content.tap_to_preview': 'Ketik untuk pratonton',
     'content.generating': 'Menjana…',
     'content.preview_still_generating':
-        'Masih menjana — anda boleh pratonton apabila gambar sudah siap.',
+        'Masih menjana. Anda boleh pratonton apabila gambar sudah siap.',
     'content.preview_no_book': 'Tiada apa untuk dipratonton bagi item ini.',
     'content.edit_label': 'Sunting buku audio',
     'content.delete_label': 'Padam buku audio',
@@ -707,7 +707,7 @@ class AppStrings {
     'content.delete_page_confirm_body':
         'Halaman yang dipadam tidak boleh dipulihkan. Halaman lain mengekalkan nombor masing-masing.',
     'content.no_pages_yet':
-        'Tiada halaman lagi — ketik "Tambah halaman" untuk membuat yang pertama.',
+        'Tiada halaman lagi. Ketik "Tambah halaman" untuk membuat yang pertama.',
     'content.filter_by_language': 'Tapis ikut bahasa',
     'content.filter_lang_all': 'Semua bahasa',
     'content.filter_lang_en': 'English',
@@ -733,7 +733,7 @@ class AppStrings {
     'upload.submit': 'Hantar',
     'upload.generate': 'Jana',
     'upload.pending':
-        'Sedang menjana — anda boleh tinggalkan halaman ini; buku akan muncul dalam pustaka apabila siap.',
+        'Sedang menjana. Anda boleh tinggalkan halaman ini; buku akan muncul dalam pustaka apabila siap.',
     'upload.story_language': 'Bahasa cerita',
     'upload.book_audio': 'Audio buku cerita (pilihan)',
     'upload.book_audio_hint':
@@ -806,9 +806,9 @@ class AppStrings {
     'player.helper_text':
         'Ketik Dengar untuk mendengar cerita. Perkataan akan menyala apabila dibaca.',
     'player.preview_helper':
-        'Pratonton sahaja — perubahan tidak disimpan untuk mana-mana kanak-kanak.',
+        'Pratonton sahaja. Perubahan tidak disimpan untuk mana-mana kanak-kanak.',
     'player.preview_banner':
-        'Mod pratonton — cuba suara, kelajuan dan saiz teks untuk sesi ini. Perubahan tidak disimpan.',
+        'Mod pratonton. Cuba suara, kelajuan dan saiz teks untuk sesi ini. Perubahan tidak disimpan.',
     'player.finish_title': 'Kamu sudah habis baca cerita!',
     'player.finish_subtitle': 'Bagus sekali! Tahniah. 💛',
     'player.read_again': 'Baca Lagi',
@@ -877,9 +877,9 @@ class AppStrings {
     'insights.no_suggestions_body':
         'Ketik "Jalankan analisis AI" untuk meminta cadangan peribadi daripada Gemini.',
     'insights.suggestions_low_confidence':
-        'Keyakinan rendah — berdasarkan sesi yang sangat sedikit. Gunakan aplikasi untuk seketika sebelum bergantung pada cadangan ini.',
+        'Keyakinan rendah. Berdasarkan sesi yang sangat sedikit. Gunakan aplikasi untuk seketika sebelum bergantung pada cadangan ini.',
     'insights.suggestions_stale':
-        'Tidak dapat menyegarkan — menunjukkan cadangan sebelumnya.',
+        'Tidak dapat menyegarkan. Menunjukkan cadangan sebelumnya.',
     'insights.suggestions_generated_at': 'Dijana',
     'insights.accept': 'Terima',
     'insights.edit_accept': 'Edit & terima',
@@ -916,7 +916,7 @@ class AppStrings {
     'community.friends': 'Rakan',
     'community.join_title': 'Ruang peribadi untuk keluarga',
     'community.join_body':
-        'Berhubung dengan keluarga lain, bersembang, dan kongsi cerita yang anda cipta. Komuniti ini peribadi dan hanya melalui jemputan — tiada apa-apa di sini didedahkan kepada umum.',
+        'Berhubung dengan keluarga lain, bersembang, dan kongsi cerita yang anda cipta. Komuniti ini peribadi dan hanya melalui jemputan. Tiada apa-apa di sini didedahkan kepada umum.',
     'community.join_button': 'Sertai komuniti',
     'community.have_code': 'Ada kod jemputan?',
     'community.enter_code': 'Masukkan kod',
@@ -943,7 +943,7 @@ class AppStrings {
     'community.caption_hint': 'Kata sesuatu tentang cerita ini (pilihan)',
     'community.include_music': 'Sertakan muzik latar',
     'community.include_music_note':
-        'Dimatikan secara lalai. Hidupkan hanya jika muzik itu bebas royalti — jika tidak, cerita yang dikongsi hanya mengandungi teks, gambar, dan suara.',
+        'Dimatikan secara lalai. Hidupkan hanya jika muzik itu bebas royalti. Jika tidak, cerita yang dikongsi hanya mengandungi teks, gambar, dan suara.',
     'community.no_finished': 'Anda belum ada cerita siap untuk dikongsi.',
     'community.pick_story': 'Pilih cerita untuk dikongsi',
     'community.shared_ok': 'Dikongsi ke hab',
@@ -955,7 +955,7 @@ class AppStrings {
     'community.message_hint': 'Mesej…',
     'community.find_families': 'Cari keluarga mengikut nama atau emel',
     'community.requests': 'Permintaan',
-    'community.no_friends': 'Belum ada rakan — cari di atas untuk berhubung.',
+    'community.no_friends': 'Belum ada rakan. Cari di atas untuk berhubung.',
     'community.no_families': 'Tiada keluarga dijumpai',
     'community.request_sent': 'Permintaan dihantar',
     'community.requested': 'Diminta',
@@ -974,7 +974,7 @@ class AppStrings {
     'community.pick_friend': 'Pilih sekurang-kurangnya seorang rakan',
     'community.invite_families': 'Jemput keluarga',
     'community.invite_desc':
-        'Kongsi kod dengan keluarga lain yang mempunyai anak autisme. Hanya orang yang mempunyai kod boleh menyertai — hab tidak pernah didedahkan kepada umum.',
+        'Kongsi kod dengan keluarga lain yang mempunyai anak autisme. Hanya orang yang mempunyai kod boleh menyertai. Hab tidak pernah didedahkan kepada umum.',
     'community.create_code': 'Cipta kod baru',
     'community.your_codes': 'Kod anda',
     'community.code_used': 'Digunakan',

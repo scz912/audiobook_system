@@ -1,7 +1,7 @@
 import '../_json_helpers.dart';
 import 'member.dart';
 
-// A chat thread in the list — direct or group, with its last message and unread count.
+// A chat thread in the list - direct or group, with its last message and unread count.
 class Conversation {
   final String conversationId;
   final String type; // direct | group

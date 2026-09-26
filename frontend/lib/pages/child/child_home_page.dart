@@ -149,7 +149,7 @@ class _ChildHomePageState extends State<ChildHomePage> {
                   return InkWell(
                     onTap: () {
                       if (_moodLockedForToday) {
-                        // Already chose today — explain why other cards don't
+                        // Already chose today - explain why other cards don't
                         // respond.
                         final chosen = _selectedMood;
                         if (chosen != null) {
@@ -321,7 +321,7 @@ class _Mood {
 }
 
 /* The big "Today's pick" button on the child home. Solid gradient and a
-   solid white button — no see-through pills or glows, which made the text
+   solid white button - no see-through pills or glows, which made the text
    look blurry before. */
 class _StartStoryCard extends StatelessWidget {
   final ContentItem story;
@@ -348,7 +348,7 @@ class _StartStoryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // "TODAY'S PICK" label — plain white text.
+              // "TODAY'S PICK" label - plain white text.
               Row(
                 children: [
                   const Icon(Icons.star_rounded,

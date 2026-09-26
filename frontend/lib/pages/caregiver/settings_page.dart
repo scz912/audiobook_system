@@ -94,7 +94,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// Row of the caregiver's children — pick whose settings to edit.
+// Row of the caregiver's children - pick whose settings to edit.
 class _ChildSelector extends StatelessWidget {
   final List<ChildProfile> profiles;
   final String? selectedId;

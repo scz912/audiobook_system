@@ -297,7 +297,7 @@ class ContentManagementController extends ApiController
                 $content->refresh(); // 'available' now if the job ran inline (sync)
             }
 
-            // Note: we don't pre-make the voice clips here — that added a lot of
+            // Note: we don't pre-make the voice clips here. That added a lot of
             // time to generation. Each page's voice is made (and cached) the
             // first time it's played instead.
 
@@ -306,7 +306,7 @@ class ContentManagementController extends ApiController
                 ? 'AI story generated.'
                 : ($ready
                     ? 'Your storybook is ready, with a picture on every page!'
-                    : 'Your storybook is being created — it will appear in the library when ready.');
+                    : 'Your storybook is being created. It will appear in the library when ready.');
 
             $this->logEvent('Content', 'generateContent success', [
                 'audiobook_id'    => $content->audiobook_id,
@@ -413,7 +413,7 @@ class ContentManagementController extends ApiController
     }
 
     /* Update one page (text, image, or audio boundary). Multipart so a new
-       image can come with the text. The image is optional — leave it out to
+       image can come with the text. The image is optional. Leave it out to
        keep the current one. */
     public function updatePage(Request $request, string $audiobookId, string $pageId): JsonResponse
     {
@@ -498,7 +498,7 @@ class ContentManagementController extends ApiController
         }
     }
 
-    /* Delete one page. The other pages keep their numbers — the caller can
+    /* Delete one page. The other pages keep their numbers. The caller can
        renumber with updatePage if needed. */
     public function deletePage(Request $request, string $audiobookId, string $pageId): JsonResponse
     {

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user_settings.dart';
 import '../services/database_service.dart';
 
-/* Holds the settings for ONE child at a time — the child being configured
+/* Holds the settings for ONE child at a time - the child being configured
    (settings page) or the one in Child Mode (player). Call [loadForChild]
    when switching child. */
 class SettingsState extends ChangeNotifier {

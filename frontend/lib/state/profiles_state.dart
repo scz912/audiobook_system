@@ -31,7 +31,7 @@ class ProfilesState extends ChangeNotifier {
   int get averageEngagement => _profiles.isEmpty ? 0 : 87;
 
   Future<void> refresh({String? caregiverId}) async {
-    // Switching caregiver — clear the old list first.
+    // Switching caregiver - clear the old list first.
     if (caregiverId != null && caregiverId != _ownerCaregiverId) {
       _profiles = const [];
       _activeProfile = null;

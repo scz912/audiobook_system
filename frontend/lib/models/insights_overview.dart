@@ -139,7 +139,7 @@ class RecentSession {
   factory RecentSession.fromJson(Map<String, dynamic> json) => RecentSession(
         historyId: safeString(json['history_id']),
         childId: safeString(json['child_id']),
-        childName: safeString(json['child_name'], '—'),
+        childName: safeString(json['child_name'], '-'),
         childEmoji: safeString(json['child_emoji'], '🌟'),
         childColorHex: safeString(json['child_color'], '#F5D5DD'),
         audiobookId: safeString(json['audiobook_id']),

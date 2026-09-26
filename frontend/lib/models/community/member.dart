@@ -1,6 +1,6 @@
 import '../_json_helpers.dart';
 
-// A community member — used for people in search, friends, and post/comment authors.
+// A community member - used for people in search, friends, and post/comment authors.
 class Member {
   final String caregiverId;
   final String name;

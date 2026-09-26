@@ -27,7 +27,7 @@ class _EditContentPageState extends State<EditContentPage> {
   bool _loading = true;
   Audiobook? _audiobook;
 
-  // Details form — text controllers and the chosen language.
+  // Details form - text controllers and the chosen language.
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _language = 'en';
@@ -329,7 +329,7 @@ class _EditContentPageState extends State<EditContentPage> {
 }
 
 /* Top card with the book's title, description, and language, plus its own
-   save button — so details can be edited without touching the pages. */
+   save button - so details can be edited without touching the pages. */
 class _MetadataCard extends StatelessWidget {
   final TextEditingController titleCtrl;
   final TextEditingController descCtrl;
@@ -563,7 +563,7 @@ class _PageImageThumb extends StatelessWidget {
     final url = imageUrl;
     Widget content;
     if (newPath != null) {
-      // A just-picked file, not uploaded yet — preview it from a file://
+      // A just-picked file, not uploaded yet - preview it from a file://
       // URL so we don't need dart:io here.
       content = Image.network(
         Uri.file(newPath).toString(),

@@ -99,7 +99,7 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                       children: [
-                        // Text to share — on its own, or alongside a story.
+                        // Text to share - on its own, or alongside a story.
                         TextField(
                           controller: _captionCtrl,
                           minLines: 3,

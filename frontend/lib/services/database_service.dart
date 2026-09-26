@@ -362,7 +362,7 @@ class DatabaseService {
     String? search,
     String? category,
     String? ageGroup,
-    String? language, // 'en' or 'ms' — narrows the library to one language
+    String? language, // 'en' or 'ms' - narrows the library to one language
   }) async {
     final resp = await _post('/content/list', body: {
       'filter_type': ?filterType,
@@ -410,7 +410,7 @@ class DatabaseService {
     return _post('/content/$audiobookId/delete');
   }
 
-  /* Update one page. [imagePath] is optional — leave it out to keep the
+  /* Update one page. [imagePath] is optional - leave it out to keep the
      current image, or pass one to replace it. */
   static Future<ApiResponse> updateAudiobookPage({
     required String audiobookId,

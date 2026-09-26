@@ -62,7 +62,7 @@ class HubPost {
     );
   }
 
-  // A copy with the like toggled — lets the UI update before the server replies.
+  // A copy with the like toggled - lets the UI update before the server replies.
   HubPost copyWithLike({required bool liked, required int count}) {
     return HubPost(
       postId: postId,

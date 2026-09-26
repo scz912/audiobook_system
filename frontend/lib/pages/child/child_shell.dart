@@ -19,6 +19,9 @@ class ChildShell extends StatefulWidget {
 
 class _ChildShellState extends State<ChildShell> {
   int _index = 0;
+  // Guards against opening the PIN dialog twice (e.g. the Exit tab and the
+  // back gesture both firing) - stacked dialogs left a black screen on exit.
+  bool _exiting = false;
 
   @override
   void initState() {
@@ -31,12 +34,18 @@ class _ChildShellState extends State<ChildShell> {
   }
 
   Future<void> _attemptExit() async {
-    final ok = await showGuardianPinDialog(context);
-    if (!ok || !mounted) return;
-    context.read<ProfilesState>().exitChildMode();
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const CaregiverShell()),
-    );
+    if (_exiting) return;
+    _exiting = true;
+    try {
+      final ok = await showGuardianPinDialog(context);
+      if (!ok || !mounted) return;
+      context.read<ProfilesState>().exitChildMode();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const CaregiverShell()),
+      );
+    } finally {
+      _exiting = false;
+    }
   }
 
   Widget _pageFor(int i) {
@@ -44,7 +53,7 @@ class _ChildShellState extends State<ChildShell> {
       case 0:
         return const ChildHomePage();
       case 1:
-        // Library's back arrow goes to Home — pop() can't, since it's a tab
+        // Library's back arrow goes to Home - pop() can't, since it's a tab
         // body, not a pushed route.
         return StoryLibraryPage(onBack: () => setState(() => _index = 0));
       default:

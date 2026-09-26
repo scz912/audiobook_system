@@ -240,7 +240,7 @@ class InsightsController extends ApiController
             $this->logEvent('Insights', 'analyse no cache available', [
                 'child_id' => $childId,
             ]);
-            // Nothing saved either — return empty so the UI can say so.
+            // Nothing saved either. Return empty so the UI can say so.
             return $this->successResponse('No suggestions available', [
                 'suggestion_id' => null,
                 'child_id'      => $profile->child_id,
@@ -711,7 +711,7 @@ class InsightsController extends ApiController
             ->map(fn ($r) => [
                 'history_id'       => $r->history_id,
                 'child_id'         => $r->child_id,
-                'child_name'       => $r->child_name ?? '—',
+                'child_name'       => $r->child_name ?? '-',
                 'child_emoji'      => $r->child_emoji ?? '🌟',
                 'child_color'      => $r->child_color ?? '#F5D5DD',
                 'audiobook_id'     => $r->audiobook_id,

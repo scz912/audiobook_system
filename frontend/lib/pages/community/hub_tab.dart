@@ -14,7 +14,7 @@ import 'hub_post_detail_page.dart';
 import 'member_profile_page.dart';
 import 'share_to_hub_page.dart';
 
-// Open the shared story in the player (preview mode — no session recorded).
+// Open the shared story in the player (preview mode - no session recorded).
 void _listenToPost(BuildContext context, HubPost post) {
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => AudioPlayerPage(

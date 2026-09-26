@@ -131,7 +131,7 @@ class _InsightsPageState extends State<InsightsPage> {
     if (!mounted) return;
     if (resp.success && resp.data is AiSuggestion) {
       setState(() => _suggestions = resp.data as AiSuggestion);
-      // The value is in child_settings now — re-load so the player sees it.
+      // The value is in child_settings now - re-load so the player sees it.
       // ignore: use_build_context_synchronously
       await context.read<SettingsState>().loadForChild(childId);
     } else {
@@ -166,7 +166,7 @@ class _InsightsPageState extends State<InsightsPage> {
   }
 
   String _moodLabel(BuildContext context, String? mood) {
-    if (mood == null) return '—';
+    if (mood == null) return '-';
     return context.tr('insights.mood.$mood');
   }
 
@@ -339,7 +339,7 @@ class _InsightsPageState extends State<InsightsPage> {
         iconBackground: AppColors.iconCirclePurple,
         value: _data.topMood != null
             ? '${_moodEmoji[_data.topMood] ?? ''} ${_moodLabel(context, _data.topMood)}'
-            : '—',
+            : '-',
         label: context.tr('insights.top_mood'),
       ),
       _StatSpec(
@@ -362,7 +362,7 @@ class _InsightsPageState extends State<InsightsPage> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 14,
       crossAxisSpacing: 14,
-      // Just shy of square — fits the two-line labels with no gap below.
+      // Just shy of square - fits the two-line labels with no gap below.
       childAspectRatio: 1.05,
       children: cards
           .map((s) => StatCard(
@@ -378,7 +378,7 @@ class _InsightsPageState extends State<InsightsPage> {
   bool get _hasMoodData => _data.moodBreakdown.values.any((v) => v > 0);
 }
 
-/* Row to pick whose insights to show — "All children" plus one chip per
+/* Row to pick whose insights to show - "All children" plus one chip per
    child. Tapping a chip reloads the insights for that child. */
 class _ChildScopeSelector extends StatelessWidget {
   final String? selectedChildId;
@@ -1144,7 +1144,7 @@ _SettingVisual _visualFor(String key) {
   }
 }
 
-/* "5 min ago" style time, with the full timestamp in the tooltip —
+/* "5 min ago" style time, with the full timestamp in the tooltip -
    friendlier than a raw timestamp. */
 String _relativeWhen(BuildContext context, DateTime when) {
   final diff = DateTime.now().difference(when);
@@ -1269,7 +1269,7 @@ class _SuggestionsCard extends StatelessWidget {
   }
 }
 
-/* Top of the card — AI badge, title, and a chip showing how many tips
+/* Top of the card - AI badge, title, and a chip showing how many tips
    still need attention. */
 class _Header extends StatelessWidget {
   final int pendingCount;
@@ -1371,7 +1371,7 @@ class _PendingChip extends StatelessWidget {
   }
 }
 
-// Bottom of the card — the time stamp and the Run/Refresh button.
+// Bottom of the card - the time stamp and the Run/Refresh button.
 class _Footer extends StatelessWidget {
   final DateTime? generatedAt;
   final bool analyzing;
@@ -1437,7 +1437,7 @@ class _Footer extends StatelessWidget {
   }
 }
 
-/* Shown when a child is selected but no analysis has run yet — a friendly
+/* Shown when a child is selected but no analysis has run yet - a friendly
    icon and the "Run AI analysis" prompt. */
 class _EmptyState extends StatelessWidget {
   @override
@@ -1588,7 +1588,7 @@ class _SuggestionTile extends StatelessWidget {
               tint: visual.tint,
             ),
             const SizedBox(height: 12),
-            // Reason — soft callout with a lightbulb.
+            // Reason - soft callout with a lightbulb.
             _ReasonCallout(text: item.reason),
             if (item.isPending) ...[
               const SizedBox(height: 12),
@@ -1661,7 +1661,7 @@ class _ValueComparison extends StatelessWidget {
         Expanded(
           child: _ValueBox(
             label: currentLabel,
-            value: current ?? '—',
+            value: current ?? '-',
             background: AppColors.surface,
             faded: true,
           ),
@@ -1741,7 +1741,7 @@ class _ValueBox extends StatelessWidget {
   }
 }
 
-/* Callout with a soft tint, lightbulb, and left stripe — makes the reason
+/* Callout with a soft tint, lightbulb, and left stripe - makes the reason
    feel like a friendly note. */
 class _ReasonCallout extends StatelessWidget {
   final String text;

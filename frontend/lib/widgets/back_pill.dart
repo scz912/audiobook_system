@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/* Compact circular back button — sits in the top-left of a page header.
+/* Compact circular back button - sits in the top-left of a page header.
    The `label` parameter is kept for backwards compatibility but is only
    shown as a tooltip; the button itself stays icon-only so it doesn't
    stretch full width. */

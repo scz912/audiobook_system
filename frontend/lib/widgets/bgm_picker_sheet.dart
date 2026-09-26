@@ -304,7 +304,7 @@ class _TagFilterWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Keep the picked tags shown even if the server omits them — they're
+    // Keep the picked tags shown even if the server omits them - they're
     // what's doing the filtering.
     final visible = allTags
         .where((t) => selectedTags.contains(t) || compatibleTags.contains(t))
@@ -450,7 +450,7 @@ class _TrackTile extends StatelessWidget {
                     fontSize: 12, color: AppColors.textSecondary),
               ),
             const SizedBox(width: 4),
-            // Preview play/pause — does not pick the track.
+            // Preview play/pause - does not pick the track.
             GestureDetector(
               onTap: onPlayTap,
               behavior: HitTestBehavior.opaque,

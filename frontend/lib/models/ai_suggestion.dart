@@ -50,12 +50,12 @@ class AiSuggestionItem {
   bool get isDismissed => status == 'dismissed';
 }
 
-/* One row from `ai_suggestions` — the latest saved Gemini tips for a child. */
+/* One row from `ai_suggestions` - the latest saved Gemini tips for a child. */
 class AiSuggestion {
   final String? suggestionId;
   final String childId;
 
-  /* 'low' when there were few sessions — the UI shows a "low confidence"
+  /* 'low' when there were few sessions - the UI shows a "low confidence"
      hint then. */
   final String confidence;
 

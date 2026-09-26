@@ -22,7 +22,7 @@ class GenerateAudiobookImages implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    // Plenty of time — image requests are slow.
+    // Plenty of time. Image requests are slow.
     public int $timeout = 1200;
     public int $tries = 1;
 

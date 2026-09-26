@@ -102,7 +102,7 @@ class _CommunityPageState extends State<CommunityPage> {
   }
 }
 
-// Shown before the caregiver joins — explains the private, invite-only hub.
+// Shown before the caregiver joins - explains the private, invite-only hub.
 class _JoinGate extends StatefulWidget {
   const _JoinGate();
 

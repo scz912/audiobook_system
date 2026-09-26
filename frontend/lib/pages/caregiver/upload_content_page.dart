@@ -130,7 +130,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       if (path != null) {
         setState(() {
           _audioPath = path;
-          // A new recording clears the old page marks — they no longer fit.
+          // A new recording clears the old page marks - they no longer fit.
           for (final d in _pageDrafts) {
             d.audioStartMs = null;
           }
@@ -694,8 +694,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                '“Auto” picks a short length (4–6 pages). Each page is one AI '
-                'picture (~10–15s), so fewer pages means a faster result.',
+                '“Auto” picks a short length (4-6 pages). Each page is one AI '
+                'picture (~10-15s), so fewer pages means a faster result.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 14),
@@ -848,7 +848,7 @@ class _PendingCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(
-              'Each page gets its own AI picture (about 10–15s each), so this '
+              'Each page gets its own AI picture (about 10-15s each), so this '
               'can take up to a minute. Please keep the app open.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
@@ -1334,7 +1334,7 @@ class _PageMarkRow extends StatelessWidget {
                         size: 14, color: AppColors.success),
                   ),
                 Text(
-                  markedAt ?? '—',
+                  markedAt ?? '-',
                   style:
                       const TextStyle(fontWeight: FontWeight.w600),
                 ),

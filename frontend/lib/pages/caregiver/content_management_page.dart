@@ -82,7 +82,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => EditContentPage(audiobookId: id)),
     );
-    // Always refresh on return — the title, pages, or images may have changed.
+    // Always refresh on return - the title, pages, or images may have changed.
     if (mounted) await _refresh(silent: true);
   }
 
@@ -195,7 +195,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   }
 
   /* Check every few seconds while a book is generating, and stop once all
-     are done — so new books appear without a pull-to-refresh. */
+     are done - so new books appear without a pull-to-refresh. */
   void _syncPolling() {
     final stillGenerating = _items.any((i) => i.status == 'processing');
     if (stillGenerating) {
@@ -598,7 +598,7 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // No cover yet while generating — show a spinner.
+    // No cover yet while generating - show a spinner.
     if (processing) {
       return Container(
         width: 48,

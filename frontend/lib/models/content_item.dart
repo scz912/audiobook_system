@@ -23,7 +23,7 @@ class ContentItem {
   final String? language; // 'en' or 'ms'
   final DateTime? createdAt;
   final String? trackId;
-  final int bgmVolume; // 0–100
+  final int bgmVolume; // 0-100
   final MusicTrack? musicTrack;
 
   ContentItem({

@@ -57,7 +57,7 @@ class GeminiService
 
     /* Make several pictures at once (all requests fire together). Returns a
        path (or null) per prompt in the same order. On a paid key this is far
-       faster than one at a time — 4 images finish in ~one image's time. */
+       faster than one at a time. 4 images finish in ~one image's time. */
     public function downloadImages(array $prompts): array
     {
         if (empty($prompts)) {
@@ -142,7 +142,7 @@ class GeminiService
             Log::info('[Gemini] generateSpeech cache hit', ['path' => $path]);
             return 'storage/' . $path;
         }
-        Log::info('[Gemini] generateSpeech cache miss — calling Gemini TTS', [
+        Log::info('[Gemini] generateSpeech cache miss. Calling Gemini TTS', [
             'voice' => $voice,
         ]);
 
@@ -214,7 +214,7 @@ class GeminiService
 
     /* Ask Gemini for setting tweaks based on the child's listening stats.
        Each item has setting_key, suggested_value, and reason. Returns []
-       on error — the caller falls back to the cached row. */
+       on error. The caller falls back to the cached row. */
     public function analyseListening(array $stats): array
     {
         Log::info('[Gemini] analyseListening called', [
@@ -357,14 +357,14 @@ PROMPT;
            since each page is a separate image (~12s). */
         $lengthRule = ($pageCount !== null && $pageCount > 0)
             ? "Split the story into exactly {$pageCount} short pages, like a picture book."
-            : 'Split the story into between 4 and 6 short pages, like a picture book — '
+            : 'Split the story into between 4 and 6 short pages, like a picture book - '
                 . 'choose a sensible length for the topic and age.';
 
         /* Tell Gemini what language to write in. Image prompts stay English
            so the image model gets clear, simple words. */
         $code = strtolower($language ?? 'en');
         $languageRule = match ($code) {
-            'ms' => "Write the story TEXT (the 'text' field for every page, and the 'title') in Bahasa Malaysia (standard Malay). Keep \"image_prompt\" in English — it goes to the image generator and must stay clear and literal.",
+            'ms' => "Write the story TEXT (the 'text' field for every page, and the 'title') in Bahasa Malaysia (standard Malay). Keep \"image_prompt\" in English. It goes to the image generator and must stay clear and literal.",
             default => 'Write the story in clear, simple English.',
         };
 
@@ -463,7 +463,7 @@ PROMPT;
         }
 
         if (empty($pages)) {
-            // No usable pages — use the whole reply as one page.
+            // No usable pages. Use the whole reply as one page.
             $body = (is_array($parsed) && !empty($parsed['story']))
                 ? trim((string) $parsed['story'])
                 : trim((string) $text);
@@ -496,7 +496,7 @@ PROMPT;
                         ['parts' => [['text' => $fullPrompt]]],
                     ],
                     'generationConfig' => [
-                        // Image only — skip the text to save tokens.
+                        // Image only. Skip the text to save tokens.
                         'responseModalities' => ['IMAGE'],
                     ],
                 ]
@@ -571,7 +571,7 @@ PROMPT;
         if ($seconds) {
             $msg .= " Please try again in about {$seconds}s.";
         }
-        $msg .= ' If this keeps happening, the free-tier quota for this key may be 0 —'
+        $msg .= ' If this keeps happening, the free-tier quota for this key may be 0 -'
             . ' try a different model (e.g. gemini-2.5-flash) or check your Gemini plan.';
 
         return $msg;
@@ -579,7 +579,7 @@ PROMPT;
 
     /* Shrink image bytes to a max edge and re-encode as JPEG.
        Returns [bytes, extension]. Falls back to the original PNG if GD
-       isn't there or something fails — so image gen never breaks. */
+       isn't there or something fails. So image gen never breaks. */
     private function shrinkForWeb(string $original, int $maxEdge = 768, int $quality = 82): array
     {
         if (!function_exists('imagecreatefromstring')) {
@@ -603,7 +603,7 @@ PROMPT;
             if (!$dst) {
                 return [$original, 'png'];
             }
-            // JPEG has no alpha — paint white first so PNG transparency
+            // JPEG has no alpha. Paint white first so PNG transparency
             // becomes white instead of black.
             $white = imagecolorallocate($dst, 255, 255, 255);
             imagefilledrectangle($dst, 0, 0, $tw, $th, $white);

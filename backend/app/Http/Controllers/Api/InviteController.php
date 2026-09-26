@@ -22,7 +22,7 @@ class InviteController extends ApiController
     }
 
     /* Join the community. Every registered caregiver is a verified family of
-       an autistic child, so joining is opt-in — the hub still stays private
+       an autistic child, so joining is opt-in. The hub still stays private
        because only signed-in members can ever see it. */
     public function join(Request $request): JsonResponse
     {

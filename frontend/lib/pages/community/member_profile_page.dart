@@ -133,7 +133,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
               _Stat(
                 value: member.relation == 'friends'
                     ? context.tr('community.friends')
-                    : '—',
+                    : '-',
                 label: context.tr('community.status'),
               ),
             ],

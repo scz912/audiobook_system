@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Validator;
 
 class HubController extends ApiController
 {
-    // The shared-audiobook feed, newest first. Members only — never public.
+    // The shared-audiobook feed, newest first. Members only. Never public.
     public function feed(Request $request): JsonResponse
     {
         $caregiver = $request->get('auth_caregiver');
@@ -52,7 +52,7 @@ class HubController extends ApiController
         $audiobookId = $request->input('audiobook_id');
         $caption = trim((string) $request->input('caption'));
 
-        // A post must carry something — a story, some text, or both.
+        // A post must carry something. A story, some text, or both.
         if ($audiobookId === null && $caption === '') {
             return $this->errorResponse('Add a story or some text', 'EMPTY_POST', 422);
         }
