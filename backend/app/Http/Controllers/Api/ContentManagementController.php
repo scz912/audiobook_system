@@ -112,6 +112,7 @@ class ContentManagementController extends ApiController
             'category'     => 'nullable|string|max:100',
             'difficulty'   => 'nullable|in:easy,medium,hard,Easy,Medium,Hard',
             'type'         => 'nullable|in:Audio,Text,Video',
+            'book_format'  => 'nullable|in:linear,interactive',
             'tags'         => 'nullable|string',
             'content_text' => 'nullable|string',
             'description'  => 'nullable|string',
@@ -170,6 +171,7 @@ class ContentManagementController extends ApiController
                 'category'         => $request->input('category'),
                 'difficulty'       => $difficulty,
                 'type'             => $type,
+                'book_format'      => $request->input('book_format') ?: 'linear',
                 'tags'             => $request->input('tags'),
                 'description'     => $request->input('description'),
                 'content_text'     => $request->input('content_text'),
@@ -223,7 +225,24 @@ class ContentManagementController extends ApiController
             'language'       => 'nullable|in:en,ms',
             'track_id'       => 'nullable|uuid|exists:music_tracks,track_id',
             'bgm_volume'     => 'nullable|integer|min:0|max:100',
+            // Interactive books need a fixed length so the 1-in-4 cap can be applied.
+            'book_format'       => 'nullable|in:linear,interactive',
+            'interaction_count' => 'nullable|required_if:book_format,interactive|integer|min:1',
+            'split_count'       => 'nullable|integer|min:0',
         ]);
+        $validator->sometimes('page_count', 'required|min:4', fn ($in) => ($in->book_format ?? '') === 'interactive');
+        $validator->after(function ($v) use ($request) {
+            if ($request->input('book_format') !== 'interactive') {
+                return;
+            }
+            $cap = intdiv((int) $request->input('page_count'), 4);
+            if ((int) $request->input('interaction_count') > $cap) {
+                $v->errors()->add('interaction_count', "At most {$cap} interactions for this many pages (1 per 4 pages).");
+            }
+            if ((int) $request->input('split_count', 0) > (int) $request->input('interaction_count')) {
+                $v->errors()->add('split_count', 'Interaction splits cannot be more than the number of interactions.');
+            }
+        });
 
         if ($validator->fails()) {
             $this->logWarn('Content', 'generateContent validation failed', [
@@ -246,13 +265,24 @@ class ContentManagementController extends ApiController
         }
 
         try {
-            $story = $gemini->generateStory(
-                $request->input('topic'),
-                $request->input('age_group'),
-                $request->input('source_text'),
-                $request->filled('page_count') ? (int) $request->input('page_count') : null,
-                $request->input('language'),
-            );
+            $interactive = $request->input('book_format') === 'interactive';
+            $story = $interactive
+                ? $gemini->generateInteractiveStory(
+                    $request->input('topic'),
+                    $request->input('age_group'),
+                    $request->input('source_text'),
+                    (int) $request->input('page_count'),
+                    (int) $request->input('interaction_count'),
+                    (int) $request->input('split_count', 0),
+                    $request->input('language'),
+                )
+                : $gemini->generateStory(
+                    $request->input('topic'),
+                    $request->input('age_group'),
+                    $request->input('source_text'),
+                    $request->filled('page_count') ? (int) $request->input('page_count') : null,
+                    $request->input('language'),
+                );
 
             $generateImages = $request->boolean('generate_image');
 
@@ -270,6 +300,7 @@ class ContentManagementController extends ApiController
                 'category'         => $request->input('category'),
                 'difficulty'       => strtolower((string) $request->input('difficulty', 'easy')),
                 'type'             => 'Text',
+                'book_format'      => $interactive ? 'interactive' : 'linear',
                 'tags'             => $request->input('tags'),
                 'content_text'     => $story['content'],
                 'age_group'        => $request->input('age_group'),
@@ -283,8 +314,12 @@ class ContentManagementController extends ApiController
 
             foreach ($story['pages'] as $i => $page) {
                 $content->pages()->create([
-                    'page_number'  => $i + 1,
+                    // Interactive rows carry their own number (split versions share one).
+                    'page_number'  => $page['page_number'] ?? $i + 1,
                     'text'         => $page['text'],
+                    'choices'      => $page['choices'] ?? null,
+                    'is_split'     => $page['is_split'] ?? false,
+                    'branch_index' => $page['branch_index'] ?? null,
                     'image_prompt' => $page['image_prompt'],
                     'image'        => null,
                 ]);
@@ -310,6 +345,7 @@ class ContentManagementController extends ApiController
 
             $this->logEvent('Content', 'generateContent success', [
                 'audiobook_id'    => $content->audiobook_id,
+                'book_format'     => $content->book_format,
                 'pages'           => count($story['pages']),
                 'status'          => $content->status,
                 'generate_images' => $generateImages,
@@ -560,7 +596,26 @@ class ContentManagementController extends ApiController
             'image'          => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             // Where this page starts in the whole-book recording.
             'audio_start_ms' => 'nullable|integer|min:0',
+            // Interactive pages. choices is a JSON list sent as a multipart field.
+            'choices'        => 'nullable|json',
+            'is_split'       => 'nullable|boolean',
+            'branch_index'   => 'nullable|integer|in:0,1',
         ]);
+
+        // 2-4 non-empty answers, and exactly 2 when the next page splits.
+        $choices = null;
+        if ($request->filled('choices')) {
+            $choices = array_values(array_filter(
+                array_map(fn ($c) => trim((string) $c), (array) json_decode($request->input('choices'), true)),
+                fn ($c) => $c !== ''
+            ));
+            $validator->after(function ($v) use ($choices, $request) {
+                $max = $request->boolean('is_split') ? 2 : 4;
+                if (count($choices) < 2 || count($choices) > $max) {
+                    $v->errors()->add('choices', "An interaction page needs 2 to {$max} choices.");
+                }
+            });
+        }
 
         if ($validator->fails()) {
             $this->logWarn('Content', 'addPage validation failed', [
@@ -584,6 +639,11 @@ class ContentManagementController extends ApiController
             $page = $book->pages()->create([
                 'page_number'    => $pageNumber,
                 'text'           => $request->input('text'),
+                'choices'        => $choices,
+                'is_split'       => $choices !== null && $request->boolean('is_split'),
+                'branch_index'   => $request->filled('branch_index')
+                    ? (int) $request->input('branch_index')
+                    : null,
                 'image'          => $imagePath,
                 'audio_start_ms' => $request->filled('audio_start_ms')
                     ? (int) $request->input('audio_start_ms')
@@ -597,7 +657,9 @@ class ContentManagementController extends ApiController
             }
 
             // Make the voice clip now so the first playback is instant.
-            if (!empty($page->text) && $gemini->isConfigured()) {
+            // (Skipped for placeholder pages: their text changes with the child's answer.)
+            if (!empty($page->text) && !str_contains($page->text, \App\Models\AudiobookPage::CHOICE_TOKEN)
+                && $gemini->isConfigured()) {
                 try { $gemini->generateSpeech(trim($page->text), 'Kore'); } catch (\Throwable $_) {}
             }
 
@@ -624,10 +686,13 @@ class ContentManagementController extends ApiController
     private function serializePages(Audiobook $item): array
     {
         return $item->pages->map(fn ($p) => [
-            'page_id'     => $p->page_id,
-            'page_number' => $p->page_number,
-            'text'        => $p->text,
-            'image'       => $this->mediaUrl($p->image),
+            'page_id'      => $p->page_id,
+            'page_number'  => $p->page_number,
+            'text'         => $p->text,
+            'choices'      => $p->choices,
+            'is_split'     => (bool) $p->is_split,
+            'branch_index' => $p->branch_index,
+            'image'        => $this->mediaUrl($p->image),
         ])->toArray();
     }
 
@@ -643,6 +708,7 @@ class ContentManagementController extends ApiController
             'category'         => $item->category,
             'difficulty'       => $item->difficulty,
             'type'             => $item->type,
+            'book_format'      => $item->book_format ?? 'linear',
             'content_text'     => $item->content_text,
             'audio_file'       => $this->mediaUrl($item->audio_file),
             'video_file'       => $this->mediaUrl($item->video_file),
@@ -687,12 +753,12 @@ class ContentManagementController extends ApiController
         }
 
         // track_id is there but blank → auto-pick from the story.
-        return $this->autoSelectTrack($storyContent);
+        return $this->autoSelectTrack($storyContent, $request->get('auth_caregiver')?->caregiver_id);
     }
 
-    /* Score each track against the story words and return the best match,
-       or null if nothing scores. */
-    private function autoSelectTrack(string $content): ?string
+    /* Score each track (built-in + this caregiver's uploads) against the
+       story words and return the best match, or null if nothing scores. */
+    private function autoSelectTrack(string $content, ?string $caregiverId): ?string
     {
         $content = strtolower($content);
 
@@ -724,7 +790,7 @@ class ContentManagementController extends ApiController
             'star'        => ['Imaginative', 'Whimsical'],
         ];
 
-        $tracks = MusicTrack::where('status', 'active')->get();
+        $tracks = MusicTrack::visibleTo($caregiverId)->get();
         $scores = [];
 
         foreach ($tracks as $track) {

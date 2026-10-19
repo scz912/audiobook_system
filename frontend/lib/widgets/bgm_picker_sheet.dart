@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -32,6 +33,13 @@ class BgmPickerSheet extends StatefulWidget {
 }
 
 class _BgmPickerSheetState extends State<BgmPickerSheet> {
+  // Formats the server accepts. mp3 is kept as-is, the rest are converted.
+  static const _uploadExtensions = [
+    'mp3', 'mp4', 'm4a', 'aac', 'wav', 'ogg', 'flac', 'webm',
+  ];
+  // Matches the server's limit (and PHP's default upload_max_filesize on XAMPP).
+  static const _maxUploadBytes = 40 * 1024 * 1024;
+
   final _searchCtrl = TextEditingController();
   final _previewPlayer = AudioPlayer();
   Timer? _debounce;
@@ -45,6 +53,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   bool _previewLoading = false;
   bool _loadingTags = true;
   bool _loadingTracks = false;
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -149,6 +158,159 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
     _debounce = Timer(const Duration(milliseconds: 350), _loadTracks);
   }
 
+  /* Pick a music file, upload it, and let the AI tag it. The new track is
+     selected and its AI tags are shown so the caregiver can check them. */
+  Future<void> _uploadMusic() async {
+    if (!await _confirmCopyrightNotice() || !mounted) return;
+
+    final FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: _uploadExtensions,
+        allowMultiple: false,
+        withData: false,
+      );
+    } catch (e) {
+      await _showMessage('Could not open files', '$e');
+      return;
+    }
+    final file = result?.files.single;
+    final path = file?.path;
+    if (file == null || path == null) return;
+
+    // Some pickers ignore the extension filter, so check again here.
+    final ext = (file.extension ?? '').toLowerCase();
+    if (!_uploadExtensions.contains(ext)) {
+      await _showMessage('Unsupported file',
+          'This file type can\'t be used. Please upload your music as an MP3 file.');
+      return;
+    }
+    if (file.size > _maxUploadBytes) {
+      await _showMessage('File too large',
+          'Please choose a music file smaller than 40 MB.');
+      return;
+    }
+
+    if (!mounted) return;
+    final details = await _UploadDetailsDialog.show(
+      context,
+      suggestedTitle: _titleFromFilename(file.name),
+    );
+    if (details == null || !mounted) return;
+
+    await _previewPlayer.stop();
+    setState(() {
+      _uploading = true;
+      _playingTrackId = null;
+    });
+
+    final resp = await DatabaseService.uploadMusicTrack(
+      filePath: path,
+      title: details.title,
+      composer: details.composer,
+      durationSecs: await _measureDuration(path),
+    );
+    if (!mounted) return;
+    setState(() => _uploading = false);
+
+    if (!resp.success || resp.data is! MusicTrack) {
+      await _showMessage(
+        'Couldn\'t add music',
+        resp.message.isNotEmpty ? resp.message : 'Please try again.',
+      );
+      return;
+    }
+
+    // Show the new track: clear filters so it's in the list, and pick it.
+    final track = resp.data as MusicTrack;
+    _searchCtrl.clear();
+    _debounce?.cancel();
+    setState(() {
+      _pickedTrack = track;
+      _selectedTags = [];
+    });
+    await Future.wait([_loadTags(), _loadTracks()]);
+    if (mounted) await _UploadResultDialog.show(context, track);
+  }
+
+  /* Copyright reminder shown before every upload. Returns true only when
+     the caregiver taps "I understand". */
+  Future<bool> _confirmCopyrightNotice() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.copyright_rounded,
+            color: AppColors.warning, size: 32),
+        title: const Text('Copyright notice'),
+        content: const Text(
+          'If the music you upload is subject to copyright issues, we as '
+          'developers will take down the music. Please make sure the music '
+          'you use is free from copyright issues.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryBlueDark),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('I understand'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  /* Length of a local file in seconds, or null if it can't be read. Only a
+     fallback - the server measures it itself when ffmpeg is installed. */
+  Future<int?> _measureDuration(String path) async {
+    final probe = AudioPlayer();
+    try {
+      final d = await probe
+          .setFilePath(path)
+          .timeout(const Duration(seconds: 5));
+      return d?.inSeconds;
+    } catch (_) {
+      return null;
+    } finally {
+      unawaited(probe.dispose());
+    }
+  }
+
+  // "happy-kids_music.mp3" → "Happy Kids Music"
+  String _titleFromFilename(String name) {
+    final dot = name.lastIndexOf('.');
+    final base = (dot > 0 ? name.substring(0, dot) : name)
+        .replaceAll(RegExp(r'[\s_\-]+'), ' ')
+        .trim();
+    return base
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  // Dialogs (not snackbars) so the message shows above this sheet.
+  Future<void> _showMessage(String title, String message) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenH = MediaQuery.of(context).size.height;
@@ -181,6 +343,15 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
                     'Choose Background Music',
                     style:
                         TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _uploading ? null : _uploadMusic,
+                  icon: const Icon(Icons.upload_rounded, size: 20),
+                  label: const Text('Upload'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primaryBlueDark,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 IconButton(
@@ -223,7 +394,9 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
           const SizedBox(height: 6),
           const Divider(height: 1),
           Expanded(
-            child: _loadingTracks
+            child: _uploading
+                ? const _UploadingView()
+                : _loadingTracks
                 ? const Center(
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : _tracks.isEmpty
@@ -270,7 +443,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                 ),
-                onPressed: _pickedTrack == null
+                onPressed: _pickedTrack == null || _uploading
                     ? null
                     : () => Navigator.of(context).pop(_pickedTrack),
                 child: Text(
@@ -440,6 +613,33 @@ class _TrackTile extends StatelessWidget {
                           fontSize: 11, color: AppColors.textMuted),
                     ),
                   ],
+                  if (track.isUserUploaded || track.sensoryNotes != null) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (track.isUserUploaded) ...[
+                          const Icon(Icons.person_outline_rounded,
+                              size: 13, color: AppColors.textSecondary),
+                          const SizedBox(width: 3),
+                          const Text(
+                            'Your upload',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        // AI flagged a sensory risk; tap to read it.
+                        if (track.sensoryNotes != null)
+                          Tooltip(
+                            message: track.sensoryNotes!,
+                            triggerMode: TooltipTriggerMode.tap,
+                            child: const Icon(Icons.warning_amber_rounded,
+                                size: 15, color: AppColors.warning),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -488,6 +688,208 @@ class _TrackTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Shown in place of the list while a file uploads and the AI listens to it.
+class _UploadingView extends StatelessWidget {
+  const _UploadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+                strokeWidth: 2, color: AppColors.primaryBlueDark),
+            SizedBox(height: 16),
+            Text(
+              'Uploading your music…',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'We convert it to MP3 if needed, then the AI listens to it\n'
+              'and adds mood tags. This can take up to a minute.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* Asks for the track's title (pre-filled from the file name) and an
+   optional composer before uploading. Returns null if cancelled. */
+class _UploadDetailsDialog extends StatefulWidget {
+  final String suggestedTitle;
+
+  const _UploadDetailsDialog({required this.suggestedTitle});
+
+  static Future<({String title, String composer})?> show(
+    BuildContext context, {
+    required String suggestedTitle,
+  }) {
+    return showDialog<({String title, String composer})>(
+      context: context,
+      builder: (_) => _UploadDetailsDialog(suggestedTitle: suggestedTitle),
+    );
+  }
+
+  @override
+  State<_UploadDetailsDialog> createState() => _UploadDetailsDialogState();
+}
+
+class _UploadDetailsDialogState extends State<_UploadDetailsDialog> {
+  late final _titleCtrl = TextEditingController(text: widget.suggestedTitle);
+  final _composerCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _composerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add your music'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _titleCtrl,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Title'),
+          ),
+          TextField(
+            controller: _composerCtrl,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.words,
+            decoration:
+                const InputDecoration(labelText: 'Composer (optional)'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryBlueDark),
+          onPressed: () => Navigator.of(context).pop((
+            title: _titleCtrl.text.trim(),
+            composer: _composerCtrl.text.trim(),
+          )),
+          child: const Text('Upload'),
+        ),
+      ],
+    );
+  }
+}
+
+/* Shows what the AI heard: its tags, a one-line summary, and any sensory
+   caution, so the caregiver can decide whether the track suits their child. */
+class _UploadResultDialog extends StatelessWidget {
+  final MusicTrack track;
+
+  const _UploadResultDialog({required this.track});
+
+  static Future<void> show(BuildContext context, MusicTrack track) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => _UploadResultDialog(track: track),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tagged = track.tags.isNotEmpty;
+    return AlertDialog(
+      title: Text('"${track.title}" added'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (tagged) ...[
+              const Text('AI tags',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final tag in track.tags)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.iconCircleBlue,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(tag,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryBlueDark)),
+                    ),
+                  if (track.tempo != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.cardBorder),
+                      ),
+                      child: Text('Tempo: ${track.tempo}',
+                          style: const TextStyle(fontSize: 12)),
+                    ),
+                ],
+              ),
+            ] else
+              const Text(
+                'The AI couldn\'t tag this track right now. It\'s saved and '
+                'you can still pick it, but it won\'t be chosen automatically '
+                'for stories.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            if (track.aiSummary != null) ...[
+              const SizedBox(height: 14),
+              Text(track.aiSummary!),
+            ],
+            if (track.sensoryNotes != null) ...[
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 18, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(track.sensoryNotes!)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK'),
+        ),
+      ],
     );
   }
 }

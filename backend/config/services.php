@@ -41,4 +41,11 @@ return [
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
     ],
 
+    // Used to convert uploaded music (mp4, m4a, wav...) to mp3. If ffmpeg
+    // isn't installed, only mp3 uploads are accepted.
+    'ffmpeg' => [
+        'path'  => env('FFMPEG_PATH', 'ffmpeg'),
+        'probe' => env('FFPROBE_PATH', 'ffprobe'),
+    ],
+
 ];

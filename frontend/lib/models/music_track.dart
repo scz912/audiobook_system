@@ -8,6 +8,12 @@ class MusicTrack {
   final List<String> tags;
   final String? tempo;
   final int? durationSecs;
+  // True when the caregiver uploaded it (only they can see it).
+  final bool isUserUploaded;
+  // AI's one-line description of the music, for uploaded tracks.
+  final String? aiSummary;
+  // AI's sensory caution (e.g. a sudden loud part), or null if none.
+  final String? sensoryNotes;
 
   const MusicTrack({
     required this.trackId,
@@ -17,6 +23,9 @@ class MusicTrack {
     this.tags = const [],
     this.tempo,
     this.durationSecs,
+    this.isUserUploaded = false,
+    this.aiSummary,
+    this.sensoryNotes,
   });
 
   factory MusicTrack.fromJson(Map<String, dynamic> json) {
@@ -32,6 +41,9 @@ class MusicTrack {
       tags:        tags,
       tempo:       safeNullableString(json['tempo']),
       durationSecs: safeInt(json['duration_secs']),
+      isUserUploaded: safeBool(json['is_user_uploaded']),
+      aiSummary:    safeNullableString(json['ai_summary']),
+      sensoryNotes: safeNullableString(json['sensory_notes']),
     );
   }
 

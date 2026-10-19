@@ -6,6 +6,11 @@
 # The worker only does real background work when QUEUE_CONNECTION=database is set
 # on the Railway service. With QUEUE_CONNECTION=sync it's harmless (idle).
 
+# ffmpeg converts uploaded background music (mp4, m4a, wav...) to mp3.
+# Without it, only mp3 music uploads are accepted.
+[phases.setup]
+nixPkgs = ["...", "ffmpeg"]
+
 [phases.install]
 cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev"]
 

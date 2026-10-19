@@ -8,6 +8,15 @@ class AudiobookPage {
   /* Where this page starts in the recording, in ms. Page 1 is 0; later
      pages are null until the caregiver marks them in the upload screen. */
   final int? audioStartMs;
+  /* Interactive books only. A page with [choices] pauses for the child to
+     pick one. If [isSplit], the next page number has two versions and
+     [branchIndex] (0 or 1) on each says which choice leads to it. Otherwise
+     the next page's text holds [choiceToken] for the picked answer. */
+  final List<String> choices;
+  final bool isSplit;
+  final int? branchIndex;
+
+  static const choiceToken = '{choice}';
 
   const AudiobookPage({
     this.pageId,
@@ -15,15 +24,26 @@ class AudiobookPage {
     this.text,
     this.image,
     this.audioStartMs,
+    this.choices = const [],
+    this.isSplit = false,
+    this.branchIndex,
   });
 
+  bool get isInteraction => choices.isNotEmpty;
+
   factory AudiobookPage.fromJson(Map<String, dynamic> json) {
+    final rawChoices = json['choices'];
     return AudiobookPage(
       pageId: safeNullableString(json['page_id']),
       pageNumber: safeInt(json['page_number']) ?? 1,
       text: safeNullableString(json['text']),
       image: safeNullableString(json['image']),
       audioStartMs: safeInt(json['audio_start_ms']),
+      choices: rawChoices is List
+          ? rawChoices.map((c) => c.toString()).toList()
+          : const [],
+      isSplit: safeBool(json['is_split']),
+      branchIndex: safeInt(json['branch_index']),
     );
   }
 }
@@ -37,6 +57,7 @@ class Audiobook {
   final String? category;
   final String? difficulty;
   final String? type;
+  final String bookFormat; // 'linear' or 'interactive'
   final String? contentText;
   final String? audioFile;
   final String? videoFile;
@@ -65,6 +86,7 @@ class Audiobook {
     this.category,
     this.difficulty,
     this.type,
+    this.bookFormat = 'linear',
     this.contentText,
     this.audioFile,
     this.videoFile,
@@ -85,6 +107,8 @@ class Audiobook {
     this.musicTrackFileUrl,
   });
 
+  bool get isInteractive => bookFormat == 'interactive';
+
   factory Audiobook.fromJson(Map<String, dynamic> json) {
     final rawPages = json['pages'];
     final pages = rawPages is List
@@ -102,6 +126,7 @@ class Audiobook {
       category: safeNullableString(json['category']),
       difficulty: safeNullableString(json['difficulty']),
       type: safeNullableString(json['type']),
+      bookFormat: safeString(json['book_format'], 'linear'),
       contentText: safeNullableString(json['content_text']),
       audioFile: safeNullableString(json['audio_file']),
       videoFile: safeNullableString(json['video_file']),

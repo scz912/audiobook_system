@@ -489,6 +489,7 @@ class DatabaseService {
     String? language, // 'en' or 'ms'
     String? trackId,  // BGM track UUID, or null for none
     int bgmVolume = 30,
+    String bookFormat = 'linear', // or 'interactive'
   }) async {
     if (!await _hasNetworkConnection()) {
       return ApiResponse.failure(
@@ -510,6 +511,7 @@ class DatabaseService {
       request.headers['Accept'] = 'application/json';
       request.fields['title'] = title;
       request.fields['type'] = type ?? 'Text';
+      request.fields['book_format'] = bookFormat;
       request.fields['is_user_uploaded'] = '1';
       if (topic != null && topic.isNotEmpty) request.fields['topic'] = topic;
       if (difficulty != null && difficulty.isNotEmpty) {
@@ -569,6 +571,11 @@ class DatabaseService {
     /* Where this page starts in the recording, in ms. Null = not marked;
        page 1 is 0. */
     int? audioStartMs,
+    /* Interactive books: answers on an interaction page, whether the next
+       page splits, and (on a split page) which answer leads to it. */
+    List<String>? choices,
+    bool isSplit = false,
+    int? branchIndex,
   }) async {
     if (!await _hasNetworkConnection()) {
       return ApiResponse.failure(
@@ -596,6 +603,11 @@ class DatabaseService {
       if (audioStartMs != null && audioStartMs >= 0) {
         request.fields['audio_start_ms'] = '$audioStartMs';
       }
+      if (choices != null && choices.isNotEmpty) {
+        request.fields['choices'] = jsonEncode(choices);
+        request.fields['is_split'] = isSplit ? '1' : '0';
+      }
+      if (branchIndex != null) request.fields['branch_index'] = '$branchIndex';
 
       final streamed = await request.send().timeout(const Duration(seconds: 60));
       final response = await http.Response.fromStream(streamed);
@@ -630,11 +642,21 @@ class DatabaseService {
     String? trackId,      // null = auto-select; omit key entirely = no BGM
     bool includeBgm = false,
     int bgmVolume = 30,
+    // Interactive books: how many question pages, and how many of them split.
+    bool interactive = false,
+    int interactionCount = 0,
+    int splitCount = 0,
   }) async {
     final resp = await _post(
       '/content/generate',
-      timeout: const Duration(seconds: 180),
+      // Interactive stories may need a second AI pass to fix the layout.
+      timeout: Duration(seconds: interactive ? 300 : 180),
       body: {
+        if (interactive) ...{
+          'book_format': 'interactive',
+          'interaction_count': interactionCount,
+          'split_count': splitCount,
+        },
         'topic': topic,
         if (ageGroup != null && ageGroup.isNotEmpty) 'age_group': ageGroup,
         if (category != null && category.isNotEmpty) 'category': category,
@@ -810,6 +832,78 @@ class DatabaseService {
       return ApiResponse(success: true, message: resp.message, data: list);
     }
     return resp;
+  }
+
+  /* Upload the caregiver's own music. The server keeps mp3 as-is, converts
+     other formats (mp4, m4a, wav...) to mp3 when it can, and has the AI tag
+     it. On success `data` is the new [MusicTrack]. If the server can't
+     convert the file, the failure message asks for an MP3 instead.
+     [durationSecs] is a fallback for servers that can't measure it. */
+  static Future<ApiResponse> uploadMusicTrack({
+    required String filePath,
+    String? title,
+    String? composer,
+    int? durationSecs,
+  }) async {
+    if (!await _hasNetworkConnection()) {
+      return ApiResponse.failure(
+        'No internet connection. Please check your network settings.',
+        error: 'NO_CONNECTIVITY',
+      );
+    }
+    try {
+      final token = await _currentToken();
+      if (token == null || token.isEmpty) {
+        return ApiResponse.failure('Not signed in', error: 'NO_SESSION');
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/music-tracks/upload'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      if (title != null && title.isNotEmpty) request.fields['title'] = title;
+      if (composer != null && composer.isNotEmpty) {
+        request.fields['composer'] = composer;
+      }
+      if (durationSecs != null && durationSecs > 0) {
+        request.fields['duration_secs'] = '$durationSecs';
+      }
+      request.files
+          .add(await http.MultipartFile.fromPath('music_file', filePath));
+
+      // Upload + conversion + AI listening can take a while.
+      final streamed = await request.send().timeout(const Duration(minutes: 4));
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 413) {
+        return ApiResponse.failure('This file is too large to upload.',
+            error: 'TOO_LARGE');
+      }
+      if (response.body.isEmpty) {
+        return ApiResponse.failure('Empty response', error: 'EMPTY_BODY');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return ApiResponse.failure('Unexpected response shape', error: 'BAD_SHAPE');
+      }
+      final resp = ApiResponse.fromBackend(decoded);
+      if (resp.success && resp.data is Map<String, dynamic>) {
+        final raw = (resp.data as Map<String, dynamic>)['track'];
+        if (raw is Map<String, dynamic>) {
+          return ApiResponse(
+            success: true,
+            message: resp.message,
+            data: MusicTrack.fromJson(raw),
+          );
+        }
+      }
+      return resp;
+    } on TimeoutException {
+      return ApiResponse.failure('Upload timed out', error: 'TIMEOUT');
+    } catch (e) {
+      return ApiResponse.failure('Upload failed: $e', error: 'UNKNOWN');
+    }
   }
 
   // Given already-selected tags, return only tags that still produce results.

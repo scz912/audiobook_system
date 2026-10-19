@@ -97,6 +97,7 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/list',             [MusicTrackController::class, 'list']);
         Route::post('/tags',             [MusicTrackController::class, 'allTags']);
         Route::post('/compatible-tags',  [MusicTrackController::class, 'compatibleTags']);
+        Route::post('/upload',           [MusicTrackController::class, 'upload']);
     });
 
     // Community membership and invites (private hub gate)

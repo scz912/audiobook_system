@@ -4,12 +4,16 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderEditable;
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../i18n/app_strings.dart';
 import '../../i18n/i18n.dart';
+import '../../models/audiobook.dart';
 import '../../models/content_item.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
@@ -21,6 +25,9 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
+
+// Interactive audiobook forms, editor cards, steppers and the guide.
+part 'upload_interactive.dart';
 
 // One page being authored in the manual storybook builder.
 class _PageDraft {
@@ -34,6 +41,10 @@ class _PageDraft {
 
 enum _Mode { write, ai }
 
+/* Linear = read straight through. Interactive = some pages pause and let
+   the child pick an answer that changes the next page. */
+enum _BookFormat { linear, interactive }
+
 class UploadContentPage extends StatefulWidget {
   const UploadContentPage({super.key});
 
@@ -43,6 +54,16 @@ class UploadContentPage extends StatefulWidget {
 
 class _UploadContentPageState extends State<UploadContentPage> {
   _Mode _mode = _Mode.write;
+  _BookFormat _format = _BookFormat.linear;
+
+  // Interactive "write" pages (kept apart from the linear pages).
+  final List<_InteractivePageDraft> _interactiveDrafts = [
+    _InteractivePageDraft(),
+  ];
+
+  // Interactive AI settings. Pages must be a fixed number for the 1-in-4 cap.
+  int _aiInteractions = 1;
+  int _aiSplits = 0;
 
   // Manual ("write") form
   final _titleCtrl = TextEditingController();
@@ -88,6 +109,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   static const _ages = ['5-6', '7-9', '8-11', '9-12'];
   static const _pageOptions = ['Auto', '4', '6', '8', '10', '12'];
+  static const _interactivePageOptions = ['4', '6', '8', '10', '12'];
+  static const _guideSeenKey = 'interactive_write_guide_seen';
 
   @override
   void dispose() {
@@ -95,6 +118,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
     _topicCtrl.dispose();
     _tagsCtrl.dispose();
     for (final p in _pageDrafts) {
+      p.dispose();
+    }
+    for (final p in _interactiveDrafts) {
       p.dispose();
     }
     _aiTopicCtrl.dispose();
@@ -248,6 +274,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     setState(() => _generating = true);
     final language =
         _aiLanguage ?? context.read<LanguageState>().code; // app language by default
+    final interactive = _format == _BookFormat.interactive;
     final ApiResponse resp = await DatabaseService.generateAiContent(
       topic: topic,
       ageGroup: _aiAge,
@@ -259,6 +286,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
       trackId: _aiBgmTrack?.trackId, // null = backend picks when music is on
       bgmVolume: _aiBgmVolume,
       language: language,
+      interactive: interactive,
+      interactionCount: _aiInteractions,
+      splitCount: _aiSplits,
     );
     if (!mounted) return;
     setState(() => _generating = false);
@@ -372,6 +402,308 @@ class _UploadContentPageState extends State<UploadContentPage> {
     );
   }
 
+  // interactive audiobooks
+
+  void _setFormat(_BookFormat f) {
+    _format = f;
+    // Interactive AI books need a fixed length for the 1-in-4 cap.
+    if (f == _BookFormat.interactive && _aiPages == 'Auto') _aiPages = '8';
+    _clampAiInteractions();
+  }
+
+  void _setAiPages(String p) {
+    _aiPages = p;
+    _clampAiInteractions();
+  }
+
+  // Keep interactions within 1..floor(pages / 4) and splits within 0..interactions.
+  void _clampAiInteractions() {
+    final cap = (int.tryParse(_aiPages) ?? 8) ~/ 4;
+    _aiInteractions = _aiInteractions.clamp(1, cap < 1 ? 1 : cap);
+    if (_aiSplits > _aiInteractions) _aiSplits = _aiInteractions;
+  }
+
+  // Show the guide automatically the first time Interactive + Write opens.
+  Future<void> _maybeShowInteractiveGuide() async {
+    if (_format != _BookFormat.interactive || _mode != _Mode.write) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_guideSeenKey) ?? false) return;
+      await prefs.setBool(_guideSeenKey, true);
+    } catch (_) {
+      return;
+    }
+    if (mounted) await _InteractiveGuideDialog.show(context);
+  }
+
+  void _addInteractivePage() =>
+      setState(() => _interactiveDrafts.add(_InteractivePageDraft()));
+
+  void _removeInteractivePage(int index) {
+    if (_interactiveDrafts.length <= 1) return;
+    final removed = _interactiveDrafts[index];
+    setState(() => _interactiveDrafts.removeAt(index));
+    // Dispose after the frame, once its text fields are gone.
+    WidgetsBinding.instance.addPostFrameCallback((_) => removed.dispose());
+  }
+
+  /* First page number of each draft. A question page also owns the
+     response page after it, so it uses up 2 numbers. */
+  List<int> _interactivePageNumbers() {
+    final out = <int>[];
+    var n = 1;
+    for (final d in _interactiveDrafts) {
+      out.add(n);
+      n += d.interactive ? 2 : 1;
+    }
+    return out;
+  }
+
+  // The first thing that would stop the book from working, or null.
+  String? _interactiveProblem() {
+    if (!_interactiveDrafts.any((d) => d.interactive)) {
+      return 'Turn on "Interactive" for at least one page, or switch to a '
+          'Linear audiobook.';
+    }
+    final numbers = _interactivePageNumbers();
+    for (var i = 0; i < _interactiveDrafts.length; i++) {
+      final d = _interactiveDrafts[i];
+      final n = numbers[i];
+      if (!d.interactive) continue;
+      if (d.text.text.trim().isEmpty) {
+        return 'Page $n: write the question page text.';
+      }
+      final choices = d.choiceTexts;
+      if (choices.length < 2) return 'Page $n: fill in at least 2 choices.';
+      if (choices.map((c) => c.toLowerCase()).toSet().length !=
+          choices.length) {
+        return 'Page $n: each choice must be different.';
+      }
+      if (d.split) {
+        for (var b = 0; b < 2; b++) {
+          final branch = d.branches[b];
+          if (branch.text.text.trim().isEmpty && branch.imagePath == null) {
+            return 'Page ${n + 1}: fill in the page for "${choices[b]}".';
+          }
+        }
+      } else {
+        final response = d.response.text.text;
+        if (response.trim().isEmpty) {
+          return 'Page ${n + 1}: write the response page.';
+        }
+        if (!response.contains(AudiobookPage.choiceToken)) {
+          return 'Page ${n + 1}: drag the "Child\'s answer" placeholder into '
+              'the response text.';
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _submitInteractive() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      AppSnackbar.warning('Title is required', context: context);
+      return;
+    }
+    final problem = _interactiveProblem();
+    if (problem != null) {
+      AppSnackbar.warning(problem, context: context);
+      return;
+    }
+    if (_writeBgmEnabled && _writeBgmTrack == null) {
+      AppSnackbar.warning(
+          'Please choose a background music track, or disable BGM',
+          context: context);
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    // Main path only (first version of each split), for search + music matching.
+    final joinedText = [
+      for (final d in _interactiveDrafts) ...[
+        d.text.text.trim(),
+        if (d.interactive)
+          (d.split ? d.branches.first : d.response).text.text.trim(),
+      ],
+    ].where((t) => t.isNotEmpty).join('\n\n');
+
+    final created = await DatabaseService.createContentWithCover(
+      title: _titleCtrl.text.trim(),
+      topic: _topicCtrl.text.trim(),
+      difficulty: _difficulty,
+      tags: _tagsCtrl.text.trim(),
+      type: 'Text',
+      contentText: joinedText,
+      coverImagePath: _coverPath,
+      language: _manualLanguage ?? context.read<LanguageState>().code,
+      trackId: _writeBgmEnabled ? _writeBgmTrack?.trackId : null,
+      bgmVolume: _writeBgmVolume,
+      bookFormat: 'interactive',
+    );
+
+    if (!mounted) return;
+    final audiobookId =
+        created.data is ContentItem ? (created.data as ContentItem).audiobookId : null;
+    if (!created.success || audiobookId == null) {
+      setState(() => _submitting = false);
+      AppSnackbar.error(
+          created.success ? 'Created, but no audiobook id was returned' : created.message,
+          context: context);
+      return;
+    }
+
+    // Save the pages. A split page is 2 rows with the same page number.
+    var pageNo = 1;
+    final failed = <int>[];
+    Future<void> add(String text, String? image,
+        {List<String>? choices, bool isSplit = false, int? branch}) async {
+      final r = await DatabaseService.addAudiobookPage(
+        audiobookId: audiobookId,
+        pageNumber: pageNo,
+        text: text,
+        imagePath: image,
+        choices: choices,
+        isSplit: isSplit,
+        branchIndex: branch,
+      );
+      if (!r.success && !failed.contains(pageNo)) failed.add(pageNo);
+    }
+
+    for (final d in _interactiveDrafts) {
+      final text = d.text.text.trim();
+      if (!d.interactive) {
+        if (text.isEmpty && d.imagePath == null) continue;
+        await add(text, d.imagePath);
+        pageNo++;
+        continue;
+      }
+      await add(text, d.imagePath, choices: d.choiceTexts, isSplit: d.split);
+      pageNo++;
+      if (d.split) {
+        for (var b = 0; b < 2; b++) {
+          await add(d.branches[b].text.text.trim(), d.branches[b].imagePath,
+              branch: b);
+        }
+      } else {
+        await add(d.response.text.text.trim(), d.response.imagePath);
+      }
+      pageNo++;
+    }
+
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (failed.isNotEmpty) {
+      AppSnackbar.warning(
+          'Saved, but page(s) ${failed.join(', ')} could not be saved. '
+          'Check them in the library.',
+          context: context);
+    } else {
+      AppSnackbar.success('Interactive storybook added to library',
+          context: context);
+    }
+    Navigator.of(context).pop();
+  }
+
+  Widget _buildInteractiveWriteForm() {
+    final numbers = _interactivePageNumbers();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _GuideBanner(onTap: () => _InteractiveGuideDialog.show(context)),
+        const SizedBox(height: 14),
+        ..._writeDetailsSection(),
+        const SizedBox(height: 14),
+        SoftCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Label(context.tr('upload.story_language')),
+              const SizedBox(height: 8),
+              _manualLanguagePicker(),
+              const SizedBox(height: 10),
+              const Text(
+                'Pages are read aloud by the app\'s narrator voice. A whole-book '
+                'recording can\'t be used here, because the story changes with '
+                'the child\'s answers.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        const _Label('Pages'),
+        const SizedBox(height: 8),
+        for (int i = 0; i < _interactiveDrafts.length; i++) ...[
+          _InteractivePageCard(
+            key: ObjectKey(_interactiveDrafts[i]),
+            draft: _interactiveDrafts[i],
+            pageNumber: numbers[i],
+            canRemove: _interactiveDrafts.length > 1,
+            onChanged: () => setState(() {}),
+            pickImage: _pickImage,
+            onRemove: () => _removeInteractivePage(i),
+          ),
+          const SizedBox(height: 10),
+        ],
+        OutlinedButton.icon(
+          onPressed: _addInteractivePage,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primaryBlueDark,
+            side: const BorderSide(color: AppColors.cardBorder),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          icon: const Icon(Icons.add_rounded, size: 20),
+          label: const Text('Add page',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(height: 14),
+        _BgmCard(
+          enabled: _writeBgmEnabled,
+          selectedTrack: _writeBgmTrack,
+          volume: _writeBgmVolume,
+          autoAllowed: false,
+          onToggle: (v) => setState(() {
+            _writeBgmEnabled = v;
+            if (!v) _writeBgmTrack = null;
+          }),
+          onPick: () async {
+            final track = await BgmPickerSheet.show(context,
+                initialTrack: _writeBgmTrack);
+            if (track != null) setState(() => _writeBgmTrack = track);
+          },
+          onClear: () => setState(() => _writeBgmTrack = null),
+          onVolumeChanged: (v) => setState(() => _writeBgmVolume = v),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: AppColors.textPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: _submitting ? null : _submitInteractive,
+            child: _submitting
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save Interactive Storybook',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -392,12 +724,28 @@ class _UploadContentPageState extends State<UploadContentPage> {
               style: TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
+            _FormatSlider(
+              format: _format,
+              onChanged: (f) {
+                setState(() => _setFormat(f));
+                _maybeShowInteractiveGuide();
+              },
+            ),
+            const SizedBox(height: 12),
             _ModeToggle(
               mode: _mode,
-              onChanged: (m) => setState(() => _mode = m),
+              onChanged: (m) {
+                setState(() => _mode = m);
+                _maybeShowInteractiveGuide();
+              },
             ),
             const SizedBox(height: 16),
-            if (_mode == _Mode.write) _buildWriteForm() else _buildAiForm(),
+            if (_format == _BookFormat.interactive && _mode == _Mode.write)
+              _buildInteractiveWriteForm()
+            else if (_mode == _Mode.write)
+              _buildWriteForm()
+            else
+              _buildAiForm(),
           ],
         ),
       ),
@@ -406,67 +754,91 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   // write form
 
+  // Title / topic / difficulty / tags card and the cover card (both formats).
+  List<Widget> _writeDetailsSection() {
+    return [
+      SoftCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _Label('Title'),
+            TextField(
+                controller: _titleCtrl,
+                decoration:
+                    const InputDecoration(hintText: 'e.g. The Gentle Dragon')),
+            const SizedBox(height: 14),
+            const _Label('Topic'),
+            TextField(
+                controller: _topicCtrl,
+                decoration:
+                    const InputDecoration(hintText: 'e.g. Fantasy, Animals')),
+            const SizedBox(height: 14),
+            const _Label('Difficulty'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['Easy', 'Medium', 'Hard'].map((d) {
+                return SoftChip(
+                  label: d,
+                  selected: _difficulty == d,
+                  onTap: () => setState(() => _difficulty = d),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+            const _Label('Tags'),
+            TextField(
+                controller: _tagsCtrl,
+                decoration: const InputDecoration(
+                    hintText: 'comma, separated, tags')),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      // Cover image.
+      SoftCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _Label('Cover image'),
+            const SizedBox(height: 8),
+            _ImagePickerBox(
+              imagePath: _coverPath,
+              height: 150,
+              hint: 'Add a cover image',
+              onPick: () => _pickImage((p) => _coverPath = p),
+              onClear: _coverPath == null
+                  ? null
+                  : () => setState(() => _coverPath = null),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _manualLanguagePicker() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: AppStrings.supportedCodes.map((code) {
+        final active =
+            (_manualLanguage ?? context.watch<LanguageState>().code) == code;
+        return SoftChip(
+          label: AppStrings.languageNames[code] ?? code,
+          selected: active,
+          selectedColor: AppColors.softMint,
+          onTap: () => setState(() => _manualLanguage = code),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildWriteForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SoftCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _Label('Title'),
-              TextField(
-                  controller: _titleCtrl,
-                  decoration:
-                      const InputDecoration(hintText: 'e.g. The Gentle Dragon')),
-              const SizedBox(height: 14),
-              const _Label('Topic'),
-              TextField(
-                  controller: _topicCtrl,
-                  decoration:
-                      const InputDecoration(hintText: 'e.g. Fantasy, Animals')),
-              const SizedBox(height: 14),
-              const _Label('Difficulty'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: ['Easy', 'Medium', 'Hard'].map((d) {
-                  return SoftChip(
-                    label: d,
-                    selected: _difficulty == d,
-                    onTap: () => setState(() => _difficulty = d),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-              const _Label('Tags'),
-              TextField(
-                  controller: _tagsCtrl,
-                  decoration: const InputDecoration(
-                      hintText: 'comma, separated, tags')),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        // Cover image.
-        SoftCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _Label('Cover image'),
-              const SizedBox(height: 8),
-              _ImagePickerBox(
-                imagePath: _coverPath,
-                height: 150,
-                hint: 'Add a cover image',
-                onPick: () => _pickImage((p) => _coverPath = p),
-                onClear: _coverPath == null
-                    ? null
-                    : () => setState(() => _coverPath = null),
-              ),
-            ],
-          ),
-        ),
+        ..._writeDetailsSection(),
         const SizedBox(height: 14),
         SoftCard(
           child: Column(
@@ -474,21 +846,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
             children: [
               _Label(context.tr('upload.story_language')),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: AppStrings.supportedCodes.map((code) {
-                  final active = (_manualLanguage ??
-                          context.watch<LanguageState>().code) ==
-                      code;
-                  return SoftChip(
-                    label: AppStrings.languageNames[code] ?? code,
-                    selected: active,
-                    selectedColor: AppColors.softMint,
-                    onTap: () => setState(() => _manualLanguage = code),
-                  );
-                }).toList(),
-              ),
+              _manualLanguagePicker(),
               const SizedBox(height: 16),
               _Label(context.tr('upload.book_audio')),
               const SizedBox(height: 6),
@@ -683,20 +1041,28 @@ class _UploadContentPageState extends State<UploadContentPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _pageOptions.map((p) {
+                // Interactive books need a fixed length for the 1-in-4 cap.
+                children: (_format == _BookFormat.interactive
+                        ? _interactivePageOptions
+                        : _pageOptions)
+                    .map((p) {
                   return SoftChip(
                     label: p,
                     selected: _aiPages == p,
                     selectedColor: AppColors.softMint,
-                    onTap: () => setState(() => _aiPages = p),
+                    onTap: () => setState(() => _setAiPages(p)),
                   );
                 }).toList(),
               ),
               const SizedBox(height: 6),
-              const Text(
-                '“Auto” picks a short length (4-6 pages). Each page is one AI '
-                'picture (~10-15s), so fewer pages means a faster result.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              Text(
+                _format == _BookFormat.interactive
+                    ? 'Each page is one AI picture (~10-15s). A split page '
+                        'needs 2 pictures, so it takes a little longer.'
+                    : '“Auto” picks a short length (4-6 pages). Each page is one AI '
+                        'picture (~10-15s), so fewer pages means a faster result.',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 14),
               _Label(context.tr('upload.ai_language')),
@@ -718,6 +1084,20 @@ class _UploadContentPageState extends State<UploadContentPage> {
             ],
           ),
         ),
+        if (_format == _BookFormat.interactive) ...[
+          const SizedBox(height: 14),
+          _InteractionSettingsCard(
+            pageCount: int.tryParse(_aiPages) ?? 8,
+            interactions: _aiInteractions,
+            splits: _aiSplits,
+            onInteractionsChanged: (v) => setState(() {
+              _aiInteractions = v;
+              if (_aiSplits > v) _aiSplits = v;
+            }),
+            onSplitsChanged: (v) => setState(() => _aiSplits = v),
+            onShowGuide: () => _InteractiveGuideDialog.show(context),
+          ),
+        ],
         const SizedBox(height: 14),
         SoftCard(
           child: Column(

@@ -26,6 +26,7 @@ class Audiobook extends Model
         'category',
         'difficulty',
         'type',
+        'book_format',
         'content_text',
         'audio_file',
         'video_file',
@@ -74,7 +75,9 @@ class Audiobook extends Model
 
     public function pages(): HasMany
     {
+        // Split pages share a page_number; keep their two versions in order.
         return $this->hasMany(AudiobookPage::class, 'audiobook_id', 'audiobook_id')
-            ->orderBy('page_number');
+            ->orderBy('page_number')
+            ->orderBy('branch_index');
     }
 }

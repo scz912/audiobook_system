@@ -311,6 +311,9 @@ pages/
 │   ├── child_profile_actions.dart   shared edit/delete buttons + confirm dialogs.
 │   ├── content_management_page.dart  the library: list / search / filter / edit / delete.
 │   ├── upload_content_page.dart     upload a book OR generate one with AI (big file).
+│   │                                Linear / Interactive slider at the top.
+│   ├── upload_interactive.dart      (part of the above) interactive page editor,
+│   │                                interaction steppers, and the guide dialog.
 │   ├── edit_content_page.dart       edit a book's details and each page.
 │   ├── insights_page.dart           charts + AI suggestions (big file).
 │   └── settings_page.dart           per-child narration & sensory settings.
@@ -401,7 +404,7 @@ One controller per feature area. Each method follows the same recipe:
 | `ListeningHistoryController.php` | Save a finished listening session; list a child's history. |
 | `InsightsController.php` | The charts **and** AI suggestions (analyse / accept / dismiss). |
 | `TtsController.php` | Turn a page of text into a spoken clip via Gemini. |
-| `MusicTrackController.php` | List / filter the background-music tracks. |
+| `MusicTrackController.php` | List / filter the background-music tracks; caregiver music upload (converts to mp3 via ffmpeg, AI-tags it via Gemini). |
 
 ### `app/Http/Middleware/` — the guard
 `SessionAuthMiddleware.php` runs **before** every protected controller. It reads the
@@ -428,9 +431,14 @@ where "a caregiver has many children" is expressed in code.
 ### `app/Services/` — outside-world work
 `GeminiService.php` is the single place that calls Google Gemini:
 - `generateStory()` — writes the story text.
+- `generateInteractiveStory()` — writes an interactive story that follows the
+  page plan from `planInteractiveStory()` (question pages, `{choice}` response
+  pages, and split pages stored as 2 rows with the same page number).
 - `downloadImage()` — draws a page picture.
 - `generateSpeech()` — makes a voice clip (cached so the same text isn't redone).
 - `analyseListening()` — turns a child's stats into setting suggestions.
+- `analyseMusic()` — listens to an uploaded music track and returns mood tags,
+  tempo, a one-line summary, and any sensory cautions.
 
 Keeping all AI here means the rest of the backend doesn't need to know how Gemini works.
 

@@ -330,6 +330,135 @@ PROMPT;
         }
     }
 
+    /* Let Gemini listen to an uploaded music file and tag it. Returns
+       ['tags' => [...], 'tempo' => 'slow|moderate|upbeat', 'summary' => '...',
+       'sensory_notes' => '...'], or null if the AI call failed.
+       $vocabulary is the tag list already used in the library, so new tracks
+       reuse the same words (the picker filters and the story auto-match
+       both rely on them). */
+    public function analyseMusic(string $audioBytes, string $mimeType, string $title, array $vocabulary): ?array
+    {
+        Log::info('[Gemini] analyseMusic called', [
+            'title' => $title,
+            'bytes' => strlen($audioBytes),
+            'mime'  => $mimeType,
+        ]);
+        $tagList = implode(', ', $vocabulary);
+        $prompt = <<<PROMPT
+You are a music therapist who curates background music for an audiobook app made
+for autistic children and teenagers (under 18). A caregiver has uploaded the
+attached audio, titled "{$title}". It will play quietly underneath a narrator
+reading a story aloud.
+
+Listen to the WHOLE track before answering, then analyse:
+1. Mood and character: what feeling does it create (calm, playful, mysterious...)?
+2. Flow over time: how it opens, whether it builds, peaks, or changes section,
+   and how it ends. Note whether the energy stays steady or shifts.
+3. Tempo and rhythm: overall speed and how strong or busy the beat is.
+4. Instruments and texture: what you hear, and whether it is sparse or dense.
+5. Sensory risks for autistic listeners: sudden loud moments, sharp or
+   piercing high sounds, heavy bass or drops, harsh distortion, abrupt stops,
+   alarms or sirens, crowd noise, or singing/lyrics that would compete with
+   the narrator's voice.
+
+Then return:
+- "tags": 3 to 6 mood tags describing the track as a whole, in Title Case,
+  one word each. Strongly prefer words from this existing list:
+  {$tagList}
+  Use a new word only if none of these fit, and add at most one new word.
+  Do not tag a mood that only appears briefly; tag what the listener feels
+  for most of the track.
+- "tempo": exactly one of "slow", "moderate", "upbeat".
+- "summary": one short, plain sentence a caregiver can read at a glance,
+  describing the music and how it flows (e.g. "Soft piano over gentle rain
+  that stays quiet and steady from start to finish.").
+- "sensory_notes": one short, plain sentence naming any sensory risk from
+  step 5 and roughly when it happens (e.g. "Has a sudden loud drum hit around
+  1:30."). Use an empty string if there are none. No clinical claims.
+
+If the audio is not music (speech, silence, noise), return an empty "tags"
+list, "tempo" "slow", and explain in "sensory_notes" that it is not music.
+
+Return ONLY JSON.
+PROMPT;
+
+        try {
+            $response = Http::timeout(120)->post(
+                "{$this->base}/{$this->textModel}:generateContent?key={$this->key}",
+                [
+                    'contents' => [
+                        ['parts' => [
+                            ['inline_data' => ['mime_type' => $mimeType, 'data' => base64_encode($audioBytes)]],
+                            ['text' => $prompt],
+                        ]],
+                    ],
+                    'generationConfig' => [
+                        'temperature'      => 0.3,
+                        'responseMimeType' => 'application/json',
+                        'responseSchema'   => [
+                            'type'       => 'OBJECT',
+                            'properties' => [
+                                'tags'          => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                                'tempo'         => ['type' => 'STRING', 'enum' => ['slow', 'moderate', 'upbeat']],
+                                'summary'       => ['type' => 'STRING'],
+                                'sensory_notes' => ['type' => 'STRING'],
+                            ],
+                            'required' => ['tags', 'tempo', 'summary', 'sensory_notes'],
+                        ],
+                    ],
+                ]
+            );
+
+            if (!$response->successful()) {
+                Log::warning('[Gemini] analyseMusic HTTP error', [
+                    'status' => $response->status(),
+                    'body'   => mb_substr($response->body(), 0, 300),
+                ]);
+                return null;
+            }
+
+            $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+            $parsed = $text ? json_decode($text, true) : null;
+            if (!is_array($parsed)) {
+                Log::warning('[Gemini] analyseMusic unreadable response');
+                return null;
+            }
+
+            /* Clean the tags: one word, Title Case, no commas (tags are
+               stored comma-separated), no repeats, at most 6. Match the
+               existing spelling when the word is already in the library. */
+            $known = [];
+            foreach ($vocabulary as $v) {
+                $known[strtolower($v)] = $v;
+            }
+            $tags = [];
+            foreach ((array) ($parsed['tags'] ?? []) as $tag) {
+                $word = trim(str_replace(',', ' ', (string) $tag));
+                if ($word === '' || mb_strlen($word) > 20) {
+                    continue;
+                }
+                $word = $known[strtolower($word)] ?? Str::title($word);
+                if (!in_array($word, $tags, true)) {
+                    $tags[] = $word;
+                }
+            }
+            $tags = array_slice($tags, 0, 6);
+
+            $tempo = (string) ($parsed['tempo'] ?? '');
+            $result = [
+                'tags'          => $tags,
+                'tempo'         => in_array($tempo, ['slow', 'moderate', 'upbeat'], true) ? $tempo : null,
+                'summary'       => mb_substr(trim((string) ($parsed['summary'] ?? '')), 0, 500),
+                'sensory_notes' => mb_substr(trim((string) ($parsed['sensory_notes'] ?? '')), 0, 500),
+            ];
+            Log::info('[Gemini] analyseMusic success', $result);
+            return $result;
+        } catch (\Throwable $e) {
+            Log::warning('[Gemini] analyseMusic exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
     // Add a soft, calm illustration style to the prompt.
     private function styledPrompt(string $prompt): string
     {
@@ -480,6 +609,359 @@ PROMPT;
             'image_prompt' => $pages[0]['image_prompt'],
             'pages'        => $pages,
         ];
+    }
+
+    /* Lay out an interactive book before asking the AI to write it, so the
+       structure is decided by us, not guessed by the model. Returns one
+       entry per page number: 'story', 'interaction' (placeholder answer),
+       'interaction_split', 'response' (uses {choice}) or 'split' (two
+       versions). Rules:
+       - at most floor(pages / 4) interactions,
+       - never on page 1 or the last page, and never on a response page,
+       - interactions are spread evenly, splits spread evenly among them. */
+    public static function planInteractiveStory(int $pageCount, int $interactions, int $splits): array
+    {
+        $interactions = max(0, min($interactions, intdiv($pageCount, 4)));
+        $splits = max(0, min($splits, $interactions));
+
+        $plan = array_fill(1, $pageCount, 'story');
+        for ($i = 0; $i < $interactions; $i++) {
+            /* Even spacing. With at most pages/4 interactions the gap is
+               always >= 2, so a response page never lands on an
+               interaction, and the last one stays before the final page. */
+            $at = (int) round(($i + 1) * $pageCount / ($interactions + 1));
+            $isSplit = intdiv(($i + 1) * $splits, $interactions) > intdiv($i * $splits, $interactions);
+            $plan[$at] = $isSplit ? 'interaction_split' : 'interaction';
+            $plan[$at + 1] = $isSplit ? 'split' : 'response';
+        }
+        return $plan;
+    }
+
+    /* Write an interactive, autism-friendly story that follows
+       planInteractiveStory(). Returns ['title', 'content', 'pages'] where
+       each page is a ready-to-save row: page_number, text, image_prompt,
+       choices (or null), is_split, branch_index (or null). Split pages come
+       back as two rows with the same page_number. Throws on failure. */
+    public function generateInteractiveStory(
+        string $topic,
+        ?string $ageGroup,
+        ?string $sourceText,
+        int $pageCount,
+        int $interactions,
+        int $splits,
+        ?string $language = null
+    ): array {
+        $plan = self::planInteractiveStory($pageCount, $interactions, $splits);
+        Log::info('[Gemini] generateInteractiveStory called', [
+            'topic' => $topic,
+            'plan'  => $plan,
+        ]);
+
+        $age = $ageGroup ?: '7-9';
+        $token = \App\Models\AudiobookPage::CHOICE_TOKEN;
+        $instruction = ($sourceText !== null && trim($sourceText) !== '')
+            ? "Turn the following text into a calming, autism-friendly interactive children's story.\n\nTEXT:\n" . trim($sourceText)
+            : "Write a calming, autism-friendly interactive children's story about: {$topic}";
+        $languageRule = $this->languageRule($language)
+            . " The token {$token} is code: always write it exactly like that, never translate it.";
+
+        $planLines = [];
+        foreach ($plan as $n => $kind) {
+            $planLines[] = "Page {$n}: " . match ($kind) {
+                'interaction'       => 'INTERACTION page (placeholder answer). Give 2 or 3 choices.',
+                'response'          => 'PLACEHOLDER RESPONSE page for page ' . ($n - 1) . ". Its text must contain {$token} exactly once.",
+                'interaction_split' => 'INTERACTION page (split). Give exactly 2 choices.',
+                'split'             => 'SPLIT page. Write two versions in "branches": branches[0] follows choice 1 of page '
+                    . ($n - 1) . ', branches[1] follows choice 2. Leave "text" and "image_prompt" empty.',
+                default             => ($n > 1 && ($plan[$n - 1] ?? '') === 'split')
+                    ? 'STORY page. It must follow on naturally from BOTH versions of page ' . ($n - 1) . '.'
+                    : 'STORY page.',
+            };
+        }
+        $planText = implode("\n", $planLines);
+
+        $prompt = <<<PROMPT
+You are an author creating gentle, sensory-friendly INTERACTIVE stories for
+autistic children aged {$age}.
+{$instruction}
+
+Stay close to what the reader asked for: keep the characters, setting, and ideas
+they described, and make the story actually about their request.
+
+{$languageRule}
+
+HOW AN INTERACTIVE STORY WORKS
+The story is read aloud one page at a time. On an INTERACTION page the narrator
+asks the child a question and the story pauses until the child taps one of the
+choices. What happens next depends on the answer:
+- PLACEHOLDER RESPONSE: the next page is the same for everyone, but contains the
+  exact token {$token}, which the app replaces with the choice the child tapped.
+- SPLIT: the next page is written in two different versions, one per choice.
+  Only the version for the chosen answer is read. The page after it is the same
+  for everyone again, so the story always comes back together.
+
+PAGE PLAN (follow it exactly; there are exactly {$pageCount} pages, in this order)
+{$planText}
+
+For each page return:
+- "page_number": the page number from the plan.
+- "text": one or two very short, simple sentences (empty on SPLIT pages).
+- "image_prompt": a clear description of a gentle illustration for that page
+  (empty on SPLIT pages; each branch has its own).
+- "choices": the answers, only on INTERACTION pages; otherwise an empty list.
+- "branches": only on SPLIT pages, exactly 2 objects, each with "text" and
+  "image_prompt"; otherwise an empty list.
+
+Rules for INTERACTION pages:
+- Continue the story, then end the text with ONE clear, direct question to the
+  child, e.g. "What should Mia pack for the picnic?"
+- Choices are short (1 to 5 words), concrete, and easy to picture, and clearly
+  different from each other. Do not number them or end them with punctuation.
+- There are no right or wrong answers. Every choice is safe, kind, and leads
+  somewhere pleasant. Never offer a scary, risky, or "naughty" choice, and never
+  make the story disappointed in the child's answer.
+
+Rules for PLACEHOLDER RESPONSE pages:
+- Use {$token} exactly once, written exactly like that.
+- The sentence must read naturally and grammatically with EVERY choice from the
+  interaction page put in place of {$token}. Check each one. Write the choices so
+  they fit. Example: choices "a red apple" and "a yellow banana", text
+  "Mia put {$token} in her basket. It looked yummy!"
+
+Rules for SPLIT pages:
+- The two versions should feel clearly different (a different place, activity,
+  or event), each one directly following its own choice.
+- Each version is one or two short sentences with its own image_prompt.
+- Both versions must end so the next page follows naturally from either one.
+  Nothing later in the story may depend on which version was read.
+
+General rules:
+- Keep a calm, warm, predictable tone. No scary, loud, or sudden events.
+- Avoid idioms and sarcasm; be literal and clear.
+- Each page should follow on naturally from the page before.
+- Each image_prompt MUST be self-contained: restate the main character's name
+  and appearance every time so the illustrations look consistent, and describe
+  only that page's scene. Never put {$token} in an image_prompt; on a
+  placeholder response page describe a scene that fits every choice.
+
+Return ONLY JSON with keys: title (string) and pages (array of page objects, in
+page order).
+PROMPT;
+
+        $schema = [
+            'type'       => 'OBJECT',
+            'properties' => [
+                'title' => ['type' => 'STRING'],
+                'pages' => [
+                    'type'  => 'ARRAY',
+                    'items' => [
+                        'type'       => 'OBJECT',
+                        'properties' => [
+                            'page_number'  => ['type' => 'INTEGER'],
+                            'text'         => ['type' => 'STRING'],
+                            'image_prompt' => ['type' => 'STRING'],
+                            'choices'      => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                            'branches'     => [
+                                'type'  => 'ARRAY',
+                                'items' => [
+                                    'type'       => 'OBJECT',
+                                    'properties' => [
+                                        'text'         => ['type' => 'STRING'],
+                                        'image_prompt' => ['type' => 'STRING'],
+                                    ],
+                                    'required' => ['text', 'image_prompt'],
+                                ],
+                            ],
+                        ],
+                        'required' => ['page_number', 'text', 'image_prompt', 'choices', 'branches'],
+                    ],
+                ],
+            ],
+            'required' => ['title', 'pages'],
+        ];
+
+        /* Ask once; if the reply breaks the plan, ask again and say what was
+           wrong. A second bad reply fails the request rather than saving a
+           broken book. */
+        $problems = [];
+        $parsed = null;
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $fullPrompt = $prompt;
+            if ($problems) {
+                $fullPrompt .= "\n\nYour previous answer did not follow the plan. Fix these problems:\n- "
+                    . implode("\n- ", $problems);
+            }
+            $parsed = $this->requestJson($fullPrompt, $schema, 0.8);
+            $problems = $this->checkInteractivePages($parsed['pages'] ?? null, $plan);
+            if (!$problems) {
+                break;
+            }
+            Log::warning('[Gemini] generateInteractiveStory plan not followed', [
+                'attempt'  => $attempt,
+                'problems' => $problems,
+            ]);
+        }
+        if ($problems) {
+            throw new \RuntimeException('The AI did not follow the interactive story layout. Please try again.');
+        }
+
+        // Turn the reply into rows to save.
+        $rows = [];
+        foreach (array_values($parsed['pages']) as $i => $page) {
+            $n = $i + 1;
+            $kind = $plan[$n];
+            if ($kind === 'split') {
+                $branches = array_values(array_filter(
+                    (array) $page['branches'],
+                    fn ($b) => is_array($b) && trim((string) ($b['text'] ?? '')) !== ''
+                ));
+                foreach (array_slice($branches, 0, 2) as $b => $branch) {
+                    $rows[] = [
+                        'page_number'  => $n,
+                        'text'         => trim((string) $branch['text']),
+                        'image_prompt' => trim((string) ($branch['image_prompt'] ?? '')) ?: trim((string) $branch['text']),
+                        'choices'      => null,
+                        'is_split'     => false,
+                        'branch_index' => $b,
+                    ];
+                }
+                continue;
+            }
+            $isInteraction = $kind === 'interaction' || $kind === 'interaction_split';
+            $text = trim((string) $page['text']);
+            $rows[] = [
+                'page_number'  => $n,
+                'text'         => $text,
+                'image_prompt' => trim(str_replace($token, '', (string) ($page['image_prompt'] ?? ''))) ?: $text,
+                'choices'      => $isInteraction
+                    ? array_slice($this->cleanChoices($page['choices']), 0, $kind === 'interaction_split' ? 2 : 3)
+                    : null,
+                'is_split'     => $kind === 'interaction_split',
+                'branch_index' => null,
+            ];
+        }
+
+        $title = trim((string) ($parsed['title'] ?? '')) ?: ($topic !== '' ? $topic : 'A Gentle Story');
+        Log::info('[Gemini] generateInteractiveStory success', [
+            'title' => $title,
+            'rows'  => count($rows),
+        ]);
+        return [
+            'title'   => $title,
+            // The main path only (first version of each split), for search and music matching.
+            'content' => implode("\n\n", array_column(
+                array_filter($rows, fn ($r) => $r['branch_index'] === null || $r['branch_index'] === 0),
+                'text'
+            )),
+            'pages'   => $rows,
+        ];
+    }
+
+    /* Compare the AI's pages with the plan. Returns a list of plain problems
+       (empty = fine) that can be sent back to the AI. */
+    private function checkInteractivePages($pages, array $plan): array
+    {
+        $token = \App\Models\AudiobookPage::CHOICE_TOKEN;
+        if (!is_array($pages)) {
+            return ['"pages" is missing.'];
+        }
+        $pages = array_values($pages);
+        if (count($pages) !== count($plan)) {
+            return ['There must be exactly ' . count($plan) . ' pages, but there were ' . count($pages) . '.'];
+        }
+
+        $problems = [];
+        foreach ($plan as $n => $kind) {
+            $page = is_array($pages[$n - 1]) ? $pages[$n - 1] : [];
+            $text = trim((string) ($page['text'] ?? ''));
+            $choices = $this->cleanChoices($page['choices'] ?? []);
+
+            if ($kind !== 'split' && $text === '') {
+                $problems[] = "Page {$n} has no text.";
+            }
+            if ($kind === 'interaction' && count($choices) < 2) {
+                $problems[] = "Page {$n} is an interaction page and needs 2 or 3 choices.";
+            }
+            if ($kind === 'interaction_split' && count($choices) < 2) {
+                $problems[] = "Page {$n} is a split interaction page and needs exactly 2 choices.";
+            }
+            if ($kind === 'response' && substr_count($text, $token) !== 1) {
+                $problems[] = "Page {$n} must contain {$token} exactly once.";
+            }
+            if ($kind !== 'response' && str_contains($text, $token)) {
+                $problems[] = "Only placeholder response pages may contain {$token}; remove it from page {$n}.";
+            }
+            if ($kind === 'split') {
+                $branches = array_values(array_filter(
+                    (array) ($page['branches'] ?? []),
+                    fn ($b) => is_array($b) && trim((string) ($b['text'] ?? '')) !== ''
+                ));
+                if (count($branches) < 2) {
+                    $problems[] = "Page {$n} is a split page and needs 2 versions in \"branches\", each with text.";
+                }
+            }
+        }
+        return $problems;
+    }
+
+    // Trimmed, non-empty, de-duplicated answers without trailing punctuation.
+    private function cleanChoices($choices): array
+    {
+        $out = [];
+        foreach ((array) $choices as $c) {
+            $c = rtrim(trim((string) $c), " .!?,;:");
+            if ($c !== '' && !in_array(mb_strtolower($c), array_map('mb_strtolower', $out), true)) {
+                $out[] = mb_substr($c, 0, 80);
+            }
+        }
+        return $out;
+    }
+
+    // What language to write the story in. Image prompts stay English.
+    private function languageRule(?string $language): string
+    {
+        return match (strtolower($language ?? 'en')) {
+            'ms' => "Write the story TEXT (the 'text' field for every page, the 'choices', and the 'title') in Bahasa Malaysia (standard Malay). Keep \"image_prompt\" in English. It goes to the image generator and must stay clear and literal.",
+            default => 'Write the story in clear, simple English.',
+        };
+    }
+
+    /* POST a prompt to the text model with a JSON schema and return the
+       decoded reply. Throws with a friendly message on quota or HTTP errors. */
+    private function requestJson(string $prompt, array $schema, float $temperature): array
+    {
+        $response = Http::timeout(90)->post(
+            "{$this->base}/{$this->textModel}:generateContent?key={$this->key}",
+            [
+                'contents' => [
+                    ['parts' => [['text' => $prompt]]],
+                ],
+                'generationConfig' => [
+                    'temperature'      => $temperature,
+                    'responseMimeType' => 'application/json',
+                    'responseSchema'   => $schema,
+                ],
+            ]
+        );
+
+        if ($response->status() === 429) {
+            Log::warning('[Gemini] requestJson quota exceeded (429)', ['body' => $response->body()]);
+            throw new \RuntimeException($this->quotaMessage($response->json()));
+        }
+        if (!$response->successful()) {
+            Log::error('[Gemini] requestJson HTTP error', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            throw new \RuntimeException('Gemini text generation failed (HTTP ' . $response->status() . ')');
+        }
+
+        $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+        $parsed = $text ? json_decode($text, true) : null;
+        if (!is_array($parsed)) {
+            throw new \RuntimeException('Gemini returned no usable content');
+        }
+        return $parsed;
     }
 
     // Make a picture with Gemini. Needs a billing-enabled key.

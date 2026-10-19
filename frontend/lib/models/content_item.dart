@@ -10,6 +10,7 @@ class ContentItem {
   final String? category;
   final String? difficulty;
   final String? type;
+  final String bookFormat; // 'linear' or 'interactive'
   final String? contentText;
   final String? coverImage;
   final String? audioFile;
@@ -35,6 +36,7 @@ class ContentItem {
     this.category,
     this.difficulty,
     this.type,
+    this.bookFormat = 'linear',
     this.contentText,
     this.coverImage,
     this.audioFile,
@@ -63,6 +65,7 @@ class ContentItem {
       category: safeNullableString(json['category']),
       difficulty: safeNullableString(json['difficulty']),
       type: safeNullableString(json['type']),
+      bookFormat: safeString(json['book_format'], 'linear'),
       contentText: safeNullableString(json['content_text']),
       coverImage: safeNullableString(json['cover_image']),
       audioFile: safeNullableString(json['audio_file']),
@@ -92,6 +95,7 @@ class ContentItem {
         'category': category,
         'difficulty': difficulty,
         'type': type,
+        'book_format': bookFormat,
         'content_text': contentText,
         'cover_image': coverImage,
         'audio_file': audioFile,
