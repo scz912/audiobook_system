@@ -10,11 +10,18 @@ import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_chip.dart';
 import '../../widgets/stat_card.dart';
 import '../child/audio_player_page.dart';
 import 'edit_content_page.dart';
+import 'quran_library_section.dart';
 import 'upload_content_page.dart';
+
+/* The three kinds of audiobook the library slider switches between. The
+   first two match an audiobook's book_format; Al-Quran is the separate
+   downloadable recitation pack. */
+enum _Library { linear, interactive, quran }
 
 class ContentManagementPage extends StatefulWidget {
   /* Called when the header back arrow is tapped. The shell uses it to go
@@ -32,6 +39,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   bool _loading = false;
   String _filter = 'all';
   String _langFilter = 'all'; // 'all' | 'en' | 'ms'
+  _Library _library = _Library.linear;
   final TextEditingController _searchCtrl = TextEditingController();
 
   // While a book is still generating, keep re-checking until it's done.
@@ -273,101 +281,138 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
             ],
           ),
           const SizedBox(height: 18),
-          TextField(
-            controller: _searchCtrl,
-            onSubmitted: (_) => _refresh(),
-            decoration: InputDecoration(
-              hintText: context.tr('content.search_hint'),
-              prefixIcon:
-                  const Icon(Icons.search, color: AppColors.textMuted),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              const Icon(Icons.filter_alt_outlined,
-                  size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Text(context.tr('content.filter_by_type'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SoftChip(label: context.tr('common.all'), selected: _filter == 'all', onTap: () { setState(() => _filter = 'all'); _refresh(); }),
-              SoftChip(label: context.tr('content.filter_audio'), selected: _filter == 'audio', onTap: () { setState(() => _filter = 'audio'); _refresh(); }),
-              SoftChip(label: context.tr('content.filter_text'), selected: _filter == 'text', onTap: () { setState(() => _filter = 'text'); _refresh(); }),
-              SoftChip(label: context.tr('content.filter_ai'), selected: _filter == 'ai', onTap: () { setState(() => _filter = 'ai'); _refresh(); }),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              const Icon(Icons.translate,
-                  size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-              Text(context.tr('content.filter_by_language'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SoftChip(
-                label: context.tr('content.filter_lang_all'),
-                selected: _langFilter == 'all',
-                onTap: () {
-                  setState(() => _langFilter = 'all');
-                  _refresh();
-                },
-              ),
-              SoftChip(
-                label: context.tr('content.filter_lang_en'),
-                selected: _langFilter == 'en',
-                selectedColor: AppColors.softMint,
-                onTap: () {
-                  setState(() => _langFilter = 'en');
-                  _refresh();
-                },
-              ),
-              SoftChip(
-                label: context.tr('content.filter_lang_ms'),
-                selected: _langFilter == 'ms',
-                selectedColor: AppColors.softMint,
-                onTap: () {
-                  setState(() => _langFilter = 'ms');
-                  _refresh();
-                },
-              ),
+          SegmentedSlider<_Library>(
+            value: _library,
+            onChanged: (l) => setState(() => _library = l),
+            items: [
+              SegmentedSliderItem(_Library.linear,
+                  context.tr('content.format_linear'), Icons.menu_book_rounded),
+              SegmentedSliderItem(_Library.interactive,
+                  context.tr('content.format_interactive'),
+                  Icons.touch_app_rounded),
+              SegmentedSliderItem(_Library.quran,
+                  context.tr('content.format_quran'),
+                  Icons.auto_stories_rounded),
             ],
           ),
           const SizedBox(height: 18),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator()),
-            )
+          if (_library == _Library.quran)
+            const QuranLibrarySection()
           else
-            for (final item in _items) ...[
-              _ContentTile(
-                item: item,
-                onTap: () => _openPreview(item),
-                onEdit: () => _editItem(item),
-                onDelete: () => _deleteItem(item),
-                onCancel: () => _cancelItem(item),
-              ),
-              const SizedBox(height: 10),
-            ],
+            ..._buildAudiobookList(),
         ],
       ),
     );
+  }
+
+  // Search, filters and the books of the selected format (linear or
+  // interactive). Filtered here: every item already carries its format.
+  List<Widget> _buildAudiobookList() {
+    final format = _library.name;
+    final visible = _items.where((i) => i.bookFormat == format).toList();
+    return [
+      TextField(
+        controller: _searchCtrl,
+        onSubmitted: (_) => _refresh(),
+        decoration: InputDecoration(
+          hintText: context.tr('content.search_hint'),
+          prefixIcon:
+              const Icon(Icons.search, color: AppColors.textMuted),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          const Icon(Icons.filter_alt_outlined,
+              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(context.tr('content.filter_by_type'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          SoftChip(label: context.tr('common.all'), selected: _filter == 'all', onTap: () { setState(() => _filter = 'all'); _refresh(); }),
+          SoftChip(label: context.tr('content.filter_audio'), selected: _filter == 'audio', onTap: () { setState(() => _filter = 'audio'); _refresh(); }),
+          SoftChip(label: context.tr('content.filter_text'), selected: _filter == 'text', onTap: () { setState(() => _filter = 'text'); _refresh(); }),
+          SoftChip(label: context.tr('content.filter_ai'), selected: _filter == 'ai', onTap: () { setState(() => _filter = 'ai'); _refresh(); }),
+        ],
+      ),
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          const Icon(Icons.translate,
+              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(context.tr('content.filter_by_language'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          SoftChip(
+            label: context.tr('content.filter_lang_all'),
+            selected: _langFilter == 'all',
+            onTap: () {
+              setState(() => _langFilter = 'all');
+              _refresh();
+            },
+          ),
+          SoftChip(
+            label: context.tr('content.filter_lang_en'),
+            selected: _langFilter == 'en',
+            selectedColor: AppColors.softMint,
+            onTap: () {
+              setState(() => _langFilter = 'en');
+              _refresh();
+            },
+          ),
+          SoftChip(
+            label: context.tr('content.filter_lang_ms'),
+            selected: _langFilter == 'ms',
+            selectedColor: AppColors.softMint,
+            onTap: () {
+              setState(() => _langFilter = 'ms');
+              _refresh();
+            },
+          ),
+        ],
+      ),
+      const SizedBox(height: 18),
+      if (_loading)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
+        )
+      else if (visible.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: Text(
+            context.tr('content.empty_format'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+        )
+      else
+        for (final item in visible) ...[
+          _ContentTile(
+            item: item,
+            onTap: () => _openPreview(item),
+            onEdit: () => _editItem(item),
+            onDelete: () => _deleteItem(item),
+            onCancel: () => _cancelItem(item),
+          ),
+          const SizedBox(height: 10),
+        ],
+    ];
   }
 }
 

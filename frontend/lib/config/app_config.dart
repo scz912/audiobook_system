@@ -12,4 +12,10 @@ class AppConfig {
 
   // Default caregiver PIN used on first run, user changes it in Settings.
   static const String defaultPin = '1234';
+
+  // Al-Quran pack: when true, every chapter downloads in the background
+  // after the caregiver signs in (except chapters they removed). On for our
+  // test emulator; set to false for release builds so each family chooses
+  // what to download.
+  static const bool quranAutoDownload = true;
 }

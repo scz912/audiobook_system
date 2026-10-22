@@ -17,3 +17,6 @@ Thumbs.db
 
 # Local env at root
 .env.local
+
+# Quran voicepack build output (published as GitHub release assets, not committed)
+quran_pack_build/

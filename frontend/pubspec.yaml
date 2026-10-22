@@ -45,6 +45,11 @@ dependencies:
   # Pin entry UI
   pin_code_fields: ^8.0.1
 
+  # Al-Quran pack (downloadable content): where chapters are stored on the
+  # device, and unzipping each downloaded chapter.
+  path_provider: ^2.1.5
+  archive: ^3.6.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -52,3 +57,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    # Chapter list + download sizes for the Al-Quran pack. The audio itself
+    # is downloaded on demand (see services/quran_pack_service.dart).
+    - assets/quran/quran_manifest.json

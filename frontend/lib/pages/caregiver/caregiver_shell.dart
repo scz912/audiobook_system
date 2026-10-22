@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../i18n/i18n.dart';
+import '../../services/quran_pack_service.dart';
 import '../../theme/app_colors.dart';
 import '../community/community_page.dart';
 import 'caregiver_dashboard_page.dart';
@@ -19,6 +20,14 @@ class CaregiverShell extends StatefulWidget {
 
 class _CaregiverShellState extends State<CaregiverShell> {
   late int _index = widget.initialIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    // Starts the Al-Quran pack download in the background when
+    // AppConfig.quranAutoDownload is on (our test emulator).
+    QuranPackService.instance.autoDownloadIfEnabled();
+  }
 
   // Menu bottom nav specs
   static const _tabs = <_TabSpec>[

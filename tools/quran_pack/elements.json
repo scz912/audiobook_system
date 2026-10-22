@@ -1,0 +1,126 @@
+[
+ {
+  "id": "fire",
+  "name_en": "Fire",
+  "name_ms": "Api",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Fire_looped_1.gif",
+  "credit": "Frank Vincentz (looped by Jahobr), Wikimedia Commons, resized",
+  "license": "CC BY-SA 3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Fire_looped_1.gif"
+ },
+ {
+  "id": "ocean",
+  "name_en": "Ocean",
+  "name_ms": "Lautan",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/9/9b/Ocean_waves_at_L%C3%A6kjavik_beach%2C_Iceland.webm/Ocean_waves_at_L%C3%A6kjavik_beach%2C_Iceland.webm.480p.vp9.webm",
+  "start": 1,
+  "duration": 6,
+  "crossfade": 1.2,
+  "credit": "Alexander Grebenkov, Wikimedia Commons, clip made into a looping GIF",
+  "license": "CC BY 3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Ocean_waves_at_L%C3%A6kjavik_beach,_Iceland.webm"
+ },
+ {
+  "id": "forest",
+  "name_en": "Forest",
+  "name_ms": "Hutan",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/3/3a/2022-09-30_V_GOZDU.webm/2022-09-30_V_GOZDU.webm.480p.vp9.webm",
+  "start": 3,
+  "duration": 4.5,
+  "crossfade": 1.0,
+  "credit": "NaIzletuSi, Wikimedia Commons, clip made into a looping GIF",
+  "license": "CC BY 3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:2022-09-30_V_GOZDU.webm"
+ },
+ {
+  "id": "rain",
+  "name_en": "Rain",
+  "name_ms": "Hujan",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/4/44/Saule_pleureur_au_printemps_sous_la_pluie.webm/Saule_pleureur_au_printemps_sous_la_pluie.webm.480p.vp9.webm",
+  "start": 2,
+  "duration": 6,
+  "crossfade": 1.2,
+  "credit": "Musicaline, Wikimedia Commons, clip made into a looping GIF",
+  "license": "CC BY-SA 4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Saule_pleureur_au_printemps_sous_la_pluie.webm"
+ },
+ {
+  "id": "thunder",
+  "name_en": "Thunderstorm",
+  "name_ms": "Ribut petir",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/5/58/Lightning.gif",
+  "credit": "Alaa Najjar, Wikimedia Commons, resized",
+  "license": "CC BY-SA 3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Lightning.gif"
+ },
+ {
+  "id": "night_sky",
+  "name_en": "Night sky",
+  "name_ms": "Langit malam",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Northern_Lights_timelapse.gif",
+  "credit": "KristianPikner, Wikimedia Commons, resized",
+  "license": "CC BY-SA 4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Northern_Lights_timelapse.gif"
+ },
+ {
+  "id": "moon",
+  "name_en": "Moon",
+  "name_ms": "Bulan",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Luna_movimiento.gif",
+  "credit": "Jorge Barrios, Wikimedia Commons",
+  "license": "Public domain",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Luna_movimiento.gif"
+ },
+ {
+  "id": "sunrise",
+  "name_en": "Sunrise",
+  "name_ms": "Matahari terbit",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f1/Sunrise_Timelapse_%2830174294051%29.webm/Sunrise_Timelapse_%2830174294051%29.webm.480p.vp9.webm",
+  "start": 17,
+  "duration": 6,
+  "crossfade": 1.5,
+  "credit": "Shenandoah National Park (ShenandoahNPS), Wikimedia Commons, clip made into a looping GIF",
+  "license": "Public domain",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Sunrise_Timelapse_(30174294051).webm"
+ },
+ {
+  "id": "clouds",
+  "name_en": "Clouds & wind",
+  "name_ms": "Awan & angin",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/2/2f/Clouds.gif",
+  "credit": "Assianir, Wikimedia Commons, resized",
+  "license": "CC BY-SA 3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Clouds.gif"
+ },
+ {
+  "id": "river",
+  "name_en": "River",
+  "name_ms": "Sungai",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Krka_NP_Croatia_-_waterfall.gif",
+  "credit": "Reino Baptista, Wikimedia Commons, resized",
+  "license": "CC BY-SA 4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Krka_NP_Croatia_-_waterfall.gif"
+ },
+ {
+  "id": "desert",
+  "name_en": "Desert",
+  "name_ms": "Padang pasir",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/1/1c/Mojave_Desert_Sunset_%2840480403760%29.webm/Mojave_Desert_Sunset_%2840480403760%29.webm.480p.vp9.webm",
+  "start": 1,
+  "duration": 6,
+  "crossfade": 1.2,
+  "crop": "iw:ih*0.74",
+  "credit": "Bureau of Land Management California (blmcalifornia), Wikimedia Commons, cropped clip made into a looping GIF",
+  "license": "Public domain",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Mojave_Desert_Sunset_(40480403760).webm"
+ },
+ {
+  "id": "mountain",
+  "name_en": "Mountains",
+  "name_ms": "Gunung",
+  "file_url": "https://upload.wikimedia.org/wikipedia/commons/2/25/Sunset_on_Halfdome_timelapse_Yosemite.gif",
+  "credit": "G. Edward Johnson, Wikimedia Commons, resized",
+  "license": "CC BY 4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Sunset_on_Halfdome_timelapse_Yosemite.gif"
+ }
+]
