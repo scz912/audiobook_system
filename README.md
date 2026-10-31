@@ -336,9 +336,9 @@ Base URL: `http://<host>:8000/api`. Every request is `POST` (multipart only for 
 | POST | `/audiobooks/{audiobookId}` | Fetch one audiobook (with pages + `audio_start_ms`). |
 | POST | `/content/summary` | Library totals by type. |
 | POST | `/content/list` | Search / filter. Body: `filter_type`, `search`, `category`, `age_group`, `language` (`en` / `ms`). |
-| POST | `/content/create` | Upload content (multipart) — accepts `cover_image`, `audio_file`, `language`, body fields. |
+| POST | `/content/create` | Upload content (multipart) — accepts `cover_image`, `audio_file`, `language`, body fields. `visibility` (`private` or `public`) is required. |
 | POST | `/content/{audiobookId}/pages` | Add one page (multipart) — `text`, `image`, optional `audio_start_ms`. |
-| POST | `/content/generate` | AI-generate a storybook — body: `topic`, `age_group`, `difficulty`, `page_count`, `language`, `generate_image`. |
+| POST | `/content/generate` | AI-generate a storybook — body: `topic`, `age_group`, `difficulty`, `page_count`, `language`, `generate_image`, `visibility` (required: `private` or `public`). |
 | POST | `/tts/speak` | Render one page of text into a cached Gemini-TTS WAV; returns the URL. |
 | POST | `/listening-history/record` | Persist a session. |
 | POST | `/listening-history/child/{childId}` | Last 50 sessions for a child. |

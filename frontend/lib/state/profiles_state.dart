@@ -28,7 +28,6 @@ class ProfilesState extends ChangeNotifier {
   int get totalChildren => _profiles.length;
   int get totalListeningMinutes =>
       _profiles.fold(0, (sum, p) => sum + p.listeningMinutes);
-  int get averageEngagement => _profiles.isEmpty ? 0 : 87;
 
   Future<void> refresh({String? caregiverId}) async {
     // Switching caregiver - clear the old list first.

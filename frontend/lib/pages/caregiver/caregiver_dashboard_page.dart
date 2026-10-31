@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/child_profile.dart';
+import '../../models/content_summary.dart';
+import '../../models/insights_overview.dart';
 import '../../navigation/app_navigation_service.dart';
+import '../../services/database_service.dart';
 import '../../state/auth_state.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
@@ -15,9 +18,38 @@ import '../child/child_shell.dart';
 import 'add_child_dialog.dart';
 import 'child_profile_actions.dart';
 
-class CaregiverDashboardPage extends StatelessWidget {
+class CaregiverDashboardPage extends StatefulWidget {
   final ValueChanged<int>? onJumpToTab;
   const CaregiverDashboardPage({super.key, this.onJumpToTab});
+
+  @override
+  State<CaregiverDashboardPage> createState() => _CaregiverDashboardPageState();
+}
+
+class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
+  InsightsOverview? _overview;
+  ContentSummary? _summary;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  // Load the real numbers for the stat cards (engagement + total books).
+  Future<void> _loadStats() async {
+    final overviewResp = await DatabaseService.getInsightsOverview();
+    final summaryResp = await DatabaseService.getContentSummary();
+    if (!mounted) return;
+    setState(() {
+      if (overviewResp.success && overviewResp.data is InsightsOverview) {
+        _overview = overviewResp.data as InsightsOverview;
+      }
+      if (summaryResp.success && summaryResp.data is ContentSummary) {
+        _summary = summaryResp.data as ContentSummary;
+      }
+    });
+  }
 
   void _enterChildMode(BuildContext context, ChildProfile profile) {
     context.read<ProfilesState>().enterChildMode(profile);
@@ -101,13 +133,13 @@ class CaregiverDashboardPage extends StatelessWidget {
             StatCard(
               icon: Icons.menu_book_outlined,
               iconBackground: AppColors.iconCirclePeach,
-              value: '6',
+              value: _summary == null ? '…' : '${_summary!.totalItems}',
               label: context.tr('caregiver.stat_total_books'),
             ),
             StatCard(
               icon: Icons.psychology_outlined,
               iconBackground: AppColors.iconCirclePurple,
-              value: '${profiles.averageEngagement}%',
+              value: _overview == null ? '…' : '${_overview!.completionRate}%',
               label: context.tr('caregiver.stat_avg_engagement'),
             ),
           ],

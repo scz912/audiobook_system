@@ -10,6 +10,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
+import '../../widgets/visibility_picker.dart';
 
 /* Edit screen for an audiobook. The caregiver can change the details
    (title, description, language), edit each page's text and image, and add
@@ -31,6 +32,7 @@ class _EditContentPageState extends State<EditContentPage> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _language = 'en';
+  String _visibility = 'public';
   bool _savingMeta = false;
 
   // One draft per page, holding its text controller and any new image.
@@ -68,6 +70,7 @@ class _EditContentPageState extends State<EditContentPage> {
       _descCtrl.text = book.description ?? '';
       _language = (book.language ?? 'en').toLowerCase();
       if (_language != 'en' && _language != 'ms') _language = 'en';
+      _visibility = book.visibility;
       _pages
         ..clear()
         ..addAll(book.pages.map(_PageDraft.fromExisting));
@@ -93,6 +96,9 @@ class _EditContentPageState extends State<EditContentPage> {
     }
     if (_language != (book.language ?? 'en').toLowerCase()) {
       patch['language'] = _language;
+    }
+    if (_visibility != book.visibility) {
+      patch['visibility'] = _visibility;
     }
     if (patch.isEmpty) return;
 
@@ -262,6 +268,11 @@ class _EditContentPageState extends State<EditContentPage> {
                     language: _language,
                     saving: _savingMeta,
                     onLanguageChanged: (v) => setState(() => _language = v),
+                    // Only the owner can change this. Older books have none.
+                    visibility:
+                        _audiobook?.isMine == true ? _visibility : null,
+                    onVisibilityChanged: (v) =>
+                        setState(() => _visibility = v),
                     onSave: _saveMetadata,
                   ),
                   const SizedBox(height: 22),
@@ -329,13 +340,16 @@ class _EditContentPageState extends State<EditContentPage> {
 }
 
 /* Top card with the book's title, description, and language, plus its own
-   save button - so details can be edited without touching the pages. */
+   save button - so details can be edited without touching the pages. The
+   visibility choice is hidden when [visibility] is null. */
 class _MetadataCard extends StatelessWidget {
   final TextEditingController titleCtrl;
   final TextEditingController descCtrl;
   final String language;
   final bool saving;
   final ValueChanged<String> onLanguageChanged;
+  final String? visibility;
+  final ValueChanged<String> onVisibilityChanged;
   final VoidCallback onSave;
   const _MetadataCard({
     required this.titleCtrl,
@@ -343,6 +357,8 @@ class _MetadataCard extends StatelessWidget {
     required this.language,
     required this.saving,
     required this.onLanguageChanged,
+    required this.visibility,
+    required this.onVisibilityChanged,
     required this.onSave,
   });
 
@@ -396,6 +412,16 @@ class _MetadataCard extends StatelessWidget {
               ),
             ],
           ),
+          if (visibility != null) ...[
+            const SizedBox(height: 14),
+            Text(context.tr('upload.visibility'),
+                style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            VisibilityPicker(value: visibility, onChanged: onVisibilityChanged),
+          ],
           const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerRight,

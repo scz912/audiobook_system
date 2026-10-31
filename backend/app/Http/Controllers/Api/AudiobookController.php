@@ -35,7 +35,11 @@ class AudiobookController extends ApiController
                 );
             }
 
-            $audiobook = Audiobook::with('musicTrack')->where('audiobook_id', $audiobookId)->first();
+            $me = $request->get('auth_caregiver')?->caregiver_id;
+            $audiobook = Audiobook::visibleTo($me)
+                ->with('musicTrack')
+                ->where('audiobook_id', $audiobookId)
+                ->first();
 
             if (!$audiobook) {
                 $this->logWarn('Audiobook', 'getAudiobookData not found', [
@@ -69,6 +73,8 @@ class AudiobookController extends ApiController
                 'is_generated'     => (bool) $audiobook->is_generated,
                 'is_user_uploaded' => (bool) $audiobook->is_user_uploaded,
                 'status'           => $audiobook->status,
+                'visibility'       => $audiobook->visibility,
+                'is_mine'          => $audiobook->isOwnedBy($me),
                 'pages'            => $audiobook->pages->map(fn ($p) => [
                     'page_id'        => $p->page_id,
                     'page_number'    => $p->page_number,

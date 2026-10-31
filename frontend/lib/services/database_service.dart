@@ -479,6 +479,7 @@ class DatabaseService {
      ContentItem (with its id) on success. */
   static Future<ApiResponse> createContentWithCover({
     required String title,
+    required String visibility, // 'private' or 'public'
     String? topic,
     String? difficulty,
     String? tags,
@@ -512,6 +513,7 @@ class DatabaseService {
       request.fields['title'] = title;
       request.fields['type'] = type ?? 'Text';
       request.fields['book_format'] = bookFormat;
+      request.fields['visibility'] = visibility;
       request.fields['is_user_uploaded'] = '1';
       if (topic != null && topic.isNotEmpty) request.fields['topic'] = topic;
       if (difficulty != null && difficulty.isNotEmpty) {
@@ -631,6 +633,7 @@ class DatabaseService {
      book. Returns the new ContentItem on success. */
   static Future<ApiResponse> generateAiContent({
     required String topic,
+    required String visibility, // 'private' or 'public'
     String? ageGroup,
     String? category,
     String? difficulty,
@@ -658,6 +661,7 @@ class DatabaseService {
           'split_count': splitCount,
         },
         'topic': topic,
+        'visibility': visibility,
         if (ageGroup != null && ageGroup.isNotEmpty) 'age_group': ageGroup,
         if (category != null && category.isNotEmpty) 'category': category,
         if (difficulty != null && difficulty.isNotEmpty) 'difficulty': difficulty,

@@ -281,6 +281,13 @@ class AppStrings {
 
     // Upload content
     'upload.title': 'Upload Content',
+    'upload.visibility': 'Who can see this audiobook?',
+    'upload.visibility_required': 'Please choose Private or Public',
+    'visibility.private': 'Private',
+    'visibility.private_hint':
+        'Only you and your children can see this audiobook.',
+    'visibility.public': 'Public',
+    'visibility.public_hint': 'Everyone using the app can see this audiobook.',
     'upload.mode_ai': 'AI generated',
     'upload.mode_manual': 'Manual upload',
     'upload.ai_prompt': 'Story idea',
@@ -502,6 +509,9 @@ class AppStrings {
     'community.share_story': 'Share a story',
     'community.choose_story': 'Choose a story',
     'community.choose_story_optional': 'Add a story (optional)',
+    'community.private_stories_hidden':
+        'Private stories are not listed here. Make a story public from its '
+        'edit page to share it.',
     'community.pick_story_or_text': 'Add a story or write something first',
     'community.write_something': 'Write something to share…',
     'community.caption_hint': 'Say something about this story (optional)',
@@ -809,6 +819,14 @@ class AppStrings {
 
     // Upload content
     'upload.title': 'Muat Naik Kandungan',
+    'upload.visibility': 'Siapa boleh melihat buku audio ini?',
+    'upload.visibility_required': 'Sila pilih Peribadi atau Awam',
+    'visibility.private': 'Peribadi',
+    'visibility.private_hint':
+        'Hanya anda dan anak-anak anda boleh melihat buku audio ini.',
+    'visibility.public': 'Awam',
+    'visibility.public_hint':
+        'Semua pengguna aplikasi boleh melihat buku audio ini.',
     'upload.mode_ai': 'Jana dengan AI',
     'upload.mode_manual': 'Muat naik manual',
     'upload.ai_prompt': 'Idea cerita',
@@ -1034,6 +1052,9 @@ class AppStrings {
     'community.share_story': 'Kongsi cerita',
     'community.choose_story': 'Pilih cerita',
     'community.choose_story_optional': 'Tambah cerita (pilihan)',
+    'community.private_stories_hidden':
+        'Cerita peribadi tidak disenaraikan di sini. Jadikan cerita awam '
+        'melalui halaman sunting untuk berkongsi.',
     'community.pick_story_or_text': 'Tambah cerita atau tulis sesuatu dahulu',
     'community.write_something': 'Tulis sesuatu untuk dikongsi…',
     'community.caption_hint': 'Kata sesuatu tentang cerita ini (pilihan)',

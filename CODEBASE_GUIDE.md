@@ -246,7 +246,7 @@ step. Memorise this and you can place any line of code in the system.
    Caregiver types a topic, picks page count + language, taps "Generate".
 
 2. NETWORK         frontend/lib/services/database_service.dart
-        POST /api/content/generate   body: { topic, page_count, language, ... }
+        POST /api/content/generate   body: { topic, page_count, language, visibility, ... }
 
 3. LOGIC           backend/app/Http/Controllers/Api/ContentManagementController.php
         generateContent():

@@ -18,11 +18,12 @@ class ContentManagementController extends ApiController
     {
         $this->logEvent('Content', 'getContentSummary called');
         try {
+            $me = $request->get('auth_caregiver')?->caregiver_id;
             return $this->successResponse('Content summary retrieved successfully', [
-                'total_items'  => Audiobook::count(),
-                'audio_files'  => Audiobook::where('type', 'Audio')->count(),
-                'text_files'   => Audiobook::where('type', 'Text')->count(),
-                'ai_generated' => Audiobook::where('is_generated', 1)->count(),
+                'total_items'  => Audiobook::visibleTo($me)->count(),
+                'audio_files'  => Audiobook::visibleTo($me)->where('type', 'Audio')->count(),
+                'text_files'   => Audiobook::visibleTo($me)->where('type', 'Text')->count(),
+                'ai_generated' => Audiobook::visibleTo($me)->where('is_generated', 1)->count(),
             ]);
         } catch (\Throwable $e) {
             $this->logError('Content', 'getContentSummary exception', [
@@ -42,7 +43,8 @@ class ContentManagementController extends ApiController
             'language'    => $request->input('language'),
         ]);
         try {
-            $query = Audiobook::query()->orderByDesc('created_at');
+            $query = Audiobook::visibleTo($request->get('auth_caregiver')?->caregiver_id)
+                ->orderByDesc('created_at');
 
             if ($request->filled('filter_type')) {
                 $filter = strtolower($request->input('filter_type'));
@@ -128,6 +130,7 @@ class ContentManagementController extends ApiController
             'cover_image'  => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
             'track_id'     => 'nullable|uuid|exists:music_tracks,track_id',
             'bgm_volume'   => 'nullable|integer|min:0|max:100',
+            'visibility'   => 'required|in:private,public',
         ]);
 
         if ($validator->fails()) {
@@ -166,6 +169,7 @@ class ContentManagementController extends ApiController
             $difficulty = strtolower((string) $request->input('difficulty', 'easy'));
 
             $content = Audiobook::create([
+                'caregiver_id'     => $request->get('auth_caregiver')?->caregiver_id,
                 'title'            => $request->input('title'),
                 'topic'            => $request->input('topic'),
                 'category'         => $request->input('category'),
@@ -184,6 +188,7 @@ class ContentManagementController extends ApiController
                 'is_generated'     => $isGenerated,
                 'is_user_uploaded' => true,
                 'status'           => $isGenerated ? 'processing' : 'available',
+                'visibility'       => $request->input('visibility'),
                 'track_id'         => $request->input('track_id') ?: null,
                 'bgm_volume'       => $request->filled('bgm_volume') ? (int) $request->input('bgm_volume') : 30,
             ]);
@@ -225,6 +230,7 @@ class ContentManagementController extends ApiController
             'language'       => 'nullable|in:en,ms',
             'track_id'       => 'nullable|uuid|exists:music_tracks,track_id',
             'bgm_volume'     => 'nullable|integer|min:0|max:100',
+            'visibility'     => 'required|in:private,public',
             // Interactive books need a fixed length so the 1-in-4 cap can be applied.
             'book_format'       => 'nullable|in:linear,interactive',
             'interaction_count' => 'nullable|required_if:book_format,interactive|integer|min:1',
@@ -294,6 +300,7 @@ class ContentManagementController extends ApiController
                here, so the book is done when we reply. With =database it
                runs in the background and the app shows a pending state. */
             $content = Audiobook::create([
+                'caregiver_id'     => $request->get('auth_caregiver')?->caregiver_id,
                 // Keep the caregiver's title, not the AI's made-up one.
                 'title'            => trim((string) $request->input('topic')),
                 'topic'            => $request->input('topic'),
@@ -308,6 +315,7 @@ class ContentManagementController extends ApiController
                 'is_generated'     => true,
                 'is_user_uploaded' => true,
                 'status'           => $generateImages ? 'processing' : 'available',
+                'visibility'       => $request->input('visibility'),
                 'track_id'         => $this->resolveTrackId($request, $story['content'] ?? ''),
                 'bgm_volume'       => $request->filled('bgm_volume') ? (int) $request->input('bgm_volume') : 30,
             ]);
@@ -372,7 +380,7 @@ class ContentManagementController extends ApiController
             'fields'       => array_keys($request->all()),
         ]);
 
-        $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+        $book = $this->editableBook($request, $audiobookId);
         if (!$book) {
             $this->logWarn('Content', 'update not found', [
                 'audiobook_id' => $audiobookId,
@@ -389,7 +397,14 @@ class ContentManagementController extends ApiController
             'description'  => 'sometimes|nullable|string',
             'age_group'    => 'sometimes|nullable|string|max:50',
             'language'     => 'sometimes|in:en,ms',
+            'visibility'   => 'sometimes|in:private,public',
         ]);
+        // A book with no owner would vanish for everyone if it went private.
+        $validator->after(function ($v) use ($request, $book) {
+            if ($request->has('visibility') && $book->caregiver_id === null) {
+                $v->errors()->add('visibility', 'Older audiobooks have no owner, so they stay public.');
+            }
+        });
 
         if ($validator->fails()) {
             $this->logWarn('Content', 'update validation failed', [
@@ -425,7 +440,7 @@ class ContentManagementController extends ApiController
             'audiobook_id' => $audiobookId,
         ]);
 
-        $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+        $book = $this->editableBook($request, $audiobookId);
         if (!$book) {
             $this->logWarn('Content', 'destroy not found', [
                 'audiobook_id' => $audiobookId,
@@ -460,7 +475,7 @@ class ContentManagementController extends ApiController
             'fields'       => array_keys($request->all()),
         ]);
 
-        $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+        $book = $this->editableBook($request, $audiobookId);
         if (!$book) {
             $this->logWarn('Content', 'updatePage book not found', [
                 'audiobook_id' => $audiobookId,
@@ -542,7 +557,7 @@ class ContentManagementController extends ApiController
             'audiobook_id' => $audiobookId,
             'page_id'      => $pageId,
         ]);
-        $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+        $book = $this->editableBook($request, $audiobookId);
         if (!$book) {
             $this->logWarn('Content', 'deletePage book not found', [
                 'audiobook_id' => $audiobookId,
@@ -582,7 +597,7 @@ class ContentManagementController extends ApiController
             'audiobook_id' => $audiobookId,
             'has_image'    => $request->hasFile('image'),
         ]);
-        $book = Audiobook::where('audiobook_id', $audiobookId)->first();
+        $book = $this->editableBook($request, $audiobookId);
         if (!$book) {
             $this->logWarn('Content', 'addPage book not found', [
                 'audiobook_id' => $audiobookId,
@@ -683,6 +698,15 @@ class ContentManagementController extends ApiController
         }
     }
 
+    /* The book, if this caregiver may change it. Someone else's book reads
+       as not found, so a private book's id doesn't reveal that it exists. */
+    private function editableBook(Request $request, string $audiobookId): ?Audiobook
+    {
+        return Audiobook::editableBy($request->get('auth_caregiver')?->caregiver_id)
+            ->where('audiobook_id', $audiobookId)
+            ->first();
+    }
+
     private function serializePages(Audiobook $item): array
     {
         return $item->pages->map(fn ($p) => [
@@ -699,6 +723,7 @@ class ContentManagementController extends ApiController
     private function serialize(Audiobook $item): array
     {
         $track = $item->track_id ? MusicTrack::find($item->track_id) : null;
+        $me = request()->get('auth_caregiver')?->caregiver_id;
         return [
             'audiobook_id'     => $item->audiobook_id,
             'title'            => $item->title,
@@ -721,6 +746,9 @@ class ContentManagementController extends ApiController
             'is_generated'     => (bool) $item->is_generated,
             'is_user_uploaded' => (bool) $item->is_user_uploaded,
             'status'           => $item->status,
+            'visibility'       => $item->visibility,
+            'is_mine'          => $item->isOwnedBy($me),
+            'can_edit'         => $item->caregiver_id === null || $item->isOwnedBy($me),
             'track_id'         => $item->track_id,
             'bgm_volume'       => (int) ($item->bgm_volume ?? 30),
             'music_track'      => $track ? [

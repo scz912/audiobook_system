@@ -19,6 +19,7 @@ class Audiobook extends Model
 
     protected $fillable = [
         'audiobook_id',
+        'caregiver_id',
         'title',
         'author',
         'description',
@@ -39,6 +40,7 @@ class Audiobook extends Model
         'is_generated',
         'is_user_uploaded',
         'status',
+        'visibility',
         'track_id',
         'bgm_volume',
     ];
@@ -61,6 +63,35 @@ class Audiobook extends Model
                 $model->audiobook_id = (string) Str::uuid();
             }
         });
+    }
+
+    /* Books this caregiver can see: everything public plus their own private
+       ones. Other caregivers' private books stay hidden. */
+    public function scopeVisibleTo($query, ?string $caregiverId)
+    {
+        return $query->where(function ($q) use ($caregiverId) {
+            $q->where('visibility', 'public');
+            if ($caregiverId) {
+                $q->orWhere('caregiver_id', $caregiverId);
+            }
+        });
+    }
+
+    /* Books this caregiver can change: their own, plus older books from
+       before books had owners. */
+    public function scopeEditableBy($query, ?string $caregiverId)
+    {
+        return $query->where(function ($q) use ($caregiverId) {
+            $q->whereNull('caregiver_id');
+            if ($caregiverId) {
+                $q->orWhere('caregiver_id', $caregiverId);
+            }
+        });
+    }
+
+    public function isOwnedBy(?string $caregiverId): bool
+    {
+        return $this->caregiver_id !== null && $this->caregiver_id === $caregiverId;
     }
 
     public function musicTrack(): BelongsTo

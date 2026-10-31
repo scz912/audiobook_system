@@ -406,9 +406,10 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
           _ContentTile(
             item: item,
             onTap: () => _openPreview(item),
-            onEdit: () => _editItem(item),
-            onDelete: () => _deleteItem(item),
-            onCancel: () => _cancelItem(item),
+            // Other caregivers' public books are read-only.
+            onEdit: item.canEdit ? () => _editItem(item) : null,
+            onDelete: item.canEdit ? () => _deleteItem(item) : null,
+            onCancel: item.canEdit ? () => _cancelItem(item) : null,
           ),
           const SizedBox(height: 10),
         ],
@@ -455,6 +456,8 @@ class _ContentTile extends StatelessWidget {
     final deleteLabel = context.tr('content.delete_label');
     final tapToPreviewLabel = context.tr('content.tap_to_preview');
     final cancelLabel = context.tr('content.cancel_generation');
+    final visibilityLabel = context.tr(
+        item.isPrivate ? 'visibility.private' : 'visibility.public');
 
     // Material is the card surface. The InkWell wraps only the left preview
     // area so it can't steal taps from the menu, which sits beside it as a
@@ -501,6 +504,27 @@ class _ContentTile extends StatelessWidget {
                                     fontSize: 13),
                               ),
                             ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                    item.isPrivate
+                                        ? Icons.lock_outline_rounded
+                                        : Icons.public_rounded,
+                                    size: 14,
+                                    color: AppColors.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  visibilityLabel,
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
                           if (!processing)
                             Padding(
                               padding: const EdgeInsets.only(top: 6),
