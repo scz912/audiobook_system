@@ -124,6 +124,16 @@ class QuranChapter {
     required this.installedBytes,
   });
 
+  // Whether a search box entry finds this chapter (name, meaning or number).
+  bool matches(String query) {
+    final q = query.trim().toLowerCase();
+    return q.isEmpty ||
+        '$number' == q ||
+        nameEn.toLowerCase().contains(q) ||
+        meaningEn.toLowerCase().contains(q) ||
+        nameAr.contains(q);
+  }
+
   factory QuranChapter.fromJson(Map<String, dynamic> json) => QuranChapter(
         number: safeInt(json['number']) ?? 0,
         nameAr: safeString(json['name_ar']),

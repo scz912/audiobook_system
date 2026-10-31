@@ -47,16 +47,8 @@ class _QuranLibrarySectionState extends State<QuranLibrarySection> {
     return out;
   }
 
-  List<QuranChapter> _visibleChapters(QuranManifest m) {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return m.chapters;
-    return m.chapters.where((c) {
-      return '${c.number}' == q ||
-          c.nameEn.toLowerCase().contains(q) ||
-          c.meaningEn.toLowerCase().contains(q) ||
-          c.nameAr.contains(q);
-    }).toList();
-  }
+  List<QuranChapter> _visibleChapters(QuranManifest m) =>
+      m.chapters.where((c) => c.matches(_query)).toList();
 
   Future<bool> _confirm({
     required String title,

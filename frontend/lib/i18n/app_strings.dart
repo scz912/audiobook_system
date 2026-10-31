@@ -269,6 +269,9 @@ class AppStrings {
     'quran.cancel': 'Cancel download',
     'quran.play': 'Play',
     'quran.search_hint': 'Search chapter name or number...',
+    'quran.child_empty_title': 'No chapters yet',
+    'quran.child_empty_body':
+        'Ask your caregiver to download chapters in Content Management.',
     'quran.sources_title': 'Sources & credits',
     'quran.sources_note':
         'The recitation and Arabic text are free for non-commercial and educational use. The nature scenes are used under the licences shown.',
@@ -351,7 +354,6 @@ class AppStrings {
     'library.subtitle': 'Find your next favorite story',
     'library.search_hint': 'Search for stories...',
     'library.filters': 'Filters',
-    'library.category': 'Category',
     'library.age_range': 'Age Range',
     'library.no_stories_title': 'No stories yet',
     'library.no_stories_body_error':
@@ -807,6 +809,9 @@ class AppStrings {
     'quran.cancel': 'Batal muat turun',
     'quran.play': 'Main',
     'quran.search_hint': 'Cari nama atau nombor surah...',
+    'quran.child_empty_title': 'Belum ada surah',
+    'quran.child_empty_body':
+        'Minta penjaga kamu memuat turun surah dalam Pengurusan Kandungan.',
     'quran.sources_title': 'Sumber & penghargaan',
     'quran.sources_note':
         'Bacaan dan teks Arab adalah percuma untuk kegunaan bukan komersial dan pendidikan. Pemandangan alam digunakan di bawah lesen yang dinyatakan.',
@@ -893,7 +898,6 @@ class AppStrings {
     'library.subtitle': 'Cari cerita kegemaran kamu yang seterusnya',
     'library.search_hint': 'Cari cerita...',
     'library.filters': 'Penapis',
-    'library.category': 'Kategori',
     'library.age_range': 'Lingkungan Umur',
     'library.no_stories_title': 'Belum ada cerita',
     'library.no_stories_body_error':

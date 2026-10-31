@@ -1,25 +1,28 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
+import '../../models/quran.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
+import '../../services/quran_pack_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/quran_element_thumb.dart';
+import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
 import 'audio_player_page.dart';
+import 'quran_player_page.dart';
 
-class _CategoryFilter {
-  final String label;
-  final String value;
-  final IconData icon;
-  const _CategoryFilter(this.label, this.value, this.icon);
-}
+/* The same three kinds of audiobook as the caregiver's Content Management
+   slider. */
+enum _Library { linear, interactive, quran }
 
 class StoryLibraryPage extends StatefulWidget {
   /* Optional back-arrow override. As a tab body, ChildShell passes a
@@ -34,7 +37,8 @@ class StoryLibraryPage extends StatefulWidget {
 
 class _StoryLibraryPageState extends State<StoryLibraryPage> {
   final _searchCtrl = TextEditingController();
-  String _category = 'all';
+  _Library _library = _Library.linear;
+  String _type = 'all'; // 'all' | 'audio' | 'text' | 'ai'
   String _ageRange = 'all';
   String _language = 'all'; // 'all' | 'en' | 'ms'
   bool _filtersOpen = true;
@@ -44,16 +48,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   String? _error;
   Timer? _pollTimer;
 
-  static const _filters = [
-    _CategoryFilter('All', 'all', Icons.menu_book_outlined),
-    _CategoryFilter('Fantasy', 'fantasy', Icons.auto_awesome),
-    _CategoryFilter('Animals', 'animals', Icons.pets),
-    _CategoryFilter('Nature', 'nature', Icons.eco_outlined),
-    _CategoryFilter('Adventure', 'adventure', Icons.flag_outlined),
-    _CategoryFilter('Science', 'science', Icons.science_outlined),
-  ];
-
-  static const _ageRanges = ['all', '7-9', '8-11', '9-12'];
+  static const _ageRanges = ['all', '5-6', '7-9', '8-11', '9-12'];
 
   @override
   void initState() {
@@ -110,15 +105,30 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
     }
   }
 
+  // Finished books of the selected format. Books still generating pictures
+  // stay hidden.
+  List<ContentItem> get _inFormat => _stories
+      .where((s) => s.status != 'processing' && s.bookFormat == _library.name)
+      .toList();
+
+  // Same rule as the caregiver's type filter (see getContentList).
+  bool _matchesType(ContentItem s) {
+    switch (_type) {
+      case 'audio':
+        return s.type == 'Audio' && !s.isGenerated;
+      case 'text':
+        return s.type == 'Text' && !s.isGenerated;
+      case 'ai':
+        return s.isGenerated;
+      default:
+        return true;
+    }
+  }
+
   List<ContentItem> get _filtered {
     final q = _searchCtrl.text.trim().toLowerCase();
-    return _stories.where((s) {
-      // Hide books that are still generating pictures.
-      if (s.status == 'processing') return false;
-      if (_category != 'all') {
-        final c = (s.category ?? '').toLowerCase();
-        if (c != _category) return false;
-      }
+    return _inFormat.where((s) {
+      if (!_matchesType(s)) return false;
       if (_ageRange != 'all') {
         final age = (s.ageGroup ?? '').toLowerCase();
         if (age != _ageRange) return false;
@@ -139,14 +149,14 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   }
 
   bool get _filtersActive =>
-      _category != 'all' ||
+      _type != 'all' ||
       _ageRange != 'all' ||
       _language != 'all' ||
       _searchCtrl.text.trim().isNotEmpty;
 
   void _clearFilters() {
     setState(() {
-      _category = 'all';
+      _type = 'all';
       _ageRange = 'all';
       _language = 'all';
       _searchCtrl.clear();
@@ -156,6 +166,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final stories = _filtered;
+    final showQuran = _library == _Library.quran;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -193,201 +204,371 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
+              SegmentedSlider<_Library>(
+                value: _library,
+                onChanged: (l) => setState(() => _library = l),
+                items: [
+                  SegmentedSliderItem(_Library.linear,
+                      context.tr('content.format_linear'),
+                      Icons.menu_book_rounded),
+                  SegmentedSliderItem(_Library.interactive,
+                      context.tr('content.format_interactive'),
+                      Icons.touch_app_rounded),
+                  SegmentedSliderItem(_Library.quran,
+                      context.tr('content.format_quran'),
+                      Icons.auto_stories_rounded),
+                ],
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _searchCtrl,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  hintText: context.tr('library.search_hint'),
+                  hintText: context.tr(showQuran
+                      ? 'quran.search_hint'
+                      : 'library.search_hint'),
                   prefixIcon: const Icon(Icons.search,
                       color: AppColors.textMuted),
                 ),
               ),
               const SizedBox(height: 12),
-              SoftCard(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () =>
-                          setState(() => _filtersOpen = !_filtersOpen),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.filter_alt_outlined, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            context.tr('library.filters'),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            _filtersOpen
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_filtersOpen) ...[
-                      const SizedBox(height: 14),
-                      Text(
-                        context.tr('library.category'),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
+              if (showQuran)
+                _QuranShelf(query: _searchCtrl.text)
+              else ...[
+                SoftCard(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () =>
+                            setState(() => _filtersOpen = !_filtersOpen),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.filter_alt_outlined, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              context.tr('library.filters'),
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              _filtersOpen
+                                  ? Icons.keyboard_arrow_up
+                                  : Icons.keyboard_arrow_down,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.start,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _filters.map((f) {
-                          return SoftChip(
-                            label: f.label,
-                            icon: f.icon,
-                            selected: _category == f.value,
-                            selectedColor: f.value == 'all'
-                                ? AppColors.primaryBlue
-                                : AppColors.softMint,
-                            onTap: () =>
-                                setState(() => _category = f.value),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        context.tr('library.age_range'),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
+                      if (_filtersOpen) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          context.tr('content.filter_by_type'),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.start,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _ageRanges.map((a) {
-                          return SoftChip(
-                            label: a == 'all' ? 'All' : a,
-                            selected: _ageRange == a,
-                            selectedColor: AppColors.softMint,
-                            onTap: () => setState(() => _ageRange = a),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        context.tr('content.filter_by_language'),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            SoftChip(
+                              label: context.tr('common.all'),
+                              selected: _type == 'all',
+                              onTap: () => setState(() => _type = 'all'),
+                            ),
+                            SoftChip(
+                              label: context.tr('content.filter_audio'),
+                              selected: _type == 'audio',
+                              onTap: () => setState(() => _type = 'audio'),
+                            ),
+                            SoftChip(
+                              label: context.tr('content.filter_text'),
+                              selected: _type == 'text',
+                              onTap: () => setState(() => _type = 'text'),
+                            ),
+                            SoftChip(
+                              label: context.tr('content.filter_ai'),
+                              selected: _type == 'ai',
+                              onTap: () => setState(() => _type = 'ai'),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.start,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          SoftChip(
-                            label: context.tr('content.filter_lang_all'),
-                            selected: _language == 'all',
-                            selectedColor: AppColors.softMint,
-                            onTap: () => setState(() => _language = 'all'),
+                        const SizedBox(height: 14),
+                        Text(
+                          context.tr('library.age_range'),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
                           ),
-                          SoftChip(
-                            label: context.tr('content.filter_lang_en'),
-                            selected: _language == 'en',
-                            selectedColor: AppColors.softMint,
-                            onTap: () => setState(() => _language = 'en'),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _ageRanges.map((a) {
+                            return SoftChip(
+                              label: a == 'all' ? context.tr('common.all') : a,
+                              selected: _ageRange == a,
+                              selectedColor: AppColors.softMint,
+                              onTap: () => setState(() => _ageRange = a),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          context.tr('content.filter_by_language'),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
                           ),
-                          SoftChip(
-                            label: context.tr('content.filter_lang_ms'),
-                            selected: _language == 'ms',
-                            selectedColor: AppColors.softMint,
-                            onTap: () => setState(() => _language = 'ms'),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            SoftChip(
+                              label: context.tr('content.filter_lang_all'),
+                              selected: _language == 'all',
+                              selectedColor: AppColors.softMint,
+                              onTap: () => setState(() => _language = 'all'),
+                            ),
+                            SoftChip(
+                              label: context.tr('content.filter_lang_en'),
+                              selected: _language == 'en',
+                              selectedColor: AppColors.softMint,
+                              onTap: () => setState(() => _language = 'en'),
+                            ),
+                            SoftChip(
+                              label: context.tr('content.filter_lang_ms'),
+                              selected: _language == 'ms',
+                              selectedColor: AppColors.softMint,
+                              onTap: () => setState(() => _language = 'ms'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              if (_loading) ...[
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 60),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ] else if (_stories.isEmpty) ...[
-                EmptyState(
-                  icon: Icons.menu_book_outlined,
-                  title: context.tr('library.no_stories_title'),
-                  subtitle: _error != null
-                      ? context.tr('library.no_stories_body_error')
-                      : context.tr('library.no_stories_body_empty'),
-                  iconBackground: AppColors.softPink,
-                  iconColor: AppColors.primaryBlueDark,
-                ),
-              ] else if (stories.isEmpty) ...[
-                EmptyState(
-                  icon: Icons.search_off_rounded,
-                  title: context.tr('library.no_match_title'),
-                  subtitle: context.tr('library.no_match_body'),
-                  iconBackground: AppColors.softPeach,
-                  iconColor: AppColors.warning,
-                  action: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      foregroundColor: AppColors.textPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onPressed: _filtersActive ? _clearFilters : null,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: Text(context.tr('library.clear_filters')),
                   ),
                 ),
-              ] else ...[
-                Text(
-                  '${stories.length} ${context.tr('library.stories_found')}',
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: stories.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.82,
+                const SizedBox(height: 14),
+                if (_loading) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 60),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
-                  itemBuilder: (context, i) {
-                    final s = stories[i];
-                    return _StoryGridTile(
-                      story: s,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AudioPlayerPage(
-                            title: s.title,
-                            audiobookId: s.audiobookId,
-                          ),
+                ] else if (_stories.isEmpty) ...[
+                  EmptyState(
+                    icon: Icons.menu_book_outlined,
+                    title: context.tr('library.no_stories_title'),
+                    subtitle: _error != null
+                        ? context.tr('library.no_stories_body_error')
+                        : context.tr('library.no_stories_body_empty'),
+                    iconBackground: AppColors.softPink,
+                    iconColor: AppColors.primaryBlueDark,
+                  ),
+                ] else if (_inFormat.isEmpty) ...[
+                  EmptyState(
+                    icon: Icons.menu_book_outlined,
+                    title: context.tr('library.no_stories_title'),
+                    subtitle: context.tr('content.empty_format'),
+                    iconBackground: AppColors.softPink,
+                    iconColor: AppColors.primaryBlueDark,
+                  ),
+                ] else if (stories.isEmpty) ...[
+                  EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: context.tr('library.no_match_title'),
+                    subtitle: context.tr('library.no_match_body'),
+                    iconBackground: AppColors.softPeach,
+                    iconColor: AppColors.warning,
+                    action: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: AppColors.textPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                    );
-                  },
-                ),
+                      onPressed: _filtersActive ? _clearFilters : null,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: Text(context.tr('library.clear_filters')),
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    '${stories.length} ${context.tr('library.stories_found')}',
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: stories.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.82,
+                    ),
+                    itemBuilder: (context, i) {
+                      final s = stories[i];
+                      return _StoryGridTile(
+                        story: s,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AudioPlayerPage(
+                              title: s.title,
+                              audiobookId: s.audiobookId,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/* The Al-Quran tab: chapters the caregiver has downloaded, ready to play.
+   Downloading and removing stay in the caregiver's Content Management. */
+class _QuranShelf extends StatefulWidget {
+  final String query;
+  const _QuranShelf({required this.query});
+
+  @override
+  State<_QuranShelf> createState() => _QuranShelfState();
+}
+
+class _QuranShelfState extends State<_QuranShelf> {
+  final QuranPackService _pack = QuranPackService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _pack.init();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _pack,
+      builder: (context, _) {
+        final m = _pack.manifest;
+        if (m == null) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final installed = m.chapters
+            .where((c) => _pack.stateOf(c.number) == QuranChapterState.installed)
+            .toList();
+        if (installed.isEmpty) {
+          return EmptyState(
+            icon: Icons.auto_stories_rounded,
+            title: context.tr('quran.child_empty_title'),
+            subtitle: context.tr('quran.child_empty_body'),
+            iconBackground: AppColors.softPink,
+            iconColor: AppColors.primaryBlueDark,
+          );
+        }
+        final chapters =
+            installed.where((c) => c.matches(widget.query)).toList();
+        if (chapters.isEmpty) {
+          return EmptyState(
+            icon: Icons.search_off_rounded,
+            title: context.tr('library.no_match_title'),
+            iconBackground: AppColors.softPeach,
+            iconColor: AppColors.warning,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final c in chapters) ...[
+              _QuranChapterTile(
+                chapter: c,
+                gif: _pack.gifFor(c.elementId),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _QuranChapterTile extends StatelessWidget {
+  final QuranChapter chapter;
+  final File? gif;
+  const _QuranChapterTile({required this.chapter, required this.gif});
+
+  @override
+  Widget build(BuildContext context) {
+    final versesLabel = context
+        .tr('quran.verses')
+        .replaceAll('{n}', '${chapter.verseCount}');
+    return SoftCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => QuranPlayerPage(chapter: chapter)),
+      ),
+      child: Row(
+        children: [
+          QuranElementThumb(
+            elementId: chapter.elementId,
+            gif: gif,
+            size: 52,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  chapter.nameEn,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${chapter.meaningEn} • $versesLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            chapter.nameAr,
+            textDirection: TextDirection.rtl,
+            style: const TextStyle(
+                fontSize: 16, color: AppColors.textSecondary),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.play_circle_outline_rounded,
+              color: AppColors.primaryBlueDark),
+        ],
       ),
     );
   }
@@ -403,6 +584,12 @@ class _StoryGridTile extends StatelessWidget {
     final ageLabel = (story.ageGroup ?? '').trim().isEmpty
         ? null
         : 'Age ${story.ageGroup}';
+    // Same labels as the caregiver's library tiles.
+    final typeLabel = story.isGenerated
+        ? 'AI'
+        : context.tr((story.type ?? '').toLowerCase() == 'audio'
+            ? 'content.filter_audio'
+            : 'content.filter_text');
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -456,7 +643,7 @@ class _StoryGridTile extends StatelessWidget {
                     ),
                   const Spacer(),
                   Text(
-                    story.isGenerated ? 'AI' : 'Library',
+                    typeLabel,
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
