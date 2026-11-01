@@ -117,7 +117,10 @@ class _FormatSlider extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             border: Border.all(color: AppColors.cardBorder),
           ),
+          // expand: the label row must fill the pill's height, or the labels
+          // sit at the top instead of centred on the thumb.
           child: Stack(
+            fit: StackFit.expand,
             children: [
               // The sliding thumb.
               AnimatedAlign(

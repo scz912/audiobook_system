@@ -42,7 +42,21 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   final PageController _pageController = PageController();
 
   Audiobook? _audiobook;
+  // The pages being shown. For an interactive book this is only the path
+  // the child has unlocked so far (see _buildInteractivePath).
   List<_PlayerPage> _pages = [];
+  // Interactive books: every page row from the server, both versions of
+  // split pages included. Empty for linear books.
+  List<_PlayerPage> _allPages = [];
+  // Interactive books: the child's answers, keyed by the question page's
+  // index in _allPages, value = the picked choice's index.
+  final Map<int, int> _answers = {};
+  // True once a question page has been read aloud to the end, so picking
+  // an answer carries on reading (if auto-play is on).
+  bool _heardQuestion = false;
+  // True while a picked answer turns the page - ignores repeat taps and
+  // keeps the turn from counting as a skip.
+  bool _pickingChoice = false;
   bool _loading = true;
   bool _audioReady = false;
   bool _playingAudio = false;
@@ -128,6 +142,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         _onNaturalVoiceComplete();
         return;
       }
+      // In voice mode a clip that was already stopped (page turn, choice
+      // tap) can still report completed - it is not the end of the story.
+      if (_useTts) return;
       // A real audio file finished -> celebrate.
       _listenWatch.stop();
       _reachedEnd = true;
@@ -217,7 +234,22 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       final book = resp.data as Audiobook;
       _audiobook = book;
       _page = 0;
-      if (book.pages.isNotEmpty) {
+      if (book.isInteractive && book.pages.isNotEmpty) {
+        // Interactive storybook: keep every row, then show only the path
+        // the child's answers unlock.
+        _answers.clear();
+        _allPages = book.pages
+            .map((p) => _PlayerPage(
+                  text: (p.text ?? '').trim(),
+                  imageUrl: p.image,
+                  number: p.pageNumber,
+                  choices: p.choices,
+                  isSplit: p.isSplit,
+                  branchIndex: p.branchIndex,
+                ))
+            .toList();
+        _pages = _buildInteractivePath();
+      } else if (book.pages.isNotEmpty) {
         // Caregiver-built storybook: one image + text per page. When
         // `audioStartMs` is set, it marks where the page starts in the
         // recording, giving exact page breaks instead of word-count guesses.
@@ -235,7 +267,11 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
           book.coverImage,
         );
       }
-      if (book.audioFile != null && book.audioFile!.isNotEmpty) {
+      // A whole-book recording can't follow the child's choices, so
+      // interactive books are always read page by page with the voice.
+      if (!book.isInteractive &&
+          book.audioFile != null &&
+          book.audioFile!.isNotEmpty) {
         try {
           final duration = await _engine.loadAudio(book.audioFile!);
           await _engine.setSpeed(settings.readingSpeed);
@@ -317,7 +353,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     final seen = <String>{};
     final cover = _audiobook?.coverImage;
     if (cover != null && cover.isNotEmpty) seen.add(cover);
-    for (final p in _pages) {
+    // Interactive books: cache every branch, not just the current path.
+    for (final p in _allPages.isNotEmpty ? _allPages : _pages) {
       final url = p.imageUrl;
       if (url == null || url.isEmpty) continue;
       seen.add(url);
@@ -333,6 +370,102 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       );
     }
   }
+
+  /* The pages the child can reach in an interactive book, given _answers.
+     Walks _allPages in order and:
+     - stops after a question page that has no answer yet, so nothing past
+       it can be read, swiped to or auto-played;
+     - shows only the version of a split page that the answer leads to;
+     - fills {choice} with the most recent answer. */
+  List<_PlayerPage> _buildInteractivePath() {
+    final path = <_PlayerPage>[];
+    String? answer; // last picked choice, fills {choice}
+    int? branch; // which split version comes next, if any
+    for (var i = 0; i < _allPages.length; i++) {
+      final p = _allPages[i];
+      if (p.branchIndex != null) {
+        if (p.branchIndex != branch) continue; // the other version
+      } else {
+        branch = null; // split pages are over
+      }
+      final text = answer == null
+          ? p.text
+          : p.text.replaceAll(AudiobookPage.choiceToken, answer);
+      path.add(p.forPath(text: text, sourceIndex: i));
+      if (p.isInteraction) {
+        final picked = _answers[i];
+        if (picked == null || picked >= p.choices.length) break;
+        answer = p.choices[picked];
+        branch = p.isSplit ? picked : null;
+      }
+    }
+    return path;
+  }
+
+  // The question on screen if it still needs an answer, else null.
+  _PlayerPage? get _pendingQuestion {
+    if (_page >= _pages.length) return null;
+    final p = _pages[_page];
+    if (!p.isInteraction || _answers.containsKey(p.sourceIndex)) return null;
+    return p;
+  }
+
+  /* The child picked [choice] on the current question page. Unlocks the
+     next page(s), turns to it, and keeps reading if the child was
+     listening. Picking again after going Back replaces later answers. */
+  Future<void> _pickChoice(int choice) async {
+    if (_pickingChoice || _page >= _pages.length) return;
+    final source = _pages[_page].sourceIndex;
+    if (source == null) return;
+    _pickingChoice = true;
+    try {
+      final wasReading =
+          (_naturalPlaying && _playingAudio) || _naturalLoading;
+      final keepReading =
+          wasReading || (_heardQuestion && _readSettings().autoPlayNext);
+      if (_naturalPlaying || _naturalLoading) await _stopNaturalVoice();
+      if (!mounted) return;
+      setState(() {
+        _answers.removeWhere((k, _) => k >= source);
+        _answers[source] = choice;
+        _pages = _buildInteractivePath();
+        _playingAudio = false;
+        _highlightStart = 0;
+        _highlightEnd = 0;
+      });
+      // The question was the last page - the story is done.
+      if (_page >= _pages.length - 1) {
+        unawaited(_bgmPlayer.pause());
+        _listenWatch.stop();
+        _reachedEnd = true;
+        _recordSessionIfNeeded();
+        _showFinishDialog();
+        return;
+      }
+      // Let the picked button show as selected before the page turns.
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      await _changePage(_page + 1);
+      if (keepReading && _useTts && mounted) await _toggleNarration();
+    } finally {
+      _pickingChoice = false;
+    }
+  }
+
+  /* Page number and count shown to the child. Interactive books use the
+     book's page numbers, so both split versions count as one page and the
+     total doesn't grow as answers unlock more pages. */
+  List<int> get _bookPageNumbers =>
+      (_allPages.map((p) => p.number ?? 0).toSet().toList()..sort());
+
+  int _displayPageNumber(int index) {
+    final number = _pages[index].number;
+    if (_allPages.isEmpty || number == null) return index + 1;
+    return _bookPageNumbers.indexOf(number) + 1;
+  }
+
+  int get _displayTotalPages =>
+      _allPages.isEmpty ? _pages.length : _bookPageNumbers.length;
 
   // Break a long story into pages by sentence, all sharing [imageUrl].
   List<_PlayerPage> _pagesFromText(String text, String? imageUrl) {
@@ -688,6 +821,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       _highlightEnd = 0;
     });
 
+    // Interactive question with no answer yet: wait for the child to pick.
+    // Never turn the page or finish the story from here.
+    if (_pendingQuestion != null) {
+      _heardQuestion = true;
+      unawaited(_bgmPlayer.pause());
+      return;
+    }
+
     final isLastPage = _page >= _pages.length - 1;
     if (isLastPage) {
       unawaited(_bgmPlayer.pause()); // story done - stop the music
@@ -728,7 +869,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     final wasNarrating = _naturalPlaying && _playingAudio;
     // Count a skip only when the child moves forward themselves (Next or
     // swipe). Going back or an auto page-flip don't count.
-    if (next > _page && !_suppressAudioPageSeek) {
+    if (next > _page && !_suppressAudioPageSeek && !_pickingChoice) {
       _skipCount++;
     }
     // Voice is per-page, so stop it when the page turns.
@@ -736,6 +877,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       await _stopNaturalVoice();
     }
     final previousPage = _page;
+    _heardQuestion = false;
     setState(() {
       _page = next;
       _highlightStart = 0;
@@ -818,7 +960,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       );
     }
     if (!mounted) return;
-    setState(() => _page = 0);
+    // Back on page one, so the path can shrink safely: forget the answers.
+    setState(() {
+      _page = 0;
+      if (_allPages.isNotEmpty) {
+        _answers.clear();
+        _heardQuestion = false;
+        _pages = _buildInteractivePath();
+      }
+    });
     if (_useTts) {
       await _toggleNarration();
     } else if (_audioReady) {
@@ -845,6 +995,16 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               )
             else ...[
               _buildStorybook(),
+              if (_page < _pages.length && _pages[_page].isInteraction) ...[
+                const SizedBox(height: 14),
+                _ChoicePanel(
+                  // Keyed per question so it pops in again on each one.
+                  key: ValueKey(_pages[_page].sourceIndex),
+                  choices: _pages[_page].choices,
+                  selected: _answers[_pages[_page].sourceIndex],
+                  onPick: _pickChoice,
+                ),
+              ],
               const SizedBox(height: 14),
               _buildPageIndicator(),
               const SizedBox(height: 18),
@@ -943,8 +1103,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
                   highlightEnd: (readAlongEnabled && index == _page && narrating)
                       ? _highlightEnd
                       : 0,
-                  pageNumber: index + 1,
-                  totalPages: _pages.length,
+                  pageNumber: _displayPageNumber(index),
+                  totalPages: _displayTotalPages,
                   author: _audiobook?.author,
                   textScale: textScale,
                 );
@@ -962,8 +1122,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 
   Widget _buildPageIndicator() {
-    final total = _pages.length;
-    if (total <= 1) return const SizedBox.shrink();
+    final total = _displayTotalPages;
+    if (total <= 1 || _pages.isEmpty) return const SizedBox.shrink();
+    final current = _displayPageNumber(_page.clamp(0, _pages.length - 1));
     final showDots = total <= 12;
     if (!showDots) {
       return Center(
@@ -975,7 +1136,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
             border: Border.all(color: AppColors.cardBorder),
           ),
           child: Text(
-            'Page ${_page + 1} of $total',
+            'Page $current of $total',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
@@ -984,7 +1145,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(total, (i) {
-        final active = i == _page;
+        final active = i == current - 1;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -1194,7 +1355,39 @@ class _PlayerPage {
   /* Where this page starts in the recording, in ms. Null on page 1 and on
      unmarked books - the player guesses from word counts when it's missing. */
   final int? audioStartMs;
-  const _PlayerPage({required this.text, this.imageUrl, this.audioStartMs});
+  /* Interactive books only (see AudiobookPage). [number] is the book's page
+     number - split versions share one. [sourceIndex] is this page's index
+     in _allPages, set on pages in the current path. */
+  final int? number;
+  final List<String> choices;
+  final bool isSplit;
+  final int? branchIndex;
+  final int? sourceIndex;
+
+  const _PlayerPage({
+    required this.text,
+    this.imageUrl,
+    this.audioStartMs,
+    this.number,
+    this.choices = const [],
+    this.isSplit = false,
+    this.branchIndex,
+    this.sourceIndex,
+  });
+
+  bool get isInteraction => choices.isNotEmpty;
+
+  _PlayerPage forPath({required String text, required int sourceIndex}) =>
+      _PlayerPage(
+        text: text,
+        imageUrl: imageUrl,
+        audioStartMs: audioStartMs,
+        number: number,
+        choices: choices,
+        isSplit: isSplit,
+        branchIndex: branchIndex,
+        sourceIndex: sourceIndex,
+      );
 }
 
 /* A word's character range and the time window it's spoken in, used for
@@ -1442,6 +1635,120 @@ class _StorybookPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/* The answers for an interactive question page. Pops in under the page;
+   the story waits until one is tapped. [selected] marks the answer already
+   picked when the child comes Back to this page. */
+class _ChoicePanel extends StatelessWidget {
+  final List<String> choices;
+  final int? selected;
+  final ValueChanged<int> onPick;
+
+  const _ChoicePanel({
+    super.key,
+    required this.choices,
+    required this.selected,
+    required this.onPick,
+  });
+
+  // Soft tints so each answer looks different but still calm.
+  static const _tints = [
+    AppColors.softMint,
+    AppColors.softPeach,
+    AppColors.softLavender,
+    AppColors.softYellow,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
+      ),
+      child: SoftCard(
+        color: AppColors.surface,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              context.tr('player.choose_title'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.tr('player.choose_hint'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            for (var i = 0; i < choices.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _choiceButton(i),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _choiceButton(int i) {
+    final isSelected = selected == i;
+    final tint = _tints[i % _tints.length];
+    final fg = isSelected ? Colors.white : AppColors.textPrimary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onPick(i),
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minHeight: 60),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryBlueDark : tint,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.primaryBlueDark
+                  : AppColors.cardBorder,
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isSelected) ...[
+                const Icon(Icons.check_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Text(
+                  choices[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
