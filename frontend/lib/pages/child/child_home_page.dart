@@ -10,7 +10,6 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
 import 'audio_player_page.dart';
-import 'story_library_page.dart';
 
 class ChildHomePage extends StatefulWidget {
   const ChildHomePage({super.key});
@@ -271,41 +270,6 @@ class _ChildHomePageState extends State<ChildHomePage> {
             )),
           ),
         ],
-
-        const SizedBox(height: 14),
-        SoftCard(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const StoryLibraryPage()),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48, height: 48,
-                decoration: const BoxDecoration(
-                  color: AppColors.softMint,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.menu_book_outlined),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(context.tr('child.browse_library'),
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 2),
-                    Text(context.tr('child.browse_library_sub'),
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13)),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -388,29 +352,19 @@ class _StartStoryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              // Full-width white start button.
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.play_arrow_rounded,
-                        size: 28, color: AppColors.primaryBlueDark),
-                    const SizedBox(width: 8),
-                    Text(
-                      context.tr('child.start_story'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
+              // Full-width white start button: a big play icon, no words.
+              Semantics(
+                button: true,
+                label: context.tr('child.start_story'),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded,
+                      size: 40, color: AppColors.primaryBlueDark),
                 ),
               ),
             ],

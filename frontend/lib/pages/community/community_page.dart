@@ -8,11 +8,13 @@ import '../../state/friends_state.dart';
 import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/notification_dot.dart';
 import '../../widgets/soft_card.dart';
 import 'chat_tab.dart';
 import 'friends_tab.dart';
 import 'hub_tab.dart';
 import 'invites_page.dart';
+import 'meet_families_page.dart';
 
 /* The Community tab. Shows a join gate until the caregiver is a member, then
    three inner tabs: Hub, Chat, and Friends. */
@@ -84,7 +86,18 @@ class _CommunityPageState extends State<CommunityPage> {
             tabs: [
               Tab(text: context.tr('community.hub')),
               Tab(text: context.tr('community.chat')),
-              Tab(text: context.tr('community.friends')),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.tr('community.friends')),
+                    if (context.watch<FriendsState>().hasNotification) ...[
+                      const SizedBox(width: 6),
+                      const NotificationDot(),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
           const Expanded(
@@ -131,6 +144,10 @@ class _JoinGateState extends State<_JoinGate> {
     if (ok) {
       _loadAll();
       AppSnackbar.success(context.trRead('community.welcome'), context: context);
+      // Show who's already here, so they can send friend requests.
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const MeetFamiliesPage()),
+      );
     } else {
       AppSnackbar.error(
           community.lastError ?? context.trRead('community.join_failed'),

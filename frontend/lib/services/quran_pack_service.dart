@@ -9,9 +9,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/app_config.dart';
 import '../models/quran.dart';
 
 enum QuranChapterState {
@@ -30,14 +28,13 @@ enum QuranChapterState {
    manifest. Each chapter unpacks to <app support>/quran/chapters/NNN/ and
    is "installed" once its verses.json is there.
 
-   Chapters the caregiver removes are remembered, so the optional
-   auto-download (AppConfig.quranAutoDownload) never brings them back. */
+   Nothing downloads on its own: every download starts from the caregiver
+   confirming it in Content Management. */
 class QuranPackService extends ChangeNotifier {
   QuranPackService._();
   static final QuranPackService instance = QuranPackService._();
 
   static const _manifestAsset = 'assets/quran/quran_manifest.json';
-  static const _removedKey = 'quran_removed_chapters';
   static const _maxParallel = 2;
 
   QuranManifest? _manifest;
@@ -172,27 +169,12 @@ class QuranPackService extends ChangeNotifier {
 
   Future<void> download(int chapter) async {
     await init();
-    await _setRemoved([chapter], removed: false);
     _enqueue([chapter]);
   }
 
   Future<void> downloadAll() async {
     await init();
-    final all = _manifest!.chapters.map((c) => c.number).toList();
-    await _setRemoved(all, removed: false);
-    _enqueue(all);
-  }
-
-  /* Debug/test helper: on the emulator we want the whole pack without
-     tapping anything. Skips chapters the caregiver removed. */
-  Future<void> autoDownloadIfEnabled() async {
-    if (!AppConfig.quranAutoDownload) return;
-    await init();
-    final removed = await _removedChapters();
-    _enqueue(_manifest!.chapters
-        .map((c) => c.number)
-        .where((n) => !removed.contains(n))
-        .toList());
+    _enqueue(_manifest!.chapters.map((c) => c.number).toList());
   }
 
   void _enqueue(List<int> chapters) {
@@ -365,7 +347,6 @@ class QuranPackService extends ChangeNotifier {
   Future<void> delete(int chapter) async {
     await init();
     cancel(chapter);
-    await _setRemoved([chapter], removed: true);
     final dir = _chapterDir(chapter);
     if (await dir.exists()) await dir.delete(recursive: true);
     _installed.remove(chapter);
@@ -377,8 +358,6 @@ class QuranPackService extends ChangeNotifier {
   Future<void> deleteAll() async {
     await init();
     cancelAll();
-    await _setRemoved(_manifest!.chapters.map((c) => c.number).toList(),
-        removed: true);
     for (final dir in [_chaptersDir, _elementsDir]) {
       if (await dir.exists()) await dir.delete(recursive: true);
       await dir.create(recursive: true);
@@ -406,22 +385,6 @@ class QuranPackService extends ChangeNotifier {
       if (await f.exists()) await f.delete();
       _gifsPresent.remove(file);
     }
-  }
-
-  Future<Set<int>> _removedChapters() async {
-    final prefs = await SharedPreferences.getInstance();
-    return (prefs.getStringList(_removedKey) ?? const [])
-        .map(int.tryParse)
-        .whereType<int>()
-        .toSet();
-  }
-
-  Future<void> _setRemoved(List<int> chapters, {required bool removed}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final set = await _removedChapters();
-    removed ? set.addAll(chapters) : set.removeAll(chapters);
-    await prefs.setStringList(
-        _removedKey, set.map((n) => n.toString()).toList());
   }
 
   static String formatBytes(int bytes) {

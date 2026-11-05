@@ -65,8 +65,9 @@ class Audiobook extends Model
         });
     }
 
-    /* Books this caregiver can see: everything public plus their own private
-       ones. Other caregivers' private books stay hidden. */
+    /* Books in this caregiver's library: their own, plus the shared books
+       from before books had owners (the only public ones). New books are
+       always private, so nothing a caregiver makes appears for anyone else. */
     public function scopeVisibleTo($query, ?string $caregiverId)
     {
         return $query->where(function ($q) use ($caregiverId) {
@@ -85,6 +86,20 @@ class Audiobook extends Model
             $q->whereNull('caregiver_id');
             if ($caregiverId) {
                 $q->orWhere('caregiver_id', $caregiverId);
+            }
+        });
+    }
+
+    /* Books this caregiver can open in the player: their library, plus any
+       book shared in the community hub once they're a member. */
+    public function scopeOpenableBy($query, ?Caregiver $caregiver)
+    {
+        return $query->where(function ($q) use ($caregiver) {
+            $q->visibleTo($caregiver?->caregiver_id);
+            if ($caregiver?->is_community_member) {
+                $q->orWhereIn('audiobook_id', HubPost::query()
+                    ->whereNotNull('audiobook_id')
+                    ->select('audiobook_id'));
             }
         });
     }

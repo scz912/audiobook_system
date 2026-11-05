@@ -41,7 +41,6 @@ class ContentManagementController extends ApiController
             'category'    => $request->input('category'),
             'age_group'   => $request->input('age_group'),
             'language'    => $request->input('language'),
-            'visibility'  => $request->input('visibility'),
         ]);
         try {
             $query = Audiobook::visibleTo($request->get('auth_caregiver')?->caregiver_id)
@@ -80,12 +79,6 @@ class ContentManagementController extends ApiController
             // Let the library filter by language (en or ms).
             if ($request->filled('language')) {
                 $query->where('language', strtolower($request->input('language')));
-            }
-
-            /* Public or private only. "private" can only ever return this
-               caregiver's own books, since visibleTo already hid the rest. */
-            if ($request->filled('visibility')) {
-                $query->where('visibility', strtolower($request->input('visibility')));
             }
 
             $items = $query->get()->map(fn ($item) => $this->serialize($item))->toArray();
@@ -137,7 +130,6 @@ class ContentManagementController extends ApiController
             'cover_image'  => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
             'track_id'     => 'nullable|uuid|exists:music_tracks,track_id',
             'bgm_volume'   => 'nullable|integer|min:0|max:100',
-            'visibility'   => 'required|in:private,public',
         ]);
 
         if ($validator->fails()) {
@@ -195,7 +187,8 @@ class ContentManagementController extends ApiController
                 'is_generated'     => $isGenerated,
                 'is_user_uploaded' => true,
                 'status'           => $isGenerated ? 'processing' : 'available',
-                'visibility'       => $request->input('visibility'),
+                // Always private: others only see it if it's shared in the hub.
+                'visibility'       => 'private',
                 'track_id'         => $request->input('track_id') ?: null,
                 'bgm_volume'       => $request->filled('bgm_volume') ? (int) $request->input('bgm_volume') : 30,
             ]);
@@ -237,7 +230,6 @@ class ContentManagementController extends ApiController
             'language'       => 'nullable|in:en,ms',
             'track_id'       => 'nullable|uuid|exists:music_tracks,track_id',
             'bgm_volume'     => 'nullable|integer|min:0|max:100',
-            'visibility'     => 'required|in:private,public',
             // Interactive books need a fixed length so the 1-in-4 cap can be applied.
             'book_format'       => 'nullable|in:linear,interactive',
             'interaction_count' => 'nullable|required_if:book_format,interactive|integer|min:1',
@@ -288,6 +280,7 @@ class ContentManagementController extends ApiController
                     (int) $request->input('interaction_count'),
                     (int) $request->input('split_count', 0),
                     $request->input('language'),
+                    $request->input('difficulty'),
                 )
                 : $gemini->generateStory(
                     $request->input('topic'),
@@ -295,6 +288,7 @@ class ContentManagementController extends ApiController
                     $request->input('source_text'),
                     $request->filled('page_count') ? (int) $request->input('page_count') : null,
                     $request->input('language'),
+                    $request->input('difficulty'),
                 );
 
             $generateImages = $request->boolean('generate_image');
@@ -322,7 +316,8 @@ class ContentManagementController extends ApiController
                 'is_generated'     => true,
                 'is_user_uploaded' => true,
                 'status'           => $generateImages ? 'processing' : 'available',
-                'visibility'       => $request->input('visibility'),
+                // Always private: others only see it if it's shared in the hub.
+                'visibility'       => 'private',
                 'track_id'         => $this->resolveTrackId($request, $story['content'] ?? ''),
                 'bgm_volume'       => $request->filled('bgm_volume') ? (int) $request->input('bgm_volume') : 30,
             ]);
@@ -404,14 +399,7 @@ class ContentManagementController extends ApiController
             'description'  => 'sometimes|nullable|string',
             'age_group'    => 'sometimes|nullable|string|max:50',
             'language'     => 'sometimes|in:en,ms',
-            'visibility'   => 'sometimes|in:private,public',
         ]);
-        // A book with no owner would vanish for everyone if it went private.
-        $validator->after(function ($v) use ($request, $book) {
-            if ($request->has('visibility') && $book->caregiver_id === null) {
-                $v->errors()->add('visibility', 'Older audiobooks have no owner, so they stay public.');
-            }
-        });
 
         if ($validator->fails()) {
             $this->logWarn('Content', 'update validation failed', [

@@ -356,15 +356,8 @@ class _InsightsPageState extends State<InsightsPage> {
         label: context.tr('insights.streak'),
       ),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      // Just shy of square - fits the two-line labels with no gap below.
-      childAspectRatio: 1.05,
-      children: cards
+    return StatCardGroup(
+      cards: cards
           .map((s) => StatCard(
                 icon: s.icon,
                 iconBackground: s.iconBackground,

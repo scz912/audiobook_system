@@ -19,6 +19,11 @@ class Friendship extends Model
         'requester_id',
         'addressee_id',
         'status',
+        'requester_seen',
+    ];
+
+    protected $casts = [
+        'requester_seen' => 'boolean',
     ];
 
     public function uniqueIds(): array

@@ -66,6 +66,11 @@ class FriendshipController extends ApiController
         }
 
         $existing = $this->between($caregiver->caregiver_id, $targetId);
+        // A declined request doesn't block asking again.
+        if ($existing && $existing->status === 'declined') {
+            $existing->delete();
+            $existing = null;
+        }
         if ($existing) {
             return $this->errorResponse('A request already exists', 'ALREADY_EXISTS', 409);
         }
@@ -106,14 +111,47 @@ class FriendshipController extends ApiController
             return $this->errorResponse('Request not found', 'NOT_FOUND', 404);
         }
 
-        if ($request->input('action') === 'accept') {
-            $friendship->status = 'accepted';
-            $friendship->save();
-            return $this->successResponse('You are now friends', ['status' => 'accepted']);
-        }
+        // Either way the sender gets a red dot until they've seen the answer.
+        $accepted = $request->input('action') === 'accept';
+        $friendship->status = $accepted ? 'accepted' : 'declined';
+        $friendship->requester_seen = false;
+        $friendship->save();
 
-        $friendship->delete();
-        return $this->successResponse('Request declined', ['status' => 'declined']);
+        return $accepted
+            ? $this->successResponse('You are now friends', ['status' => 'accepted'])
+            : $this->successResponse('Request declined', ['status' => 'declined']);
+    }
+
+    // Answers to requests I sent that I haven't seen yet.
+    public function updates(Request $request): JsonResponse
+    {
+        $me = $request->get('auth_caregiver')->caregiver_id;
+        $rows = Friendship::where('requester_id', $me)
+            ->where('requester_seen', false)
+            ->whereIn('status', ['accepted', 'declined'])
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $out = $rows->map(function ($f) {
+            $person = Caregiver::where('caregiver_id', $f->addressee_id)->first();
+            return [
+                'friendship_id' => $f->friendship_id,
+                'status'        => $f->status,
+                'person'        => $person ? $this->serializeBasic($person) : null,
+            ];
+        })->filter(fn ($r) => $r['person'] !== null)->values();
+        return $this->successResponse('OK', $out);
+    }
+
+    /* I've seen the answers. Accepted ones are just marked read; declined
+       ones are removed, so we can ask each other again later. */
+    public function markUpdatesSeen(Request $request): JsonResponse
+    {
+        $me = $request->get('auth_caregiver')->caregiver_id;
+        $unseen = Friendship::where('requester_id', $me)->where('requester_seen', false);
+        (clone $unseen)->where('status', 'declined')->delete();
+        $unseen->update(['requester_seen' => true]);
+        return $this->successResponse('OK');
     }
 
     // Remove a friend or cancel a request I sent.
@@ -241,6 +279,7 @@ class FriendshipController extends ApiController
             } elseif ($link->status === 'blocked') {
                 $relation = 'blocked';
             }
+            // 'declined' reads as 'none': either side may ask again.
         }
 
         return [

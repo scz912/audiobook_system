@@ -57,126 +57,38 @@ class AudiobookVisibilityTest extends TestCase
         return array_column($this->api($caregiver, '/content/list')->json('data.items'), 'audiobook_id');
     }
 
-    public function test_private_book_is_listed_and_counted_only_for_its_owner(): void
+    public function test_library_holds_only_my_books_and_the_older_shared_ones(): void
     {
         $owner = $this->caregiver();
         $other = $this->caregiver();
-        $private = $this->book($owner, 'private');
-        $public = $this->book($owner, 'public');
-
-        $this->assertEqualsCanonicalizing(
-            [$private->audiobook_id, $public->audiobook_id],
-            $this->listedIds($owner)
-        );
-        $this->assertSame([$public->audiobook_id], $this->listedIds($other));
-
-        $this->api($owner, '/content/summary')->assertJsonPath('data.total_items', 2);
-        $this->api($other, '/content/summary')->assertJsonPath('data.total_items', 1);
-    }
-
-    public function test_library_can_be_filtered_by_visibility(): void
-    {
-        $owner = $this->caregiver();
-        $other = $this->caregiver();
-        $private = $this->book($owner, 'private');
-        $public = $this->book($owner, 'public');
+        $mine = $this->book($owner, 'private');
+        $starter = $this->book(null, 'public');
         $this->book($other, 'private');
 
-        $ids = fn (Caregiver $c, string $visibility) => array_column(
-            $this->api($c, '/content/list', ['visibility' => $visibility])->json('data.items'),
-            'audiobook_id'
+        $this->assertEqualsCanonicalizing(
+            [$mine->audiobook_id, $starter->audiobook_id],
+            $this->listedIds($owner)
         );
-
-        $this->assertSame([$private->audiobook_id], $ids($owner, 'private'));
-        $this->assertSame([$public->audiobook_id], $ids($owner, 'public'));
-        $this->assertSame([], $ids($this->caregiver(), 'private'));
+        $this->api($owner, '/content/summary')->assertJsonPath('data.total_items', 2);
     }
 
-    public function test_private_book_can_only_be_opened_by_its_owner(): void
-    {
-        $owner = $this->caregiver();
-        $book = $this->book($owner, 'private');
-
-        $this->api($owner, "/audiobooks/{$book->audiobook_id}")
-            ->assertOk()
-            ->assertJsonPath('data.is_mine', true);
-        $this->api($this->caregiver(), "/audiobooks/{$book->audiobook_id}")->assertNotFound();
-    }
-
-    public function test_other_caregivers_cannot_change_a_book_even_if_it_is_public(): void
-    {
-        $owner = $this->caregiver();
-        $other = $this->caregiver();
-
-        foreach (['public', 'private'] as $visibility) {
-            $book = $this->book($owner, $visibility);
-            $id = $book->audiobook_id;
-
-            $this->api($other, "/content/{$id}/update", ['title' => 'Taken'])->assertNotFound();
-            $this->api($other, "/content/{$id}/update", ['visibility' => 'public'])->assertNotFound();
-            $this->api($other, "/content/{$id}/pages", ['text' => 'Extra'])->assertNotFound();
-            $this->api($other, "/content/{$id}/delete")->assertNotFound();
-
-            $fresh = $book->fresh();
-            $this->assertSame("A {$visibility} story", $fresh->title);
-            $this->assertSame($visibility, $fresh->visibility);
-            $this->assertSame(0, $fresh->pages()->count());
-        }
-    }
-
-    public function test_public_book_shows_as_read_only_to_other_caregivers(): void
-    {
-        $owner = $this->caregiver();
-        $this->book($owner, 'public');
-
-        $this->api($owner, '/content/list')->assertJsonPath('data.items.0.can_edit', true);
-        $this->api($this->caregiver(), '/content/list')
-            ->assertJsonPath('data.items.0.can_edit', false)
-            ->assertJsonPath('data.items.0.is_mine', false);
-    }
-
-    public function test_owner_can_switch_visibility_later(): void
-    {
-        $owner = $this->caregiver();
-        $other = $this->caregiver();
-        $book = $this->book($owner, 'private');
-
-        $this->api($owner, "/content/{$book->audiobook_id}/update", ['visibility' => 'public'])
-            ->assertOk()
-            ->assertJsonPath('data.visibility', 'public');
-
-        $this->assertSame([$book->audiobook_id], $this->listedIds($other));
-    }
-
-    public function test_books_from_before_owners_stay_public_and_editable(): void
-    {
-        $book = $this->book(null, 'public');
-        $caregiver = $this->caregiver();
-        $id = $book->audiobook_id;
-
-        $this->assertSame([$id], $this->listedIds($caregiver));
-        $this->api($caregiver, "/content/{$id}/update", ['title' => 'Renamed'])->assertOk();
-
-        // Nobody owns it, so going private would hide it from everyone.
-        $this->api($caregiver, "/content/{$id}/update", ['visibility' => 'private'])->assertStatus(422);
-        $this->assertSame('public', $book->fresh()->visibility);
-    }
-
-    public function test_upload_needs_a_visibility_choice_and_saves_the_owner(): void
+    public function test_upload_is_always_private_to_its_author(): void
     {
         $caregiver = $this->caregiver();
 
-        $this->api($caregiver, '/content/create', ['title' => 'Mine'])->assertStatus(422);
-
-        $id = $this->api($caregiver, '/content/create', ['title' => 'Mine', 'visibility' => 'private'])
+        // A stale "public" from an old app version is ignored.
+        $id = $this->api($caregiver, '/content/create', ['title' => 'Mine', 'visibility' => 'public'])
             ->assertOk()
-            ->assertJsonPath('data.visibility', 'private')
+            ->assertJsonPath('data.is_mine', true)
             ->json('data.audiobook_id');
 
-        $this->assertSame($caregiver->caregiver_id, Audiobook::find($id)->caregiver_id);
+        $book = Audiobook::find($id);
+        $this->assertSame($caregiver->caregiver_id, $book->caregiver_id);
+        $this->assertSame('private', $book->visibility);
+        $this->assertSame([], $this->listedIds($this->caregiver()));
     }
 
-    public function test_generating_needs_a_visibility_choice_and_saves_the_owner(): void
+    public function test_generated_book_does_not_reach_other_caregivers(): void
     {
         $this->mock(GeminiService::class, function ($mock) {
             $mock->allows('isConfigured')->andReturnTrue();
@@ -187,49 +99,116 @@ class AudiobookVisibilityTest extends TestCase
         });
         $caregiver = $this->caregiver();
 
-        $this->api($caregiver, '/content/generate', ['topic' => 'Turtles'])->assertStatus(422);
-        $this->assertSame(0, Audiobook::count());
-
-        $id = $this->api($caregiver, '/content/generate', ['topic' => 'Turtles', 'visibility' => 'private'])
+        $id = $this->api($caregiver, '/content/generate', ['topic' => 'Turtles'])
             ->assertOk()
-            ->assertJsonPath('data.visibility', 'private')
-            ->assertJsonPath('data.is_mine', true)
             ->json('data.audiobook_id');
 
-        $this->assertSame($caregiver->caregiver_id, Audiobook::find($id)->caregiver_id);
+        $this->assertSame('private', Audiobook::find($id)->visibility);
+        $this->assertSame([$id], $this->listedIds($caregiver));
         $this->assertSame([], $this->listedIds($this->caregiver()));
+        $this->api($this->caregiver(), "/audiobooks/{$id}")->assertNotFound();
     }
 
-    public function test_private_book_cannot_be_shared_to_the_hub(): void
+    public function test_other_caregivers_cannot_change_my_book(): void
+    {
+        $owner = $this->caregiver();
+        $other = $this->caregiver(member: true);
+        $book = $this->book($owner, 'private');
+        $id = $book->audiobook_id;
+
+        // Even once it's shared in the hub.
+        HubPost::create(['audiobook_id' => $id, 'shared_by' => $owner->caregiver_id]);
+
+        $this->api($other, "/content/{$id}/update", ['title' => 'Taken'])->assertNotFound();
+        $this->api($other, "/content/{$id}/pages", ['text' => 'Extra'])->assertNotFound();
+        $this->api($other, "/content/{$id}/delete")->assertNotFound();
+
+        $fresh = $book->fresh();
+        $this->assertSame('A private story', $fresh->title);
+        $this->assertSame(0, $fresh->pages()->count());
+    }
+
+    public function test_older_shared_books_stay_editable(): void
+    {
+        $book = $this->book(null, 'public');
+
+        $this->api($this->caregiver(), "/content/{$book->audiobook_id}/update", ['title' => 'Renamed'])
+            ->assertOk();
+        $this->assertSame('Renamed', $book->fresh()->title);
+    }
+
+    public function test_migration_makes_books_made_with_the_old_public_option_private(): void
+    {
+        $owned = $this->book($this->caregiver(), 'public');
+        $starter = $this->book(null, 'public');
+
+        (require database_path('migrations/2026_11_05_000001_make_owned_audiobooks_private.php'))->up();
+
+        $this->assertSame('private', $owned->fresh()->visibility);
+        $this->assertSame('public', $starter->fresh()->visibility);
+    }
+
+    public function test_difficulty_reaches_the_story_writer(): void
+    {
+        // Gemini turns difficulty into sentences per page (see sentencesPerPage).
+        $this->mock(GeminiService::class, function ($mock) {
+            $mock->allows('isConfigured')->andReturnTrue();
+            $mock->expects('generateStory')
+                ->withArgs(fn (...$args) => ($args[5] ?? null) === 'Medium')
+                ->andReturn([
+                    'content' => 'A story.',
+                    'pages'   => [['text' => 'A story.', 'image_prompt' => 'A turtle']],
+                ]);
+        });
+
+        $this->api($this->caregiver(), '/content/generate', [
+            'topic'      => 'Turtles',
+            'difficulty' => 'Medium',
+        ])->assertOk()->assertJsonPath('data.difficulty', 'medium');
+    }
+
+    public function test_my_private_book_can_be_shared_and_opened_by_members(): void
+    {
+        $owner = $this->caregiver(member: true);
+        $member = $this->caregiver(member: true);
+        $outsider = $this->caregiver();
+        $book = $this->book($owner, 'private');
+        $id = $book->audiobook_id;
+
+        // Before sharing, only the author can open it.
+        $this->api($member, "/audiobooks/{$id}")->assertNotFound();
+
+        $this->api($owner, '/hub/create', ['audiobook_id' => $id])->assertOk();
+
+        $this->api($member, '/hub/feed')->assertJsonPath('data.0.audiobook.audiobook_id', $id);
+        $this->api($member, "/audiobooks/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_mine', false);
+        // It still isn't in their library, and non-members can't open it.
+        $this->assertSame([], $this->listedIds($member));
+        $this->api($outsider, "/audiobooks/{$id}")->assertNotFound();
+    }
+
+    public function test_someone_elses_book_cannot_be_shared(): void
     {
         $owner = $this->caregiver(member: true);
         $other = $this->caregiver(member: true);
         $book = $this->book($owner, 'private');
 
-        $this->api($owner, '/hub/create', ['audiobook_id' => $book->audiobook_id])
-            ->assertStatus(422)
-            ->assertJsonPath('error_code', 'BOOK_PRIVATE');
         $this->api($other, '/hub/create', ['audiobook_id' => $book->audiobook_id])->assertNotFound();
-
         $this->assertSame(0, HubPost::count());
     }
 
-    public function test_book_made_private_after_sharing_leaves_other_members_feeds(): void
+    public function test_deleting_the_post_takes_the_book_back_out_of_the_hub(): void
     {
         $owner = $this->caregiver(member: true);
-        $other = $this->caregiver(member: true);
-        $book = $this->book($owner, 'public');
+        $member = $this->caregiver(member: true);
+        $book = $this->book($owner, 'private');
 
-        $this->api($owner, '/hub/create', ['audiobook_id' => $book->audiobook_id])->assertOk();
-        $this->api($owner, '/hub/create', ['audiobook_id' => $book->audiobook_id, 'caption' => 'Lovely'])->assertOk();
+        $postId = $this->api($owner, '/hub/create', ['audiobook_id' => $book->audiobook_id])
+            ->json('data.post_id');
+        $this->api($owner, "/hub/{$postId}/delete")->assertOk();
 
-        $book->update(['visibility' => 'private']);
-
-        // The owner keeps both. Others keep only the caption, with no story.
-        $this->api($owner, '/hub/feed')->assertJsonCount(2, 'data');
-        $this->api($other, '/hub/feed')
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.caption', 'Lovely')
-            ->assertJsonPath('data.0.audiobook', null);
+        $this->api($member, "/audiobooks/{$book->audiobook_id}")->assertNotFound();
     }
 }

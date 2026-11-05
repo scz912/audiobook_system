@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
+import '../../models/community/friend_update.dart';
 import '../../models/community/member.dart';
 import '../../state/friends_state.dart';
 import '../../theme/app_colors.dart';
@@ -49,6 +50,12 @@ class _FriendsTabState extends State<FriendsTab> {
   @override
   Widget build(BuildContext context) {
     final friends = context.watch<FriendsState>();
+    // Answers are on screen now, so clear the red dot.
+    if (friends.hasUnseenUpdates) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<FriendsState>().markUpdatesSeen();
+      });
+    }
 
     return RefreshIndicator(
       onRefresh: () => friends.refresh(),
@@ -102,11 +109,16 @@ class _FriendsTabState extends State<FriendsTab> {
         ),
       ];
     }
-    return friends.searchResults.map((m) => _MemberRow(member: m)).toList();
+    return friends.searchResults.map((m) => MemberRow(member: m)).toList();
   }
 
   List<Widget> _buildFriendsAndRequests(FriendsState friends) {
     return [
+      if (friends.updates.isNotEmpty) ...[
+        _SectionLabel(context.tr('community.updates')),
+        ...friends.updates.map((u) => _UpdateRow(update: u)),
+        const SizedBox(height: 16),
+      ],
       if (friends.pending.isNotEmpty) ...[
         _SectionLabel(context.tr('community.requests')),
         ...friends.pending.map((m) => _RequestRow(member: m)),
@@ -127,7 +139,7 @@ class _FriendsTabState extends State<FriendsTab> {
           ),
         )
       else
-        ...friends.friends.map((m) => _MemberRow(member: m)),
+        ...friends.friends.map((m) => MemberRow(member: m)),
     ];
   }
 }
@@ -148,9 +160,9 @@ class _SectionLabel extends StatelessWidget {
 }
 
 // A person in friends or search results, with a relationship-aware action.
-class _MemberRow extends StatelessWidget {
+class MemberRow extends StatelessWidget {
   final Member member;
-  const _MemberRow({required this.member});
+  const MemberRow({super.key, required this.member});
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +230,41 @@ class _RelationAction extends StatelessWidget {
           },
         );
     }
+  }
+}
+
+// Someone accepted or declined a friend request I sent.
+class _UpdateRow extends StatelessWidget {
+  final FriendUpdate update;
+  const _UpdateRow({required this.update});
+
+  @override
+  Widget build(BuildContext context) {
+    final person = update.person;
+    final text = context
+        .tr(update.accepted ? 'community.accepted_you' : 'community.declined_you')
+        .replaceAll('{name}', person.name);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SoftCard(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            MemberAvatar(
+                emoji: person.avatarEmoji, colorHex: person.avatarColor, size: 44),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(text,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            Icon(
+              update.accepted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              color: update.accepted ? AppColors.success : AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

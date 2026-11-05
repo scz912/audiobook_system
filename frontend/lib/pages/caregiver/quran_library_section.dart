@@ -184,7 +184,7 @@ class _QuranLibrarySectionState extends State<QuranLibrarySection> {
                 gif: _pack.gifFor(c.elementId),
                 downloadBytes: _pack.downloadBytesFor(c),
                 onTap: () => _openChapter(c),
-                onDownload: () => _pack.download(c.number),
+                onDownload: () => _downloadChapter(c),
                 onCancel: () => _pack.cancel(c.number),
                 onRemove: () => _removeChapter(c),
               ),

@@ -141,8 +141,9 @@ class InviteController extends ApiController
         })->first();
 
         if ($existing) {
-            if ($existing->status === 'pending') {
+            if (in_array($existing->status, ['pending', 'declined'], true)) {
                 $existing->status = 'accepted';
+                $existing->requester_seen = true;
                 $existing->save();
             }
             return;

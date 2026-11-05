@@ -20,7 +20,6 @@ class ShareToHubPage extends StatefulWidget {
 class _ShareToHubPageState extends State<ShareToHubPage> {
   final _captionCtrl = TextEditingController();
   List<ContentItem> _books = const [];
-  bool _hasPrivateBooks = false;
   ContentItem? _selected;
   bool _includeMusic = false;
   bool _loading = true;
@@ -47,9 +46,7 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
             .toList()
         : <ContentItem>[];
     setState(() {
-      // The hub reaches other families, so private stories can't go there.
-      _books = books.where((b) => !b.isPrivate).toList();
-      _hasPrivateBooks = books.any((b) => b.isPrivate);
+      _books = books;
       _loading = false;
     });
   }
@@ -128,10 +125,6 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
                               onChanged: (v) => setState(() => _includeMusic = v),
                             ),
                         ],
-                        if (_hasPrivateBooks)
-                          Text(context.tr('community.private_stories_hidden'),
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 12)),
                       ],
                     ),
             ),

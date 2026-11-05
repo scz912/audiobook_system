@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
-import '../../services/quran_pack_service.dart';
+import '../../state/friends_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/notification_dot.dart';
 import '../community/community_page.dart';
 import 'caregiver_dashboard_page.dart';
 import 'content_management_page.dart';
@@ -20,13 +24,29 @@ class CaregiverShell extends StatefulWidget {
 
 class _CaregiverShellState extends State<CaregiverShell> {
   late int _index = widget.initialIndex;
+  // Checks for friend requests and answers, for the Community tab's dot.
+  Timer? _notificationTimer;
+
+  static const _communityTab = 4;
 
   @override
   void initState() {
     super.initState();
-    // Starts the Al-Quran pack download in the background when
-    // AppConfig.quranAutoDownload is on (our test emulator).
-    QuranPackService.instance.autoDownloadIfEnabled();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkNotifications());
+    _notificationTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _checkNotifications(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _checkNotifications() {
+    if (mounted) context.read<FriendsState>().refreshNotifications();
   }
 
   // Menu bottom nav specs
@@ -67,6 +87,9 @@ class _CaregiverShellState extends State<CaregiverShell> {
       bottomNavigationBar: _CaregiverBottomNav(
         tabs: _tabs,
         currentIndex: _index,
+        dotted: {
+          if (context.watch<FriendsState>().hasNotification) _communityTab,
+        },
         onTap: (i) => setState(() => _index = i),
       ),
     );
@@ -89,7 +112,11 @@ class _CaregiverBottomNav extends StatelessWidget {
     required this.tabs,
     required this.currentIndex,
     required this.onTap,
+    this.dotted = const {},
   });
+
+  // Tabs that show a red notification dot.
+  final Set<int> dotted;
 
   @override
   Widget build(BuildContext context) {
@@ -114,15 +141,24 @@ class _CaregiverBottomNav extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 44,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? t.highlight : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(t.icon, size: 22, color: AppColors.textPrimary),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 32,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: selected ? t.highlight : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(t.icon,
+                                size: 22, color: AppColors.textPrimary),
+                          ),
+                          if (dotted.contains(i))
+                            const Positioned(
+                                top: 2, right: 6, child: NotificationDot()),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       // FittedBox shrinks long labels (like the Bahasa ones)

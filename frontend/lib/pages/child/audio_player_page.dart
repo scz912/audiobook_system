@@ -1010,23 +1010,24 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               const SizedBox(height: 18),
               _buildControlBar(),
               const SizedBox(height: 16),
+              /* Children get no settings panel or helper text: too much to
+                 read. Their voice, speed and text size come from the
+                 caregiver's settings for that child. */
               if (widget.previewMode) ...[
                 const _PreviewNotice(),
                 const SizedBox(height: 12),
-              ],
-              _buildSettingsPanel(),
-              const SizedBox(height: 8),
-              Text(
-                widget.previewMode
-                    ? context.tr('player.preview_helper')
-                    : context.tr('player.helper_text'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  height: 1.5,
+                _buildSettingsPanel(),
+                const SizedBox(height: 8),
+                Text(
+                  context.tr('player.preview_helper'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
                 ),
-              ),
+              ],
             ],
           ],
         ),

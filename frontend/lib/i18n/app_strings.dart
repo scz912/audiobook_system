@@ -90,20 +90,19 @@ class AppStrings {
     'caregiver.tab_community': 'Community',
     'caregiver.no_children': 'No child profiles yet',
     'caregiver.no_children_hint': 'Add a child to start.',
-    'caregiver.enter_child_mode': 'Enter Child Mode',
     'caregiver.dashboard_subtitle':
         'Manage profiles and monitor learning progress',
     'caregiver.stat_total_children': 'Total\nChildren',
     'caregiver.stat_total_minutes': 'Total Listening\nMinutes',
-    'caregiver.stat_total_books': 'Total\nAudiobooks',
     'caregiver.stat_avg_engagement': 'Average\nEngagement',
-    'caregiver.section_profiles': 'Child Profiles',
+    'caregiver.section_top_books': 'Top 3 Books',
+    'caregiver.no_listening_title': 'No listening yet',
+    'caregiver.no_listening_body':
+        'Your children\'s most-listened books will show here.',
     'caregiver.empty_subtitle':
         'Add your first child to start tracking listening time\nand entering Child Mode.',
     'caregiver.add_first_child': 'Add your first child',
     'caregiver.age': 'Age',
-    'caregiver.listening_time': 'Listening time:',
-    'caregiver.favorite_genre': 'Favorite genre:',
     'caregiver.minutes_short': 'min',
     'caregiver.logout_title': 'Logout?',
     'caregiver.logout_body': 'You can sign back in at any time.',
@@ -232,7 +231,6 @@ class AppStrings {
     'content.filter_lang_all': 'All languages',
     'content.filter_lang_en': 'English',
     'content.filter_lang_ms': 'Bahasa Malaysia',
-    'content.filter_by_visibility': 'Filter by visibility',
     'content.format_linear': 'Linear',
     'content.format_interactive': 'Interactive',
     'content.format_quran': 'Al-Quran',
@@ -285,13 +283,6 @@ class AppStrings {
 
     // Upload content
     'upload.title': 'Upload Content',
-    'upload.visibility': 'Who can see this audiobook?',
-    'upload.visibility_required': 'Please choose Private or Public',
-    'visibility.private': 'Private',
-    'visibility.private_hint':
-        'Only you and your children can see this audiobook.',
-    'visibility.public': 'Public',
-    'visibility.public_hint': 'Everyone using the app can see this audiobook.',
     'upload.mode_ai': 'AI generated',
     'upload.mode_manual': 'Manual upload',
     'upload.ai_prompt': 'Story idea',
@@ -343,8 +334,6 @@ class AppStrings {
     'child.tab_stories': 'Stories',
     'child.tab_exit': 'Exit',
     'child.start_story': 'Start a Story',
-    'child.browse_library': 'Browse Story Library',
-    'child.browse_library_sub': 'Find a new favorite story',
     'child.mood_question': 'How are you feeling today?',
     'child.mood_saved': 'Got it! Your {mood} mood will be saved with your next story.',
     'child.mood_locked': 'You already chose {mood} today. Come back tomorrow!',
@@ -352,20 +341,9 @@ class AppStrings {
 
     // Story library
     'library.title': 'Story Library',
-    'library.subtitle': 'Find your next favorite story',
-    'library.search_hint': 'Search for stories...',
-    'library.filters': 'Filters',
-    'library.age_range': 'Age Range',
     'library.no_stories_title': 'No stories yet',
     'library.no_stories_body_error':
         'We could not reach the library right now.\nPull down to try again.',
-    'library.no_stories_body_empty':
-        'Ask a caregiver to upload a story\nfrom the Content Management page.',
-    'library.no_match_title': 'No stories match your filters',
-    'library.no_match_body':
-        'Try a different category, age range, or search word.',
-    'library.clear_filters': 'Clear filters',
-    'library.stories_found': 'stories found',
     'library.load_error': 'Could not load stories',
 
     // Audio player
@@ -376,8 +354,6 @@ class AppStrings {
     'player.next_btn': 'Next',
     'player.read_along_mode': 'Read Along',
     'player.audio_mode': 'Audio',
-    'player.helper_text':
-        'Tap Listen to hear the story. Words light up as they are read.',
     'player.preview_helper':
         'Preview only. Changes are not saved to any child.',
     'player.preview_banner':
@@ -512,9 +488,6 @@ class AppStrings {
     'community.share_story': 'Share a story',
     'community.choose_story': 'Choose a story',
     'community.choose_story_optional': 'Add a story (optional)',
-    'community.private_stories_hidden':
-        'Private stories are not listed here. Make a story public from its '
-        'edit page to share it.',
     'community.pick_story_or_text': 'Add a story or write something first',
     'community.write_something': 'Write something to share…',
     'community.caption_hint': 'Say something about this story (optional)',
@@ -537,6 +510,14 @@ class AppStrings {
     'community.request_sent': 'Request sent',
     'community.requested': 'Requested',
     'community.wants_connect': 'wants to connect',
+    'community.updates': 'Updates',
+    'community.accepted_you': '{name} accepted your friend request.',
+    'community.declined_you': '{name} declined your friend request.',
+    'community.meet_title': 'Families in the community',
+    'community.meet_body':
+        'Tap the add button to send a friend request. They can accept or decline.',
+    'community.meet_empty': 'No other families have joined yet.',
+    'community.meet_done': 'Done',
     'community.profile': 'Profile',
     'community.profile_load_failed': 'Could not load this profile',
     'community.shared_stories': 'Shared stories',
@@ -629,20 +610,19 @@ class AppStrings {
     'caregiver.tab_community': 'Komuniti',
     'caregiver.no_children': 'Belum ada profil kanak-kanak',
     'caregiver.no_children_hint': 'Tambah seorang kanak-kanak untuk mula.',
-    'caregiver.enter_child_mode': 'Masuk Mod Kanak-kanak',
     'caregiver.dashboard_subtitle':
         'Urus profil dan pantau kemajuan pembelajaran',
     'caregiver.stat_total_children': 'Jumlah\nKanak-kanak',
     'caregiver.stat_total_minutes': 'Jumlah Minit\nMendengar',
-    'caregiver.stat_total_books': 'Jumlah\nBuku Audio',
     'caregiver.stat_avg_engagement': 'Purata\nPenglibatan',
-    'caregiver.section_profiles': 'Profil Kanak-kanak',
+    'caregiver.section_top_books': '3 Buku Teratas',
+    'caregiver.no_listening_title': 'Belum ada pendengaran',
+    'caregiver.no_listening_body':
+        'Buku yang paling banyak didengar oleh anak-anak anda akan dipaparkan di sini.',
     'caregiver.empty_subtitle':
         'Tambah kanak-kanak pertama untuk mula menjejak masa mendengar\ndan memasuki Mod Kanak-kanak.',
     'caregiver.add_first_child': 'Tambah kanak-kanak pertama',
     'caregiver.age': 'Umur',
-    'caregiver.listening_time': 'Masa mendengar:',
-    'caregiver.favorite_genre': 'Genre kegemaran:',
     'caregiver.minutes_short': 'min',
     'caregiver.logout_title': 'Log keluar?',
     'caregiver.logout_body': 'Anda boleh log masuk semula bila-bila masa.',
@@ -773,7 +753,6 @@ class AppStrings {
     'content.filter_lang_all': 'Semua bahasa',
     'content.filter_lang_en': 'English',
     'content.filter_lang_ms': 'Bahasa Malaysia',
-    'content.filter_by_visibility': 'Tapis ikut keterlihatan',
     'content.format_linear': 'Linear',
     'content.format_interactive': 'Interaktif',
     'content.format_quran': 'Al-Quran',
@@ -826,14 +805,6 @@ class AppStrings {
 
     // Upload content
     'upload.title': 'Muat Naik Kandungan',
-    'upload.visibility': 'Siapa boleh melihat buku audio ini?',
-    'upload.visibility_required': 'Sila pilih Peribadi atau Awam',
-    'visibility.private': 'Peribadi',
-    'visibility.private_hint':
-        'Hanya anda dan anak-anak anda boleh melihat buku audio ini.',
-    'visibility.public': 'Awam',
-    'visibility.public_hint':
-        'Semua pengguna aplikasi boleh melihat buku audio ini.',
     'upload.mode_ai': 'Jana dengan AI',
     'upload.mode_manual': 'Muat naik manual',
     'upload.ai_prompt': 'Idea cerita',
@@ -886,8 +857,6 @@ class AppStrings {
     'child.tab_stories': 'Cerita',
     'child.tab_exit': 'Keluar',
     'child.start_story': 'Mulakan Cerita',
-    'child.browse_library': 'Layari Pustaka Cerita',
-    'child.browse_library_sub': 'Cari cerita kegemaran baharu',
     'child.mood_question': 'Bagaimana perasaan kamu hari ini?',
     'child.mood_saved':
         'Bagus! Mood {mood} kamu akan disimpan bersama cerita seterusnya.',
@@ -897,20 +866,9 @@ class AppStrings {
 
     // Story library
     'library.title': 'Pustaka Cerita',
-    'library.subtitle': 'Cari cerita kegemaran kamu yang seterusnya',
-    'library.search_hint': 'Cari cerita...',
-    'library.filters': 'Penapis',
-    'library.age_range': 'Lingkungan Umur',
     'library.no_stories_title': 'Belum ada cerita',
     'library.no_stories_body_error':
         'Kami tidak dapat menghubungi pustaka sekarang.\nTarik ke bawah untuk cuba lagi.',
-    'library.no_stories_body_empty':
-        'Minta penjaga muat naik cerita\ndari halaman Pengurusan Kandungan.',
-    'library.no_match_title': 'Tiada cerita yang sepadan dengan penapis',
-    'library.no_match_body':
-        'Cuba kategori, lingkungan umur, atau perkataan carian yang berbeza.',
-    'library.clear_filters': 'Buang penapis',
-    'library.stories_found': 'cerita ditemui',
     'library.load_error': 'Tidak dapat memuatkan cerita',
 
     // Audio player
@@ -921,8 +879,6 @@ class AppStrings {
     'player.next_btn': 'Seterusnya',
     'player.read_along_mode': 'Baca Bersama',
     'player.audio_mode': 'Audio',
-    'player.helper_text':
-        'Ketik Dengar untuk mendengar cerita. Perkataan akan menyala apabila dibaca.',
     'player.preview_helper':
         'Pratonton sahaja. Perubahan tidak disimpan untuk mana-mana kanak-kanak.',
     'player.preview_banner':
@@ -1058,9 +1014,6 @@ class AppStrings {
     'community.share_story': 'Kongsi cerita',
     'community.choose_story': 'Pilih cerita',
     'community.choose_story_optional': 'Tambah cerita (pilihan)',
-    'community.private_stories_hidden':
-        'Cerita peribadi tidak disenaraikan di sini. Jadikan cerita awam '
-        'melalui halaman sunting untuk berkongsi.',
     'community.pick_story_or_text': 'Tambah cerita atau tulis sesuatu dahulu',
     'community.write_something': 'Tulis sesuatu untuk dikongsi…',
     'community.caption_hint': 'Kata sesuatu tentang cerita ini (pilihan)',
@@ -1083,6 +1036,14 @@ class AppStrings {
     'community.request_sent': 'Permintaan dihantar',
     'community.requested': 'Diminta',
     'community.wants_connect': 'ingin berhubung',
+    'community.updates': 'Kemas kini',
+    'community.accepted_you': '{name} menerima permintaan rakan anda.',
+    'community.declined_you': '{name} menolak permintaan rakan anda.',
+    'community.meet_title': 'Keluarga dalam komuniti',
+    'community.meet_body':
+        'Ketik butang tambah untuk menghantar permintaan rakan. Mereka boleh terima atau tolak.',
+    'community.meet_empty': 'Belum ada keluarga lain yang menyertai.',
+    'community.meet_done': 'Selesai',
     'community.profile': 'Profil',
     'community.profile_load_failed': 'Tidak dapat memuatkan profil ini',
     'community.shared_stories': 'Cerita dikongsi',

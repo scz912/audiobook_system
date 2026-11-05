@@ -70,7 +70,6 @@ class Audiobook {
   final bool isGenerated;
   final bool isUserUploaded;
   final String? status;
-  final String visibility; // 'private' or 'public'
   final bool isMine; // this caregiver made it
   final List<AudiobookPage> pages;
   final DateTime? createdAt;
@@ -101,7 +100,6 @@ class Audiobook {
     this.isGenerated = false,
     this.isUserUploaded = false,
     this.status,
-    this.visibility = 'public',
     this.isMine = false,
     this.pages = const [],
     this.createdAt,
@@ -143,7 +141,6 @@ class Audiobook {
       isGenerated: safeBool(json['is_generated']),
       isUserUploaded: safeBool(json['is_user_uploaded']),
       status: safeNullableString(json['status']),
-      visibility: safeString(json['visibility'], 'public'),
       isMine: safeBool(json['is_mine']),
       pages: pages,
       createdAt: safeDate(json['created_at']),
@@ -177,7 +174,6 @@ class Audiobook {
         'is_generated': isGenerated,
         'is_user_uploaded': isUserUploaded,
         'status': status,
-        'visibility': visibility,
         'created_at': createdAt?.toIso8601String(),
         'updated_at': updatedAt?.toIso8601String(),
       };

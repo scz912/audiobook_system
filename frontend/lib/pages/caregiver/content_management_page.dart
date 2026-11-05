@@ -39,7 +39,6 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   bool _loading = false;
   String _filter = 'all';
   String _langFilter = 'all'; // 'all' | 'en' | 'ms'
-  String _visibilityFilter = 'all'; // 'all' | 'public' | 'private'
   _Library _library = _Library.linear;
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -66,7 +65,6 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
       filterType: _filter == 'all' ? null : _filter,
       search: _searchCtrl.text.trim(),
       language: _langFilter == 'all' ? null : _langFilter,
-      visibility: _visibilityFilter == 'all' ? null : _visibilityFilter,
     );
 
     final summary = summaryResp.success && summaryResp.data is ContentSummary
@@ -268,14 +266,8 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
                 const TextStyle(color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 18),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            childAspectRatio: 1.2,
-            children: [
+          StatCardGroup(
+            cards: [
               StatCard(icon: Icons.menu_book_outlined, iconBackground: AppColors.iconCircleBlue, value: '${_summary.totalItems}', label: context.tr('content.total_items')),
               StatCard(icon: Icons.headphones_outlined, iconBackground: AppColors.iconCircleGreen, value: '${_summary.audioFiles}', label: context.tr('content.audio_files')),
               StatCard(icon: Icons.description_outlined, iconBackground: AppColors.iconCirclePeach, value: '${_summary.textFiles}', label: context.tr('content.text_files')),
@@ -388,40 +380,6 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
           ),
         ],
       ),
-      const SizedBox(height: 14),
-      Row(
-        children: [
-          const Icon(Icons.visibility_outlined,
-              size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
-          Text(context.tr('content.filter_by_visibility'),
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13)),
-        ],
-      ),
-      const SizedBox(height: 10),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final (value, label, icon) in [
-            ('all', context.tr('common.all'), null),
-            ('public', context.tr('visibility.public'), Icons.public_rounded),
-            ('private', context.tr('visibility.private'),
-                Icons.lock_outline_rounded),
-          ])
-            SoftChip(
-              label: label,
-              icon: icon,
-              selected: _visibilityFilter == value,
-              selectedColor: AppColors.softMint,
-              onTap: () {
-                setState(() => _visibilityFilter = value);
-                _refresh();
-              },
-            ),
-        ],
-      ),
       const SizedBox(height: 18),
       if (_loading)
         const Padding(
@@ -442,7 +400,6 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
           _ContentTile(
             item: item,
             onTap: () => _openPreview(item),
-            // Other caregivers' public books are read-only.
             onEdit: item.canEdit ? () => _editItem(item) : null,
             onDelete: item.canEdit ? () => _deleteItem(item) : null,
             onCancel: item.canEdit ? () => _cancelItem(item) : null,
@@ -492,8 +449,6 @@ class _ContentTile extends StatelessWidget {
     final deleteLabel = context.tr('content.delete_label');
     final tapToPreviewLabel = context.tr('content.tap_to_preview');
     final cancelLabel = context.tr('content.cancel_generation');
-    final visibilityLabel = context.tr(
-        item.isPrivate ? 'visibility.private' : 'visibility.public');
 
     // Material is the card surface. The InkWell wraps only the left preview
     // area so it can't steal taps from the menu, which sits beside it as a
@@ -540,27 +495,6 @@ class _ContentTile extends StatelessWidget {
                                     fontSize: 13),
                               ),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                    item.isPrivate
-                                        ? Icons.lock_outline_rounded
-                                        : Icons.public_rounded,
-                                    size: 14,
-                                    color: AppColors.textSecondary),
-                                const SizedBox(width: 4),
-                                Text(
-                                  visibilityLabel,
-                                  style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
                           if (!processing)
                             Padding(
                               padding: const EdgeInsets.only(top: 6),

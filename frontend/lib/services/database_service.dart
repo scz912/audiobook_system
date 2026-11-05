@@ -18,6 +18,7 @@ import '../models/user_settings.dart';
 import '../models/community/chat_message.dart';
 import '../models/community/community_invite.dart';
 import '../models/community/conversation.dart';
+import '../models/community/friend_update.dart';
 import '../models/community/hub_comment.dart';
 import '../models/community/hub_post.dart';
 import '../models/community/member.dart';
@@ -363,7 +364,6 @@ class DatabaseService {
     String? category,
     String? ageGroup,
     String? language, // 'en' or 'ms' - narrows the library to one language
-    String? visibility, // 'public' or 'private'
   }) async {
     final resp = await _post('/content/list', body: {
       'filter_type': ?filterType,
@@ -371,7 +371,6 @@ class DatabaseService {
       if (category != null && category.isNotEmpty) 'category': category,
       if (ageGroup != null && ageGroup.isNotEmpty) 'age_group': ageGroup,
       if (language != null && language.isNotEmpty) 'language': language,
-      if (visibility != null && visibility.isNotEmpty) 'visibility': visibility,
     });
     if (resp.success && resp.data is Map<String, dynamic>) {
       final items = (resp.data as Map<String, dynamic>)['items'];
@@ -481,7 +480,6 @@ class DatabaseService {
      ContentItem (with its id) on success. */
   static Future<ApiResponse> createContentWithCover({
     required String title,
-    required String visibility, // 'private' or 'public'
     String? topic,
     String? difficulty,
     String? tags,
@@ -515,7 +513,6 @@ class DatabaseService {
       request.fields['title'] = title;
       request.fields['type'] = type ?? 'Text';
       request.fields['book_format'] = bookFormat;
-      request.fields['visibility'] = visibility;
       request.fields['is_user_uploaded'] = '1';
       if (topic != null && topic.isNotEmpty) request.fields['topic'] = topic;
       if (difficulty != null && difficulty.isNotEmpty) {
@@ -635,7 +632,6 @@ class DatabaseService {
      book. Returns the new ContentItem on success. */
   static Future<ApiResponse> generateAiContent({
     required String topic,
-    required String visibility, // 'private' or 'public'
     String? ageGroup,
     String? category,
     String? difficulty,
@@ -663,7 +659,6 @@ class DatabaseService {
           'split_count': splitCount,
         },
         'topic': topic,
-        'visibility': visibility,
         if (ageGroup != null && ageGroup.isNotEmpty) 'age_group': ageGroup,
         if (category != null && category.isNotEmpty) 'category': category,
         if (difficulty != null && difficulty.isNotEmpty) 'difficulty': difficulty,
@@ -998,6 +993,15 @@ class DatabaseService {
 
   static Future<ApiResponse> removeFriend(String caregiverId) =>
       _post('/friends/remove', body: {'caregiver_id': caregiverId});
+
+  // Answers to friend requests I sent that I haven't seen yet.
+  static Future<ApiResponse> friendRequestUpdates() async {
+    final resp = await _post('/friends/updates');
+    return _wrapList(resp, FriendUpdate.fromJson);
+  }
+
+  static Future<ApiResponse> markFriendUpdatesSeen() =>
+      _post('/friends/updates/seen');
 
   // A member's profile plus how many books they've shared.
   static Future<ApiResponse> memberProfile(String caregiverId) async {

@@ -467,17 +467,36 @@ PROMPT;
             . 'Scene: ' . $prompt;
     }
 
+    // Who the story is for. The age is optional; caregivers no longer pick one.
+    private function audience(?string $ageGroup): string
+    {
+        return $ageGroup ? "autistic children aged {$ageGroup}" : 'young autistic children';
+    }
+
+    /* How much text goes on each page, from the caregiver's difficulty:
+       Easy = 1 sentence, Medium = 2, Hard = 3 or more. */
+    private function sentencesPerPage(?string $difficulty): string
+    {
+        return match (strtolower((string) $difficulty)) {
+            'medium' => 'exactly two short, simple sentences',
+            'hard'   => 'three to five simple sentences (never fewer than three)',
+            default  => 'exactly one short, simple sentence',
+        };
+    }
+
     // Make a paged, autism-friendly story.
-    public function generateStory(string $topic, ?string $ageGroup, ?string $sourceText, ?int $pageCount = null, ?string $language = null): array
+    public function generateStory(string $topic, ?string $ageGroup, ?string $sourceText, ?int $pageCount = null, ?string $language = null, ?string $difficulty = null): array
     {
         Log::info('[Gemini] generateStory called', [
             'topic'      => $topic,
             'age_group'  => $ageGroup,
             'page_count' => $pageCount,
             'language'   => $language,
+            'difficulty' => $difficulty,
             'model'      => $this->textModel,
         ]);
-        $age = $ageGroup ?: '7-9';
+        $audience = $this->audience($ageGroup);
+        $sentences = $this->sentencesPerPage($difficulty);
         $instruction = ($sourceText !== null && trim($sourceText) !== '')
             ? "Rewrite the following text into a calming, autism-friendly children's story.\n\nTEXT:\n" . trim($sourceText)
             : "Write a calming, autism-friendly children's story about: {$topic}";
@@ -487,7 +506,7 @@ PROMPT;
         $lengthRule = ($pageCount !== null && $pageCount > 0)
             ? "Split the story into exactly {$pageCount} short pages, like a picture book."
             : 'Split the story into between 4 and 6 short pages, like a picture book - '
-                . 'choose a sensible length for the topic and age.';
+                . 'choose a sensible length for the topic.';
 
         /* Tell Gemini what language to write in. Image prompts stay English
            so the image model gets clear, simple words. */
@@ -498,7 +517,7 @@ PROMPT;
         };
 
         $prompt = <<<PROMPT
-You are an author creating gentle, sensory-friendly stories for autistic children aged {$age}.
+You are an author creating gentle, sensory-friendly stories for {$audience}.
 {$instruction}
 
 Stay close to what the reader asked for: keep the characters, setting, and ideas
@@ -508,10 +527,11 @@ they described, and make the story actually about their request.
 
 {$lengthRule}
 For each page give:
-- "text": one or two very short, simple sentences for that page.
+- "text": {$sentences} for that page.
 - "image_prompt": a clear description of a gentle illustration for THAT page's scene.
 
 Rules:
+- Count the sentences on every page. Each page's "text" must have {$sentences}.
 - Keep a calm, warm, predictable tone. No scary, loud, or sudden events.
 - Avoid idioms and sarcasm; be literal and clear.
 - Each page's text should follow on naturally from the page before.
@@ -649,7 +669,8 @@ PROMPT;
         int $pageCount,
         int $interactions,
         int $splits,
-        ?string $language = null
+        ?string $language = null,
+        ?string $difficulty = null
     ): array {
         $plan = self::planInteractiveStory($pageCount, $interactions, $splits);
         Log::info('[Gemini] generateInteractiveStory called', [
@@ -657,7 +678,8 @@ PROMPT;
             'plan'  => $plan,
         ]);
 
-        $age = $ageGroup ?: '7-9';
+        $audience = $this->audience($ageGroup);
+        $sentences = $this->sentencesPerPage($difficulty);
         $token = \App\Models\AudiobookPage::CHOICE_TOKEN;
         $instruction = ($sourceText !== null && trim($sourceText) !== '')
             ? "Turn the following text into a calming, autism-friendly interactive children's story.\n\nTEXT:\n" . trim($sourceText)
@@ -682,7 +704,7 @@ PROMPT;
 
         $prompt = <<<PROMPT
 You are an author creating gentle, sensory-friendly INTERACTIVE stories for
-autistic children aged {$age}.
+{$audience}.
 {$instruction}
 
 Stay close to what the reader asked for: keep the characters, setting, and ideas
@@ -705,7 +727,8 @@ PAGE PLAN (follow it exactly; there are exactly {$pageCount} pages, in this orde
 
 For each page return:
 - "page_number": the page number from the plan.
-- "text": one or two very short, simple sentences (empty on SPLIT pages).
+- "text": {$sentences} (empty on SPLIT pages). On an INTERACTION page the
+  question counts as one of these sentences.
 - "image_prompt": a clear description of a gentle illustration for that page
   (empty on SPLIT pages; each branch has its own).
 - "choices": the answers, only on INTERACTION pages; otherwise an empty list.
@@ -731,7 +754,7 @@ Rules for PLACEHOLDER RESPONSE pages:
 Rules for SPLIT pages:
 - The two versions should feel clearly different (a different place, activity,
   or event), each one directly following its own choice.
-- Each version is one or two short sentences with its own image_prompt.
+- Each version has {$sentences}, and its own image_prompt.
 - Both versions must end so the next page follows naturally from either one.
   Nothing later in the story may depend on which version was read.
 

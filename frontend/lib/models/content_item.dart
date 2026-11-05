@@ -21,7 +21,6 @@ class ContentItem {
   final bool isGenerated;
   final bool isUserUploaded;
   final String? status;
-  final String visibility; // 'private' or 'public'
   final bool isMine; // this caregiver made it
   final bool canEdit; // this caregiver may change or delete it
   final String? language; // 'en' or 'ms'
@@ -50,7 +49,6 @@ class ContentItem {
     this.isGenerated = false,
     this.isUserUploaded = false,
     this.status,
-    this.visibility = 'public',
     this.isMine = false,
     this.canEdit = false,
     this.language,
@@ -59,8 +57,6 @@ class ContentItem {
     this.bgmVolume = 30,
     this.musicTrack,
   });
-
-  bool get isPrivate => visibility == 'private';
 
   factory ContentItem.fromJson(Map<String, dynamic> json) {
     final rawTrack = json['music_track'];
@@ -84,7 +80,6 @@ class ContentItem {
       isGenerated: safeBool(json['is_generated']),
       isUserUploaded: safeBool(json['is_user_uploaded']),
       status: safeNullableString(json['status']),
-      visibility: safeString(json['visibility'], 'public'),
       isMine: safeBool(json['is_mine']),
       canEdit: safeBool(json['can_edit']),
       language: safeNullableString(json['language']),
@@ -117,7 +112,6 @@ class ContentItem {
         'is_generated': isGenerated,
         'is_user_uploaded': isUserUploaded,
         'status': status,
-        'visibility': visibility,
         'language': language,
         'created_at': createdAt?.toIso8601String(),
       };

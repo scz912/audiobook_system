@@ -1,9 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
-import '../../models/child_profile.dart';
-import '../../models/content_summary.dart';
 import '../../models/insights_overview.dart';
 import '../../navigation/app_navigation_service.dart';
 import '../../services/database_service.dart';
@@ -13,10 +12,9 @@ import '../../theme/app_colors.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/stat_card.dart';
+import '../child/audio_player_page.dart';
 import '../shared/auth_gate.dart';
-import '../child/child_shell.dart';
 import 'add_child_dialog.dart';
-import 'child_profile_actions.dart';
 
 class CaregiverDashboardPage extends StatefulWidget {
   final ValueChanged<int>? onJumpToTab;
@@ -28,7 +26,6 @@ class CaregiverDashboardPage extends StatefulWidget {
 
 class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
   InsightsOverview? _overview;
-  ContentSummary? _summary;
 
   @override
   void initState() {
@@ -36,298 +33,286 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
     _loadStats();
   }
 
-  // Load the real numbers for the stat cards (engagement + total books).
+  // Engagement and the most-listened books, across all children.
   Future<void> _loadStats() async {
-    final overviewResp = await DatabaseService.getInsightsOverview();
-    final summaryResp = await DatabaseService.getContentSummary();
+    final resp = await DatabaseService.getInsightsOverview();
     if (!mounted) return;
-    setState(() {
-      if (overviewResp.success && overviewResp.data is InsightsOverview) {
-        _overview = overviewResp.data as InsightsOverview;
-      }
-      if (summaryResp.success && summaryResp.data is ContentSummary) {
-        _summary = summaryResp.data as ContentSummary;
-      }
-    });
+    if (resp.success && resp.data is InsightsOverview) {
+      setState(() => _overview = resp.data as InsightsOverview);
+    }
   }
 
-  void _enterChildMode(BuildContext context, ChildProfile profile) {
-    context.read<ProfilesState>().enterChildMode(profile);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const ChildShell()),
+  // Play the book the way the child hears it. Preview mode records nothing.
+  void _openBook(TopStory story) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AudioPlayerPage(
+          title: story.title,
+          audiobookId: story.audiobookId,
+          previewMode: true,
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final profiles = context.watch<ProfilesState>();
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                context.tr('caregiver.dashboard'),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  height: 1.15,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => const _LogoutDialog(),
-                );
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
-                textStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: Text(context.tr('caregiver.logout')),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          context.tr('caregiver.dashboard_subtitle'),
-          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 20),
+    final stats = [
+      StatCard(
+        icon: Icons.people_outline,
+        iconBackground: AppColors.iconCircleBlue,
+        value: '${profiles.totalChildren}',
+        label: context.tr('caregiver.stat_total_children'),
+      ),
+      StatCard(
+        icon: Icons.access_time,
+        iconBackground: AppColors.iconCircleGreen,
+        value: '${profiles.totalListeningMinutes}',
+        label: context.tr('caregiver.stat_total_minutes'),
+      ),
+      StatCard(
+        icon: Icons.psychology_outlined,
+        iconBackground: AppColors.iconCirclePurple,
+        value: _overview == null ? '…' : '${_overview!.completionRate}%',
+        label: context.tr('caregiver.stat_avg_engagement'),
+      ),
+    ];
+    final topBooks = _overview?.topStories.take(3).toList();
 
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 14,
-          crossAxisSpacing: 14,
-          // Just shy of square - fits the two-line labels with no gap below.
-          childAspectRatio: 1.05,
-          children: [
-            StatCard(
-              icon: Icons.people_outline,
+    return RefreshIndicator(
+      onRefresh: _loadStats,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.tr('caregiver.dashboard'),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => const _LogoutDialog(),
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: Text(context.tr('caregiver.logout')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.tr('caregiver.dashboard_subtitle'),
+            style:
+                const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+
+          StatCardGroup(cards: stats),
+
+          const SizedBox(height: 24),
+          Text(
+            context.tr('caregiver.section_top_books'),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          if (profiles.profiles.isEmpty)
+            EmptyState(
+              icon: Icons.child_care_rounded,
+              title: context.tr('caregiver.no_children'),
+              subtitle: context.tr('caregiver.empty_subtitle'),
               iconBackground: AppColors.iconCircleBlue,
-              value: '${profiles.totalChildren}',
-              label: context.tr('caregiver.stat_total_children'),
-            ),
-            StatCard(
-              icon: Icons.access_time,
+              iconColor: AppColors.primaryBlueDark,
+              action: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: AppColors.textPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const AddChildDialog(),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(context.tr('caregiver.add_first_child')),
+              ),
+            )
+          else if (topBooks == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (topBooks.isEmpty)
+            EmptyState(
+              icon: Icons.headphones_rounded,
+              title: context.tr('caregiver.no_listening_title'),
+              subtitle: context.tr('caregiver.no_listening_body'),
               iconBackground: AppColors.iconCircleGreen,
-              value: '${profiles.totalListeningMinutes}',
-              label: context.tr('caregiver.stat_total_minutes'),
-            ),
-            StatCard(
-              icon: Icons.menu_book_outlined,
-              iconBackground: AppColors.iconCirclePeach,
-              value: _summary == null ? '…' : '${_summary!.totalItems}',
-              label: context.tr('caregiver.stat_total_books'),
-            ),
-            StatCard(
-              icon: Icons.psychology_outlined,
-              iconBackground: AppColors.iconCirclePurple,
-              value: _overview == null ? '…' : '${_overview!.completionRate}%',
-              label: context.tr('caregiver.stat_avg_engagement'),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 22),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                context.tr('caregiver.section_profiles'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              iconColor: AppColors.primaryBlueDark,
+            )
+          else
+            for (var i = 0; i < topBooks.length; i++) ...[
+              _TopBookTile(
+                rank: i + 1,
+                story: topBooks[i],
+                onTap: () => _openBook(topBooks[i]),
               ),
-            ),
-            FilledButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const AddChildDialog(),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: AppColors.textPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(context.tr('profiles.add_child')),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        if (profiles.profiles.isEmpty)
-          EmptyState(
-            icon: Icons.child_care_rounded,
-            title: context.tr('caregiver.no_children'),
-            subtitle: context.tr('caregiver.empty_subtitle'),
-            iconBackground: AppColors.iconCircleBlue,
-            iconColor: AppColors.primaryBlueDark,
-            action: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: AppColors.textPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const AddChildDialog(),
-              ),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text(context.tr('caregiver.add_first_child')),
-            ),
-          )
-        else
-          for (final profile in profiles.profiles) ...[
-            _ChildProfileCard(
-              profile: profile,
-              onEnterChildMode: () => _enterChildMode(context, profile),
-            ),
-            const SizedBox(height: 12),
-          ],
-      ],
+              const SizedBox(height: 12),
+            ],
+        ],
+      ),
     );
   }
 }
 
-class _ChildProfileCard extends StatelessWidget {
-  final ChildProfile profile;
-  final VoidCallback onEnterChildMode;
-  const _ChildProfileCard({required this.profile, required this.onEnterChildMode});
+/* One of the children's most-listened books: cover with its rank, the
+   title, and the listening time in large type. */
+class _TopBookTile extends StatelessWidget {
+  final int rank;
+  final TopStory story;
+  final VoidCallback onTap;
+  const _TopBookTile({
+    required this.rank,
+    required this.story,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final cover = story.coverImage;
     return SoftCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.all(12),
+      onTap: onTap,
+      child: Row(
         children: [
-          Row(
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: profile.avatarColor,
-                  shape: BoxShape.circle,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 84,
+                  height: 84,
+                  child: (cover != null && cover.isNotEmpty)
+                      ? CachedNetworkImage(
+                          imageUrl: cover,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 250,
+                          errorWidget: (_, _, _) => _coverFallback(),
+                        )
+                      : _coverFallback(),
                 ),
-                alignment: Alignment.center,
-                child: Text(profile.avatarEmoji, style: const TextStyle(fontSize: 24)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Positioned(
+                left: -6,
+                top: -6,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlueDark,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.surface, width: 2),
+                  ),
+                  child: Text(
+                    '$rank',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  story.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      profile.name,
+                      '${story.minutes}',
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryBlueDark,
                       ),
                     ),
+                    const SizedBox(width: 4),
                     Text(
-                      '${context.tr('caregiver.age')} ${profile.age}',
+                      context.tr('caregiver.minutes_short'),
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
-              ),
-              ChildProfileActionIcons(profile: profile),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.tr('caregiver.listening_time'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 14),
-                ),
-              ),
-              Text(
-                '${profile.listeningMinutes} ${context.tr('caregiver.minutes_short')}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.tr('caregiver.favorite_genre'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 14),
-                ),
-              ),
-              Text(
-                profile.favoriteGenre ?? '-',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onEnterChildMode,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppColors.background,
-                side: const BorderSide(color: AppColors.cardBorder),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: Text(
-                context.tr('caregiver.enter_child_mode'),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              ],
             ),
           ),
+          const Icon(Icons.play_circle_outline_rounded,
+              color: AppColors.primaryBlueDark),
         ],
       ),
     );
   }
+
+  Widget _coverFallback() => Container(
+        color: AppColors.softLavender,
+        alignment: Alignment.center,
+        child: const Icon(Icons.auto_stories_rounded,
+            color: AppColors.primaryBlueDark, size: 32),
+      );
 }
 
 class _LogoutDialog extends StatelessWidget {

@@ -117,6 +117,8 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/respond', [FriendshipController::class, 'respond']);
         Route::post('/remove',  [FriendshipController::class, 'remove']);
         Route::post('/pending', [FriendshipController::class, 'pending']);
+        Route::post('/updates',      [FriendshipController::class, 'updates']);
+        Route::post('/updates/seen', [FriendshipController::class, 'markUpdatesSeen']);
         Route::post('/profile', [FriendshipController::class, 'profile']);
     });
 

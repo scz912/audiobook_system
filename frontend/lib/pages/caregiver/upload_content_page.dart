@@ -25,7 +25,6 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
-import '../../widgets/visibility_picker.dart';
 
 // Interactive audiobook forms, editor cards, steppers and the guide.
 part 'upload_interactive.dart';
@@ -96,14 +95,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
   MusicTrack? _aiBgmTrack;
   int _aiBgmVolume = 30;
 
-  // Who can see the book: 'private' or 'public'. Starts empty so the
-  // caregiver has to choose. Shared by every form on this page.
-  String? _visibility;
-
   // AI ("generate") form
   final _aiTopicCtrl = TextEditingController();
   final _aiBaseTextCtrl = TextEditingController();
-  String _aiAge = '7-9';
   String _aiDifficulty = 'Easy';
   String _aiPages = 'Auto';
   bool _aiGenerateImage = true;
@@ -112,7 +106,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
   // caregiver can override it.
   String? _aiLanguage;
 
-  static const _ages = ['5-6', '7-9', '8-11', '9-12'];
   static const _pageOptions = ['Auto', '4', '6', '8', '10', '12'];
   static const _interactivePageOptions = ['4', '6', '8', '10', '12'];
   static const _guideSeenKey = 'interactive_write_guide_seen';
@@ -131,28 +124,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
     _aiTopicCtrl.dispose();
     _aiBaseTextCtrl.dispose();
     super.dispose();
-  }
-
-  bool _visibilityChosen() {
-    if (_visibility != null) return true;
-    AppSnackbar.warning(context.trRead('upload.visibility_required'),
-        context: context);
-    return false;
-  }
-
-  Widget _visibilityCard() {
-    return SoftCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Label(context.tr('upload.visibility')),
-          VisibilityPicker(
-            value: _visibility,
-            onChanged: (v) => setState(() => _visibility = v),
-          ),
-        ],
-      ),
-    );
   }
 
   // manual storybook builder
@@ -224,8 +195,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
       return;
     }
 
-    if (!_visibilityChosen()) return;
-
     setState(() => _submitting = true);
 
     // 1) Create the book (with optional cover) and get its id.
@@ -237,7 +206,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
         _manualLanguage ?? context.read<LanguageState>().code;
     final created = await DatabaseService.createContentWithCover(
       title: _titleCtrl.text.trim(),
-      visibility: _visibility!,
       topic: _topicCtrl.text.trim(),
       difficulty: _difficulty,
       tags: _tagsCtrl.text.trim(),
@@ -301,15 +269,12 @@ class _UploadContentPageState extends State<UploadContentPage> {
           context: context);
       return;
     }
-    if (!_visibilityChosen()) return;
     setState(() => _generating = true);
     final language =
         _aiLanguage ?? context.read<LanguageState>().code; // app language by default
     final interactive = _format == _BookFormat.interactive;
     final ApiResponse resp = await DatabaseService.generateAiContent(
       topic: topic,
-      visibility: _visibility!,
-      ageGroup: _aiAge,
       difficulty: _aiDifficulty,
       sourceText: _aiBaseTextCtrl.text.trim(),
       generateImage: _aiGenerateImage,
@@ -549,8 +514,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
       return;
     }
 
-    if (!_visibilityChosen()) return;
-
     setState(() => _submitting = true);
 
     // Main path only (first version of each split), for search + music matching.
@@ -564,7 +527,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
     final created = await DatabaseService.createContentWithCover(
       title: _titleCtrl.text.trim(),
-      visibility: _visibility!,
       topic: _topicCtrl.text.trim(),
       difficulty: _difficulty,
       tags: _tagsCtrl.text.trim(),
@@ -712,8 +674,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
           onClear: () => setState(() => _writeBgmTrack = null),
           onVolumeChanged: (v) => setState(() => _writeBgmVolume = v),
         ),
-        const SizedBox(height: 14),
-        _visibilityCard(),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
@@ -968,8 +928,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
           onClear: () => setState(() => _writeBgmTrack = null),
           onVolumeChanged: (v) => setState(() => _writeBgmVolume = v),
         ),
-        const SizedBox(height: 14),
-        _visibilityCard(),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
@@ -1049,20 +1007,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 ),
               ),
               const SizedBox(height: 14),
-              const _Label('Age range'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _ages.map((a) {
-                  return SoftChip(
-                    label: a,
-                    selected: _aiAge == a,
-                    selectedColor: AppColors.softMint,
-                    onTap: () => setState(() => _aiAge = a),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
               const _Label('Difficulty'),
               Wrap(
                 spacing: 8,
@@ -1074,6 +1018,17 @@ class _UploadContentPageState extends State<UploadContentPage> {
                     onTap: () => setState(() => _aiDifficulty = d),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 6),
+              // Matches the backend's sentencesPerPage().
+              Text(
+                switch (_aiDifficulty) {
+                  'Medium' => '2 sentences on each page.',
+                  'Hard' => '3 or more sentences on each page.',
+                  _ => '1 sentence on each page.',
+                },
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 14),
               const _Label('Story length (pages)'),
@@ -1185,8 +1140,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
           onClear: () => setState(() => _aiBgmTrack = null),
           onVolumeChanged: (v) => setState(() => _aiBgmVolume = v),
         ),
-        const SizedBox(height: 14),
-        _visibilityCard(),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,

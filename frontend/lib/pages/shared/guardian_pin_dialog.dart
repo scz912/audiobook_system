@@ -5,18 +5,23 @@ import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 
 /* Shows the Guardian PIN gate. Resolves to `true` when the correct PIN
-   is entered, `false` if the user cancels. */
-Future<bool> showGuardianPinDialog(BuildContext context) async {
+   is entered, `false` if the user cancels. [verifyPin] is for tests; it
+   defaults to checking the PIN with the backend. */
+Future<bool> showGuardianPinDialog(
+  BuildContext context, {
+  Future<bool> Function(String pin) verifyPin = DatabaseService.verifyCurrentPin,
+}) async {
   final result = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const _GuardianPinDialog(),
+    builder: (_) => _GuardianPinDialog(verifyPin: verifyPin),
   );
   return result ?? false;
 }
 
 class _GuardianPinDialog extends StatefulWidget {
-  const _GuardianPinDialog();
+  final Future<bool> Function(String pin) verifyPin;
+  const _GuardianPinDialog({required this.verifyPin});
   @override
   State<_GuardianPinDialog> createState() => _GuardianPinDialogState();
 }
@@ -32,7 +37,19 @@ class _GuardianPinDialogState extends State<_GuardianPinDialog> {
     super.dispose();
   }
 
+  /* Close this dialog only. A late answer (a second submit, or a check that
+     finishes after back was pressed) arrives while the dialog is already
+     closing; popping then would remove the page underneath and leave a
+     black screen. */
+  void _close(bool result) {
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+    Navigator.of(context).pop(result);
+  }
+
   Future<void> _submit() async {
+    // Typing the 4th digit submits; tapping Exit as well must not check twice.
+    if (_verifying) return;
     final pin = _pinCtrl.text.trim();
     if (pin.length != 4) {
       setState(() => _error = context.trRead('login.err_pin_4_digits'));
@@ -42,10 +59,10 @@ class _GuardianPinDialogState extends State<_GuardianPinDialog> {
       _verifying = true;
       _error = null;
     });
-    final ok = await DatabaseService.verifyCurrentPin(pin);
+    final ok = await widget.verifyPin(pin);
     if (!mounted) return;
     if (ok) {
-      Navigator.of(context).pop(true);
+      _close(true);
     } else {
       setState(() {
         _verifying = false;
@@ -157,7 +174,7 @@ class _GuardianPinDialogState extends State<_GuardianPinDialog> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: () => Navigator.of(context).pop(false),
+                    onPressed: () => _close(false),
                     child: Text(
                       context.tr('common.cancel'),
                       style: const TextStyle(

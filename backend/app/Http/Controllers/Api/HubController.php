@@ -64,9 +64,6 @@ class HubController extends ApiController
             if (!$book) {
                 return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
             }
-            if ($book->visibility === 'private') {
-                return $this->errorResponse('Make this story public before sharing it', 'BOOK_PRIVATE', 422);
-            }
         }
 
         $post = HubPost::create([
@@ -192,13 +189,8 @@ class HubController extends ApiController
     private function serializePost(HubPost $post, string $meId): ?array
     {
         $book = $post->audiobook_id
-            ? Audiobook::visibleTo($meId)->where('audiobook_id', $post->audiobook_id)->first()
+            ? Audiobook::where('audiobook_id', $post->audiobook_id)->first()
             : null;
-        // The owner made the story private after sharing it. Keep any caption;
-        // a post with nothing else has nothing left to show.
-        if ($post->audiobook_id && !$book && $post->caption === null) {
-            return null;
-        }
         $author = Caregiver::where('caregiver_id', $post->shared_by)->first();
 
         return [

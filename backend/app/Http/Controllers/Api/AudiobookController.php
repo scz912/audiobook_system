@@ -35,8 +35,9 @@ class AudiobookController extends ApiController
                 );
             }
 
-            $me = $request->get('auth_caregiver')?->caregiver_id;
-            $audiobook = Audiobook::visibleTo($me)
+            $caregiver = $request->get('auth_caregiver');
+            $me = $caregiver?->caregiver_id;
+            $audiobook = Audiobook::openableBy($caregiver)
                 ->with('musicTrack')
                 ->where('audiobook_id', $audiobookId)
                 ->first();
