@@ -74,6 +74,24 @@ class AudiobookVisibilityTest extends TestCase
         $this->api($other, '/content/summary')->assertJsonPath('data.total_items', 1);
     }
 
+    public function test_library_can_be_filtered_by_visibility(): void
+    {
+        $owner = $this->caregiver();
+        $other = $this->caregiver();
+        $private = $this->book($owner, 'private');
+        $public = $this->book($owner, 'public');
+        $this->book($other, 'private');
+
+        $ids = fn (Caregiver $c, string $visibility) => array_column(
+            $this->api($c, '/content/list', ['visibility' => $visibility])->json('data.items'),
+            'audiobook_id'
+        );
+
+        $this->assertSame([$private->audiobook_id], $ids($owner, 'private'));
+        $this->assertSame([$public->audiobook_id], $ids($owner, 'public'));
+        $this->assertSame([], $ids($this->caregiver(), 'private'));
+    }
+
     public function test_private_book_can_only_be_opened_by_its_owner(): void
     {
         $owner = $this->caregiver();

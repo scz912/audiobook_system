@@ -41,6 +41,7 @@ class ContentManagementController extends ApiController
             'category'    => $request->input('category'),
             'age_group'   => $request->input('age_group'),
             'language'    => $request->input('language'),
+            'visibility'  => $request->input('visibility'),
         ]);
         try {
             $query = Audiobook::visibleTo($request->get('auth_caregiver')?->caregiver_id)
@@ -79,6 +80,12 @@ class ContentManagementController extends ApiController
             // Let the library filter by language (en or ms).
             if ($request->filled('language')) {
                 $query->where('language', strtolower($request->input('language')));
+            }
+
+            /* Public or private only. "private" can only ever return this
+               caregiver's own books, since visibleTo already hid the rest. */
+            if ($request->filled('visibility')) {
+                $query->where('visibility', strtolower($request->input('visibility')));
             }
 
             $items = $query->get()->map(fn ($item) => $this->serialize($item))->toArray();

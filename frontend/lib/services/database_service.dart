@@ -363,6 +363,7 @@ class DatabaseService {
     String? category,
     String? ageGroup,
     String? language, // 'en' or 'ms' - narrows the library to one language
+    String? visibility, // 'public' or 'private'
   }) async {
     final resp = await _post('/content/list', body: {
       'filter_type': ?filterType,
@@ -370,6 +371,7 @@ class DatabaseService {
       if (category != null && category.isNotEmpty) 'category': category,
       if (ageGroup != null && ageGroup.isNotEmpty) 'age_group': ageGroup,
       if (language != null && language.isNotEmpty) 'language': language,
+      if (visibility != null && visibility.isNotEmpty) 'visibility': visibility,
     });
     if (resp.success && resp.data is Map<String, dynamic>) {
       final items = (resp.data as Map<String, dynamic>)['items'];

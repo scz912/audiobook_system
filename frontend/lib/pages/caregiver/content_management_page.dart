@@ -39,6 +39,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   bool _loading = false;
   String _filter = 'all';
   String _langFilter = 'all'; // 'all' | 'en' | 'ms'
+  String _visibilityFilter = 'all'; // 'all' | 'public' | 'private'
   _Library _library = _Library.linear;
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -65,6 +66,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
       filterType: _filter == 'all' ? null : _filter,
       search: _searchCtrl.text.trim(),
       language: _langFilter == 'all' ? null : _langFilter,
+      visibility: _visibilityFilter == 'all' ? null : _visibilityFilter,
     );
 
     final summary = summaryResp.success && summaryResp.data is ContentSummary
@@ -384,6 +386,40 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
               _refresh();
             },
           ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          const Icon(Icons.visibility_outlined,
+              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(context.tr('content.filter_by_visibility'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final (value, label, icon) in [
+            ('all', context.tr('common.all'), null),
+            ('public', context.tr('visibility.public'), Icons.public_rounded),
+            ('private', context.tr('visibility.private'),
+                Icons.lock_outline_rounded),
+          ])
+            SoftChip(
+              label: label,
+              icon: icon,
+              selected: _visibilityFilter == value,
+              selectedColor: AppColors.softMint,
+              onTap: () {
+                setState(() => _visibilityFilter = value);
+                _refresh();
+              },
+            ),
         ],
       ),
       const SizedBox(height: 18),
