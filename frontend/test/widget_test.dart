@@ -9,6 +9,8 @@ void main() {
     // SharedPreferences which the test binding doesn't fully mock, so we
     // tolerate any post-frame async work.
     await tester.pumpWidget(const AudiobookApp());
+    // Let Paige's loading-screen hello finish so no timer is left pending.
+    await tester.pump(const Duration(seconds: 3));
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

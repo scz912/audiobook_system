@@ -78,16 +78,16 @@ class Audiobook extends Model
         });
     }
 
-    /* Books this caregiver can change: their own, plus older books from
-       before books had owners. */
+    /* Books this caregiver can change or delete: only their own. Books with
+       no owner used to be editable by everyone, so deleting one removed it
+       for every family; each caregiver now has their own copy instead (see
+       the give_each_caregiver_own_copy_of_shared_books migration). */
     public function scopeEditableBy($query, ?string $caregiverId)
     {
-        return $query->where(function ($q) use ($caregiverId) {
-            $q->whereNull('caregiver_id');
-            if ($caregiverId) {
-                $q->orWhere('caregiver_id', $caregiverId);
-            }
-        });
+        if (!$caregiverId) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->where('caregiver_id', $caregiverId);
     }
 
     /* Books this caregiver can open in the player: their library, plus any

@@ -743,7 +743,7 @@ class ContentManagementController extends ApiController
             'status'           => $item->status,
             'visibility'       => $item->visibility,
             'is_mine'          => $item->isOwnedBy($me),
-            'can_edit'         => $item->caregiver_id === null || $item->isOwnedBy($me),
+            'can_edit'         => $item->isOwnedBy($me),
             'track_id'         => $item->track_id,
             'bgm_volume'       => (int) ($item->bgm_volume ?? 30),
             'music_track'      => $track ? [

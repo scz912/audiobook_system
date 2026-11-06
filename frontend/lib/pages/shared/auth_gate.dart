@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +12,7 @@ import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../caregiver/caregiver_shell.dart';
 import 'login_page.dart';
+import 'splash_page.dart';
 
 // Decides whether to show the login page or the main app.
 class AuthGate extends StatefulWidget {
@@ -20,15 +23,42 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
+  /* Paige's hello on the loading screen plays once per app launch, and long
+     enough to finish waving even when the saved login loads instantly.
+     AuthGate is rebuilt when leaving Child Mode; that shouldn't replay it. */
+  static const _minSplash = Duration(milliseconds: 2600);
+  static bool _splashPlayed = false;
+
   AuthStatus? _lastStatus;
   String? _lastCaregiverId;
+  bool _holdSplash = false;
+  Timer? _splashTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_splashPlayed) {
+      _splashPlayed = true;
+      _holdSplash = true;
+      _splashTimer = Timer(_minSplash, () {
+        if (mounted) setState(() => _holdSplash = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _splashTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
     final caregiverId = auth.user?.caregiverId;
 
-    // Only act when the login status or caregiver changes.
+    // Only act when the login status or caregiver changes. This runs during
+    // the splash too, so the caregiver's profiles load while Paige waves.
     if (auth.status != _lastStatus || caregiverId != _lastCaregiverId) {
       _lastStatus = auth.status;
       _lastCaregiverId = caregiverId;
@@ -36,11 +66,22 @@ class _AuthGateState extends State<AuthGate> {
           .addPostFrameCallback((_) => _onAuthChanged(auth.status));
     }
 
-    switch (auth.status) {
+    final showSplash = _holdSplash || auth.status == AuthStatus.unknown;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: KeyedSubtree(
+        key: ValueKey(showSplash ? 'splash' : auth.status),
+        child: showSplash ? const SplashPage() : _pageFor(auth.status),
+      ),
+    );
+  }
+
+  Widget _pageFor(AuthStatus status) {
+    switch (status) {
       case AuthStatus.unknown:
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+        return const SplashPage();
       case AuthStatus.signedOut:
         return const LoginPage();
       case AuthStatus.signedIn:

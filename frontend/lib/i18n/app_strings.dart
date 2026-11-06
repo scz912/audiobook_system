@@ -37,6 +37,10 @@ class AppStrings {
     'common.done': 'Done',
     'common.continue': 'Continue',
     'common.loading': 'Loading…',
+
+    // Loading screen (Paige the mascot)
+    'splash.hi': "Hi! I'm Paige",
+    'splash.loading': 'Getting your stories ready…',
     'common.retry': 'Retry',
     'common.search': 'Search',
     'common.filter': 'Filter',
@@ -586,6 +590,10 @@ class AppStrings {
     'common.done': 'Selesai',
     'common.continue': 'Teruskan',
     'common.loading': 'Memuatkan…',
+
+    // Loading screen (Paige the mascot)
+    'splash.hi': 'Hai! Saya Paige',
+    'splash.loading': 'Menyediakan cerita anda…',
     'common.retry': 'Cuba lagi',
     'common.search': 'Cari',
     'common.filter': 'Tapis',

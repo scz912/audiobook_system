@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFC83D</color>
+    <!-- Matches the Flutter loading screen so there is no white flash. -->
+    <color name="launch_background">#FFF7E8</color>
+</resources>

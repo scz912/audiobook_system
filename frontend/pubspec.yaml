@@ -52,11 +52,13 @@ dependencies:
   flutter_lame: ^1.0.3
   permission_handler: ^12.0.1
   device_info_plus: ^12.4.0
+  flutter_svg: ^2.3.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -65,3 +67,28 @@ flutter:
     # Chapter list + download sizes for the Al-Quran pack. The audio itself
     # is downloaded on demand (see services/quran_pack_service.dart).
     - assets/quran/quran_manifest.json
+    # Paige the mascot, split into layers for the loading-screen animation.
+    - assets/branding/paige/
+
+# App icon: Paige's book face. Sources live in tool_assets/ (SVG + 1024px PNG
+# renders). Regenerate every platform's icons with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "tool_assets/paige_app_icon.png"
+  android: "ic_launcher"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFC83D"
+  adaptive_icon_foreground: "tool_assets/paige_app_icon_foreground.png"
+  ios: true
+  image_path_ios: "tool_assets/paige_app_icon_square.png"
+  remove_alpha_ios: true
+  background_color_ios: "#FFC83D"
+  web:
+    generate: true
+    image_path: "tool_assets/paige_app_icon.png"
+    background_color: "#FFF7E8"
+    theme_color: "#7457F5"
+  windows:
+    generate: true
+    image_path: "tool_assets/paige_app_icon.png"
+    icon_size: 256
