@@ -11,7 +11,7 @@ import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
-import '../../widgets/stat_card.dart';
+import '../../widgets/stat_sphere_carousel.dart';
 import '../child/audio_player_page.dart';
 import '../shared/auth_gate.dart';
 import 'add_child_dialog.dart';
@@ -59,21 +59,21 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
   Widget build(BuildContext context) {
     final profiles = context.watch<ProfilesState>();
     final stats = [
-      StatCard(
+      StatSphere(
         icon: Icons.people_outline,
-        iconBackground: AppColors.iconCircleBlue,
+        palette: SpherePalette.blue,
         value: '${profiles.totalChildren}',
         label: context.tr('caregiver.stat_total_children'),
       ),
-      StatCard(
+      StatSphere(
         icon: Icons.access_time,
-        iconBackground: AppColors.iconCircleGreen,
+        palette: SpherePalette.green,
         value: '${profiles.totalListeningMinutes}',
         label: context.tr('caregiver.stat_total_minutes'),
       ),
-      StatCard(
+      StatSphere(
         icon: Icons.psychology_outlined,
-        iconBackground: AppColors.iconCirclePurple,
+        palette: SpherePalette.purple,
         value: _overview == null ? '…' : '${_overview!.completionRate}%',
         label: context.tr('caregiver.stat_avg_engagement'),
       ),
@@ -132,7 +132,7 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
           ),
           const SizedBox(height: 20),
 
-          StatCardGroup(cards: stats),
+          StatSphereCarousel(spheres: stats),
 
           const SizedBox(height: 24),
           Text(

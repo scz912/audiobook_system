@@ -108,7 +108,9 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
     final stories = _inFormat;
     final showQuran = _library == _Library.quran;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      // As a Child Mode tab (it has onBack there) the taskbar's dyed
+      // background shows through; as its own page it has the usual one.
+      backgroundColor: widget.onBack != null ? Colors.transparent : AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadStories,

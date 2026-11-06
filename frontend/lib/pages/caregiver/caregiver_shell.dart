@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
 import '../../state/friends_state.dart';
-import '../../theme/app_colors.dart';
-import '../../widgets/notification_dot.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import '../community/community_page.dart';
+import '../piano/piano_page.dart';
 import 'caregiver_dashboard_page.dart';
 import 'content_management_page.dart';
 import 'insights_page.dart';
@@ -28,6 +28,9 @@ class _CaregiverShellState extends State<CaregiverShell> {
   Timer? _notificationTimer;
 
   static const _communityTab = 4;
+  static const _pianoTab = 5;
+  // Lets the taskbar ask the piano before leaving an unsaved recording.
+  final _pianoKey = GlobalKey<PianoPageState>();
 
   @override
   void initState() {
@@ -49,14 +52,17 @@ class _CaregiverShellState extends State<CaregiverShell> {
     if (mounted) context.read<FriendsState>().refreshNotifications();
   }
 
-  // Menu bottom nav specs
+  /* Taskbar tabs. Each has its own hue, spread round the colour wheel,
+     since it also dyes the page background - pages should be easy to
+     tell apart at a glance. */
   static const _tabs = <_TabSpec>[
-    _TabSpec(Icons.home_outlined, 'caregiver.tab_dashboard', AppColors.primaryBlue),
-    _TabSpec(Icons.people_outline, 'caregiver.tab_profiles', AppColors.primaryBlue),
-    _TabSpec(Icons.upload_outlined, 'caregiver.tab_content', AppColors.softPeach),
-    _TabSpec(Icons.bar_chart_outlined, 'caregiver.tab_insights', AppColors.softMint),
-    _TabSpec(Icons.diversity_3_outlined, 'caregiver.tab_community', AppColors.softLavender),
-    _TabSpec(Icons.settings_outlined, 'caregiver.tab_settings', AppColors.softMint),
+    _TabSpec(Icons.home_outlined, 'caregiver.tab_dashboard', Color(0xFFA9C5E8)), // sky blue
+    _TabSpec(Icons.people_outline, 'caregiver.tab_profiles', Color(0xFFF5BE96)), // apricot
+    _TabSpec(Icons.upload_outlined, 'caregiver.tab_content', Color(0xFFF3DC8A)), // butter yellow
+    _TabSpec(Icons.bar_chart_outlined, 'caregiver.tab_insights', Color(0xFFA9DBB8)), // mint
+    _TabSpec(Icons.diversity_3_outlined, 'caregiver.tab_community', Color(0xFFC9B6EC)), // lavender
+    _TabSpec(Icons.piano_outlined, 'caregiver.tab_piano', Color(0xFFF2B3CB)), // pink
+    _TabSpec(Icons.settings_outlined, 'caregiver.tab_settings', Color(0xFF9ED8DB)), // teal
   ];
 
   Widget _pageFor(int i) {
@@ -74,24 +80,40 @@ class _CaregiverShellState extends State<CaregiverShell> {
       case 4:
         return const CommunityPage();
       case 5:
+        return PianoPage(key: _pianoKey);
+      case 6:
         return SettingsPage(onBack: backToDashboard);
       default:
         return const SizedBox.shrink();
     }
   }
 
+  Future<void> _selectTab(int i) async {
+    if (i == _index) return;
+    if (_index == _pianoTab &&
+        !(await _pianoKey.currentState?.confirmLeave() ?? true)) {
+      return;
+    }
+    if (mounted) setState(() => _index = i);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(child: _pageFor(_index)),
-      bottomNavigationBar: _CaregiverBottomNav(
-        tabs: _tabs,
-        currentIndex: _index,
-        dotted: {
-          if (context.watch<FriendsState>().hasNotification) _communityTab,
-        },
-        onTap: (i) => setState(() => _index = i),
-      ),
+    return ShelfTabScaffold(
+      body: _pageFor(_index),
+      items: [
+        for (var i = 0; i < _tabs.length; i++)
+          ShelfNavItem(
+            icon: _tabs[i].icon,
+            label: context.tr(_tabs[i].labelKey),
+            color: _tabs[i].highlight,
+            dot: i == _communityTab && context.watch<FriendsState>().hasNotification,
+          ),
+      ],
+      currentIndex: _index,
+      // The piano is drawn sideways, so the icons turn with it.
+      rotateItems: _index == _pianoTab,
+      onTap: _selectTab,
     );
   }
 }
@@ -102,89 +124,4 @@ class _TabSpec {
   final String labelKey;
   final Color highlight;
   const _TabSpec(this.icon, this.labelKey, this.highlight);
-}
-
-class _CaregiverBottomNav extends StatelessWidget {
-  final List<_TabSpec> tabs;
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  const _CaregiverBottomNav({
-    required this.tabs,
-    required this.currentIndex,
-    required this.onTap,
-    this.dotted = const {},
-  });
-
-  // Tabs that show a red notification dot.
-  final Set<int> dotted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: List.generate(tabs.length, (i) {
-            final t = tabs[i];
-            final selected = i == currentIndex;
-            return Expanded(
-              child: InkWell(
-                onTap: () => onTap(i),
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 32,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: selected ? t.highlight : Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(t.icon,
-                                size: 22, color: AppColors.textPrimary),
-                          ),
-                          if (dotted.contains(i))
-                            const Positioned(
-                                top: 2, right: 6, child: NotificationDot()),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      // FittedBox shrinks long labels (like the Bahasa ones)
-                      // to fit one line; short labels stay full size.
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.center,
-                        child: Text(
-                          context.tr(t.labelKey),
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
 }

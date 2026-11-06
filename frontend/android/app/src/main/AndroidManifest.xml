@@ -1,9 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Saving piano recordings (MP3) to Downloads. Only Android 10 and
+         older need these; newer versions let apps add files to Downloads. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
     <application
         android:label="autism_audiobook"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"

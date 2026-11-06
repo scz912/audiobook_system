@@ -5,7 +5,9 @@ import '../../i18n/i18n.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import '../caregiver/caregiver_shell.dart';
+import '../piano/piano_page.dart';
 import '../shared/guardian_pin_dialog.dart';
 import 'child_home_page.dart';
 import 'story_library_page.dart';
@@ -19,6 +21,12 @@ class ChildShell extends StatefulWidget {
 
 class _ChildShellState extends State<ChildShell> {
   int _index = 0;
+  static const _pianoTab = 2;
+  // Acts on tap (asks for the PIN) instead of showing a page.
+  static const _exitTab = 3;
+
+  // Lets the taskbar ask the piano before leaving an unsaved recording.
+  final _pianoKey = GlobalKey<PianoPageState>();
   // Guards against opening the PIN dialog twice (e.g. the Exit tab and the
   // back gesture both firing) - stacked dialogs left a black screen on exit.
   bool _exiting = false;
@@ -56,8 +64,25 @@ class _ChildShellState extends State<ChildShell> {
         // Library's back arrow goes to Home - pop() can't, since it's a tab
         // body, not a pushed route.
         return StoryLibraryPage(onBack: () => setState(() => _index = 0));
+      case _pianoTab:
+        return PianoPage(key: _pianoKey);
       default:
         return const SizedBox.shrink();
+    }
+  }
+
+  Future<void> _selectTab(int i) async {
+    if (i == _index) return;
+    // Ask before an unsaved piano recording is lost.
+    if (_index == _pianoTab &&
+        !(await _pianoKey.currentState?.confirmLeave() ?? true)) {
+      return;
+    }
+    if (!mounted) return;
+    if (i == _exitTab) {
+      _attemptExit();
+    } else {
+      setState(() => _index = i);
     }
   }
 
@@ -68,89 +93,18 @@ class _ChildShellState extends State<ChildShell> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _attemptExit();
       },
-      child: Scaffold(
-        body: SafeArea(child: _pageFor(_index)),
-        bottomNavigationBar: _ChildBottomNav(
-          currentIndex: _index,
-          onTap: (i) {
-            if (i == 2) {
-              _attemptExit();
-            } else {
-              setState(() => _index = i);
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _ChildBottomNav extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  const _ChildBottomNav({required this.currentIndex, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      (icon: Icons.home_outlined, label: context.tr('child.tab_home'), color: AppColors.primaryBlue),
-      (icon: Icons.menu_book_outlined, label: context.tr('child.tab_stories'), color: AppColors.softMint),
-      (icon: Icons.logout, label: context.tr('child.tab_exit'), color: AppColors.softPeach),
-    ];
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: List.generate(tabs.length, (i) {
-            final t = tabs[i];
-            final selected = i == currentIndex && i != 2;
-            return Expanded(
-              child: InkWell(
-                onTap: () => onTap(i),
-                borderRadius: BorderRadius.circular(18),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 38,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? t.color : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(t.icon, size: 24, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.center,
-                        child: Text(
-                          t.label,
-                          maxLines: 1,
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
+      child: ShelfTabScaffold(
+        body: _pageFor(_index),
+        items: [
+          ShelfNavItem(icon: Icons.home_outlined, label: context.tr('child.tab_home'), color: AppColors.primaryBlue),
+          ShelfNavItem(icon: Icons.menu_book_outlined, label: context.tr('child.tab_stories'), color: AppColors.softMint),
+          ShelfNavItem(icon: Icons.piano_outlined, label: context.tr('child.tab_piano'), color: AppColors.softPink),
+          ShelfNavItem(icon: Icons.logout, label: context.tr('child.tab_exit'), color: AppColors.softPeach),
+        ],
+        currentIndex: _index,
+        // The piano is drawn sideways, so the icons turn with it.
+        rotateItems: _index == _pianoTab,
+        onTap: _selectTab,
       ),
     );
   }
