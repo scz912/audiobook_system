@@ -30,9 +30,10 @@ class HubState extends ChangeNotifier {
 
   // Flip a like, updating the card right away then confirming with the server.
   Future<void> toggleLike(HubPost post) async {
-    final willLike = !post.likedByMe;
-    final newCount = post.likeCount + (willLike ? 1 : -1);
-    _replace(post.postId, post.copyWithLike(liked: willLike, count: newCount));
+    final current = _latest(post);
+    final willLike = !current.likedByMe;
+    final newCount = current.likeCount + (willLike ? 1 : -1);
+    _replace(post.postId, current.copyWithLike(liked: willLike, count: newCount));
     notifyListeners();
 
     final resp = willLike
@@ -41,10 +42,35 @@ class HubState extends ChangeNotifier {
     if (resp.success && resp.data is Map<String, dynamic>) {
       final data = resp.data as Map<String, dynamic>;
       final count = data['like_count'] is int ? data['like_count'] as int : newCount;
-      final liked = data['liked'] == true;
-      _replace(post.postId, post.copyWithLike(liked: liked, count: count));
-      notifyListeners();
+      _replace(post.postId,
+          _latest(post).copyWithLike(liked: data['liked'] == true, count: count));
+    } else {
+      _replace(post.postId, current);
     }
+    notifyListeners();
+  }
+
+  /* Leave [emoji] as my one reaction. Tapping the emoji I already left
+     takes it off; another emoji moves my reaction there, so I'm never
+     counted twice. Likes aren't touched. The card updates right away, then
+     the server's totals replace the guess (or it goes back on failure). */
+  Future<void> react(HubPost post, String emoji) async {
+    final current = _latest(post);
+    final removing = current.myReaction == emoji;
+    _replace(post.postId, current.copyWithMyReaction(removing ? null : emoji));
+    notifyListeners();
+
+    final resp = removing
+        ? await DatabaseService.removePostReaction(post.postId)
+        : await DatabaseService.reactToPost(post.postId, emoji);
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      _replace(post.postId,
+          _latest(post).copyWithReactionSummary(resp.data as Map<String, dynamic>));
+    } else {
+      // Didn't go through: put the card back as it was.
+      _replace(post.postId, current);
+    }
+    notifyListeners();
   }
 
   /* Save the post's book into my library. Every post sharing that book
@@ -70,6 +96,10 @@ class HubState extends ChangeNotifier {
     }
     return false;
   }
+
+  // The feed's current copy of [post] (it may have changed since a tap).
+  HubPost _latest(HubPost post) =>
+      _feed.firstWhere((p) => p.postId == post.postId, orElse: () => post);
 
   void _replace(String postId, HubPost updated) {
     _feed = [for (final p in _feed) p.postId == postId ? updated : p];

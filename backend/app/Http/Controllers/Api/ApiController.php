@@ -72,6 +72,25 @@ abstract class ApiController
         return $base . '/' . ltrim($path, '/');
     }
 
+    /* My settings for a contact, as the app reads them. An uploaded
+       background comes back as a full URL. */
+    protected function contactSettings(\App\Models\ContactSetting $s): array
+    {
+        $type = $s->background_type ?: 'none';
+        return [
+            'contact_id'  => $s->contact_id,
+            'is_favorite' => (bool) $s->is_favorite,
+            'is_blocked'  => (bool) $s->is_blocked,
+            'is_muted'    => (bool) $s->is_muted,
+            'background'  => [
+                'type'  => $type,
+                'value' => $type === 'image'
+                    ? $this->mediaUrl($s->background_value)
+                    : $s->background_value,
+            ],
+        ];
+    }
+
     /* A book shared in a chat or hub post, as the card that shows it.
        in_my_library is true when the viewer made it or already saved a copy,
        so the card can say "In your library" instead of offering to save. */

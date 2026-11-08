@@ -6,12 +6,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/community/chat_message.dart';
+import '../../models/community/contact_settings.dart';
 import '../../models/community/conversation.dart';
 import '../../models/content_item.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/chat_background.dart';
 import '../../widgets/emoji_picker_button.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
@@ -34,15 +36,52 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
   bool _loading = true;
   bool _sending = false;
   Timer? _poll;
+  // One-to-one chats: my settings for the other person (background, block).
+  late ContactSettings? _contact = widget.conversation.contact;
 
   String get _conversationId => widget.conversation.conversationId;
+  String? get _otherId => widget.conversation.otherId;
 
   @override
   void initState() {
     super.initState();
     _load(initial: true);
+    _loadContact();
     // Poll for new messages while the thread is open.
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _load());
+  }
+
+  // Fresh settings, in case they changed since the chat list loaded.
+  Future<void> _loadContact() async {
+    final id = _otherId;
+    if (id == null) return;
+    final resp = await DatabaseService.contactSettings(id);
+    if (mounted && resp.success && resp.data is ContactSettings) {
+      setState(() => _contact = resp.data as ContactSettings);
+    }
+  }
+
+  // Their profile holds favorite / mute / background / block.
+  Future<void> _openProfile() async {
+    final id = _otherId;
+    if (id == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MemberProfilePage(caregiverId: id),
+    ));
+    if (mounted) _loadContact();
+  }
+
+  Future<void> _unblock() async {
+    final id = _otherId;
+    if (id == null) return;
+    final resp =
+        await DatabaseService.updateContactSettings(id, {'is_blocked': false});
+    if (!mounted) return;
+    if (resp.success && resp.data is ContactSettings) {
+      setState(() => _contact = resp.data as ContactSettings);
+    } else {
+      AppSnackbar.error(resp.message, context: context);
+    }
   }
 
   @override
@@ -94,6 +133,9 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
         _msgCtrl.clear();
       });
       _scrollToBottom();
+    } else {
+      // e.g. "You can't message this person." after a block.
+      AppSnackbar.error(resp.message, context: context);
     }
   }
 
@@ -146,6 +188,9 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
 
   @override
   Widget build(BuildContext context) {
+    final contact = _contact;
+    final background = contact?.background ?? const ChatBackground.none();
+    final darkBackground = chatBackgroundIsDark(background);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -158,38 +203,110 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(widget.conversation.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700)),
+                    child: InkWell(
+                      // One-to-one: tap the name for their profile & settings.
+                      onTap: _otherId == null ? null : _openProfile,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(widget.conversation.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.w700)),
+                          ),
+                          if (contact?.isFavorite ?? false) ...[
+                            const SizedBox(width: 6),
+                            Icon(Icons.star_rounded,
+                                size: 20,
+                                color: const Color(0xFFE0A100),
+                                semanticLabel: context.tr('contacts.favorite')),
+                          ],
+                          if (contact?.isMuted ?? false) ...[
+                            const SizedBox(width: 4),
+                            Icon(Icons.notifications_off_rounded,
+                                size: 18,
+                                color: AppColors.textSecondary,
+                                semanticLabel: context.tr('contacts.muted')),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _messages.isEmpty
-                      ? Center(
-                          child: Text(context.tr('community.say_hello'),
-                              style: const TextStyle(color: AppColors.textSecondary)))
-                      : ListView.builder(
-                          controller: _scroll,
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          itemCount: _messages.length,
-                          itemBuilder: (_, i) => _Bubble(
-                            message: _messages[i],
-                            showSender: widget.conversation.isGroup,
-                            onSaveBook: _saveBook,
+              child: ChatBackgroundView(
+                background: background,
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _messages.isEmpty
+                        ? Center(
+                            child: Text(context.tr('community.say_hello'),
+                                style: TextStyle(
+                                    color: darkBackground
+                                        ? Colors.white
+                                        : AppColors.textSecondary)))
+                        : ListView.builder(
+                            controller: _scroll,
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            itemCount: _messages.length,
+                            itemBuilder: (_, i) => _Bubble(
+                              message: _messages[i],
+                              showSender: widget.conversation.isGroup,
+                              onSaveBook: _saveBook,
+                            ),
                           ),
-                        ),
+              ),
             ),
-            _Composer(
-              controller: _msgCtrl,
-              sending: _sending,
-              onSend: _send,
-              onShareBook: _shareBook,
+            if (contact?.isBlocked ?? false)
+              _BlockedBar(name: widget.conversation.title, onUnblock: _unblock)
+            else
+              _Composer(
+                controller: _msgCtrl,
+                sending: _sending,
+                onSend: _send,
+                onShareBook: _shareBook,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Instead of the message box when I've blocked this person.
+class _BlockedBar extends StatelessWidget {
+  final String name;
+  final VoidCallback onUnblock;
+  const _BlockedBar({required this.name, required this.onUnblock});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.cardBorder)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            const Icon(Icons.block_rounded, color: AppColors.danger, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                context.tr('contacts.you_blocked').replaceAll('{name}', name),
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            TextButton(
+              onPressed: onUnblock,
+              child: Text(context.tr('contacts.unblock'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),

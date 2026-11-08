@@ -11,6 +11,7 @@ import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
 import 'hub_post_detail_page.dart';
+import 'hub_reactions.dart';
 import 'member_profile_page.dart';
 import 'share_to_hub_page.dart';
 
@@ -210,18 +211,21 @@ class _PostCard extends StatelessWidget {
               ),
             ],
             const Divider(height: 22),
-            // Like + comment actions.
+            // Emoji reactions + comments.
             Row(
               children: [
-                _ActionButton(
-                  icon: post.likedByMe
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  color: post.likedByMe ? AppColors.danger : AppColors.textSecondary,
-                  label: '${post.likeCount}',
-                  onTap: () => hub.toggleLike(post),
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ReactionBar(
+                      post: post,
+                      maxChips: 2,
+                      onToggle: () => hub.toggleLike(post),
+                      onReact: (e) => hub.react(post, e),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: 10),
                 _ActionButton(
                   icon: Icons.mode_comment_outlined,
                   color: AppColors.textSecondary,

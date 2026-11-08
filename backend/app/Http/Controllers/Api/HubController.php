@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Audiobook;
 use App\Models\Caregiver;
+use App\Models\ContactSetting;
 use App\Models\HubComment;
 use App\Models\HubLike;
 use App\Models\HubPost;
+use App\Models\HubReaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -21,7 +23,12 @@ class HubController extends ApiController
             return $resp;
         }
 
-        $posts = HubPost::orderByDesc('created_at')->limit(50)->get();
+        // Posts from people I blocked stay out of my feed.
+        $blocked = ContactSetting::where('caregiver_id', $caregiver->caregiver_id)
+            ->where('is_blocked', true)
+            ->pluck('contact_id');
+        $posts = HubPost::whereNotIn('shared_by', $blocked)
+            ->orderByDesc('created_at')->limit(50)->get();
         $out = $posts->map(fn ($p) => $this->serializePost($p, $caregiver->caregiver_id))
             ->filter(fn ($p) => $p !== null)
             ->values();
@@ -112,6 +119,41 @@ class HubController extends ApiController
         ]);
     }
 
+    /* Leave my emoji reaction on a post. One per person: reacting again
+       with another emoji replaces mine, and the same emoji changes nothing.
+       Likes are separate and untouched. */
+    public function react(Request $request, string $postId): JsonResponse
+    {
+        $caregiver = $request->get('auth_caregiver');
+        if ($resp = $this->ensureMember($caregiver)) {
+            return $resp;
+        }
+        if (!HubPost::where('post_id', $postId)->exists()) {
+            return $this->errorResponse('Post not found', 'NOT_FOUND', 404);
+        }
+        $validator = Validator::make($request->all(), [
+            'emoji' => ['required', 'string', \Illuminate\Validation\Rule::in(HubReaction::EMOJI)],
+        ]);
+        if ($validator->fails()) {
+            return $this->errorResponse('Unknown reaction', 'VALIDATION_ERROR', 422);
+        }
+        HubReaction::updateOrCreate(
+            ['post_id' => $postId, 'caregiver_id' => $caregiver->caregiver_id],
+            ['emoji' => $request->input('emoji')]
+        );
+        return $this->successResponse('Reacted', $this->reactionSummary($postId, $caregiver->caregiver_id));
+    }
+
+    // Take my emoji reaction off a post.
+    public function unreact(Request $request, string $postId): JsonResponse
+    {
+        $caregiver = $request->get('auth_caregiver');
+        HubReaction::where('post_id', $postId)
+            ->where('caregiver_id', $caregiver->caregiver_id)
+            ->delete();
+        return $this->successResponse('Reaction removed', $this->reactionSummary($postId, $caregiver->caregiver_id));
+    }
+
     // Remove my like from a post.
     public function unlike(Request $request, string $postId): JsonResponse
     {
@@ -123,6 +165,21 @@ class HubController extends ApiController
             'like_count' => HubLike::where('post_id', $postId)->count(),
             'liked'      => false,
         ]);
+    }
+
+    /* Emoji reactions on a post: how many of each emoji (most used first)
+       and the viewer's own, if any. */
+    private function reactionSummary(string $postId, string $meId): array
+    {
+        $rows = HubReaction::where('post_id', $postId)->get(['caregiver_id', 'emoji']);
+        return [
+            'my_reaction' => $rows->firstWhere('caregiver_id', $meId)?->emoji,
+            'reactions'   => $rows->countBy('emoji')
+                ->sortDesc()
+                ->map(fn ($count, $emoji) => ['emoji' => $emoji, 'count' => $count])
+                ->values()
+                ->all(),
+        ];
     }
 
     // Comments on a post, oldest first.
@@ -210,7 +267,7 @@ class HubController extends ApiController
             'liked_by_me'   => HubLike::where('post_id', $post->post_id)
                 ->where('caregiver_id', $meId)->exists(),
             'is_mine'       => $post->shared_by === $meId,
-        ];
+        ] + $this->reactionSummary($post->post_id, $meId);
     }
 
     private function serializeComment(HubComment $c, ?Caregiver $author): array

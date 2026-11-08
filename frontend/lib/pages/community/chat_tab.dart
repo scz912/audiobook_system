@@ -118,13 +118,28 @@ class _ChatRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(
+                      Flexible(
                         child: Text(conversation.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15)),
                       ),
+                      if (conversation.isFavorite) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.star_rounded,
+                            size: 17,
+                            color: const Color(0xFFE0A100),
+                            semanticLabel: context.tr('contacts.favorite')),
+                      ],
+                      if (conversation.isBlocked) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.block_rounded,
+                            size: 15,
+                            color: AppColors.danger,
+                            semanticLabel: context.tr('contacts.blocked')),
+                      ],
+                      const Spacer(),
                       Text(shortAgo(conversation.lastActivity),
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 11)),
@@ -141,13 +156,21 @@ class _ChatRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: AppColors.textSecondary,
-                            fontWeight: conversation.unreadCount > 0
+                            fontWeight: conversation.unreadCount > 0 &&
+                                    !conversation.isMuted
                                 ? FontWeight.w700
                                 : FontWeight.w400,
                           ),
                         ),
                       ),
-                      if (conversation.unreadCount > 0) ...[
+                      // Muted: no red badge, just the muted bell.
+                      if (conversation.isMuted) ...[
+                        const SizedBox(width: 8),
+                        Icon(Icons.notifications_off_rounded,
+                            size: 16,
+                            color: AppColors.textMuted,
+                            semanticLabel: context.tr('contacts.muted')),
+                      ] else if (conversation.unreadCount > 0) ...[
                         const SizedBox(width: 8),
                         CountBadge(count: conversation.unreadCount),
                       ],

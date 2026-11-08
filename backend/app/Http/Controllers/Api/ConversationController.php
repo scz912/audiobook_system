@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Audiobook;
 use App\Models\Caregiver;
+use App\Models\ContactSetting;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
@@ -36,8 +37,11 @@ class ConversationController extends ApiController
             $out[] = $this->serializeConversation($conv, $part, $caregiver->caregiver_id);
         }
 
-        // Newest activity first.
-        usort($out, fn ($a, $b) => strcmp($b['last_activity'] ?? '', $a['last_activity'] ?? ''));
+        // Favorite contacts pinned on top, then newest activity first.
+        usort($out, function ($a, $b) {
+            $fav = (int) ($b['contact']['is_favorite'] ?? false) - (int) ($a['contact']['is_favorite'] ?? false);
+            return $fav !== 0 ? $fav : strcmp($b['last_activity'] ?? '', $a['last_activity'] ?? '');
+        });
         return $this->successResponse('OK', $out);
     }
 
@@ -176,6 +180,17 @@ class ConversationController extends ApiController
             );
         }
 
+        // No messages between two people when either has blocked the other.
+        $conv = Conversation::find($conversationId);
+        if ($conv?->type === 'direct') {
+            $otherId = ConversationParticipant::where('conversation_id', $conversationId)
+                ->where('caregiver_id', '!=', $caregiver->caregiver_id)
+                ->value('caregiver_id');
+            if ($otherId && ContactSetting::blockedBetween($caregiver->caregiver_id, $otherId)) {
+                return $this->errorResponse("You can't message this person.", 'BLOCKED', 403);
+            }
+        }
+
         // Only books the sender can open themselves may be passed on.
         $book = null;
         if ($request->filled('audiobook_id')) {
@@ -268,6 +283,11 @@ class ConversationController extends ApiController
             ? $conv->title
             : ($otherPeople[0]['name'] ?? 'Chat');
 
+        // In a one-to-one chat, my settings for the other person (favorite,
+        // blocked, muted, background) shape how the chat looks.
+        $otherId = $conv->type === 'direct' ? ($otherPeople[0]['caregiver_id'] ?? null) : null;
+        $contact = $otherId ? $this->contactSettings(ContactSetting::of($meId, $otherId)) : null;
+
         return [
             'conversation_id' => $conv->conversation_id,
             'type'            => $conv->type,
@@ -279,6 +299,7 @@ class ConversationController extends ApiController
                 'sent_at'   => $last->created_at?->toIso8601String(),
             ] : null,
             'unread_count'    => $unread,
+            'contact'         => $contact,
             'last_activity'   => ($last?->created_at ?? $conv->created_at)?->toIso8601String(),
         ];
     }

@@ -85,7 +85,19 @@ class _CommunityPageState extends State<CommunityPage> {
             indicatorColor: AppColors.primaryBlueDark,
             tabs: [
               Tab(text: context.tr('community.hub')),
-              Tab(text: context.tr('community.chat')),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.tr('community.chat')),
+                    // Unread messages, except from muted contacts.
+                    if (context.watch<ChatState>().hasUnmutedUnread) ...[
+                      const SizedBox(width: 6),
+                      const NotificationDot(),
+                    ],
+                  ],
+                ),
+              ),
               Tab(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

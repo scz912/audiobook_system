@@ -14,6 +14,7 @@ import '../../widgets/emoji_picker_button.dart';
 import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
+import 'hub_reactions.dart';
 import 'member_profile_page.dart';
 import 'shared_book_card.dart';
 
@@ -266,26 +267,14 @@ class _PostHeader extends StatelessWidget {
             ),
           ],
           const Divider(height: 22),
-          InkWell(
-            onTap: () => hub.toggleLike(live),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    live.likedByMe
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: live.likedByMe
-                        ? AppColors.danger
-                        : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text('${live.likeCount} ${context.tr('community.likes')}',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ],
-              ),
+          // The post page has room for every emoji people used.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ReactionBar(
+              post: live,
+              maxChips: HubPost.reactionEmoji.length,
+              onToggle: () => hub.toggleLike(live),
+              onReact: (e) => hub.react(live, e),
             ),
           ),
         ],
