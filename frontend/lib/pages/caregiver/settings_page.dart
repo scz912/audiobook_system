@@ -11,6 +11,7 @@ import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'contact_list_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -53,7 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
       children: [
         Text(
           context.tr('settings.title'),

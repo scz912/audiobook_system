@@ -16,6 +16,7 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/quran_element_thumb.dart';
 import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'audio_player_page.dart';
 import 'quran_player_page.dart';
 
@@ -115,7 +116,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
         child: RefreshIndicator(
           onRefresh: _loadStories,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 12, 20, shelfBottomSpace(context)),
             children: [
               BackPill(onTap: widget.onBack ?? () => Navigator.of(context).maybePop()),
               const SizedBox(height: 16),

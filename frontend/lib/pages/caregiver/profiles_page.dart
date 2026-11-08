@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
 import '../child/child_shell.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
 import 'child_profile_actions.dart';
 
@@ -25,7 +26,7 @@ class ProfilesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final profiles = context.watch<ProfilesState>().profiles;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
       children: [
         Row(
           children: [

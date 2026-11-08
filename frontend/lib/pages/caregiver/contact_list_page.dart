@@ -11,6 +11,7 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 import '../community/community_widgets.dart';
 import '../community/member_profile_page.dart';
+import '../../widgets/shelf_nav_bar.dart';
 
 enum ContactListKind { favorites, blocked }
 
@@ -98,7 +99,7 @@ class _ContactListSubpageState extends State<ContactListSubpage> {
         if (!didPop) widget.onBack();
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
           BackPill(label: context.tr('common.back'), onTap: widget.onBack),
           const SizedBox(height: 14),

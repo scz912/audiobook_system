@@ -14,6 +14,7 @@ import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_chip.dart';
 import '../../widgets/stat_sphere_carousel.dart';
 import '../child/audio_player_page.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'edit_content_page.dart';
 import 'quran_library_section.dart';
 import 'upload_content_page.dart';
@@ -222,7 +223,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
           Row(
             children: [

@@ -6,6 +6,7 @@ import '../../models/community/conversation.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'chat_thread_page.dart';
 import 'community_widgets.dart';
 import 'new_group_page.dart';
@@ -33,17 +34,21 @@ class _ChatTabState extends State<ChatTab> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const NewGroupPage()),
-          );
-          if (context.mounted) context.read<ChatState>().refresh();
-        },
-        backgroundColor: AppColors.primaryBlueDark,
-        icon: const Icon(Icons.group_add_rounded, color: Colors.white),
-        label: Text(context.tr('community.new_group'),
-            style: const TextStyle(color: Colors.white)),
+      // Lifted by the shelf height, since the page runs down behind the shelf.
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NewGroupPage()),
+            );
+            if (context.mounted) context.read<ChatState>().refresh();
+          },
+          backgroundColor: AppColors.primaryBlueDark,
+          icon: const Icon(Icons.group_add_rounded, color: Colors.white),
+          label: Text(context.tr('community.new_group'),
+              style: const TextStyle(color: Colors.white)),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () => chat.refresh(),
@@ -72,7 +77,7 @@ class _ChatTabState extends State<ChatTab> {
                     ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, shelfBottomSpace(context) + 72),
                     itemCount: chat.conversations.length,
                     itemBuilder: (_, i) => _ChatRow(conversation: chat.conversations[i]),
                   ),
@@ -118,28 +123,35 @@ class _ChatRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(conversation.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 15)),
+                      // Name and its icons take the space; the time stays right.
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(conversation.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700, fontSize: 15)),
+                            ),
+                            if (conversation.isFavorite) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.star_rounded,
+                                  size: 17,
+                                  color: const Color(0xFFE0A100),
+                                  semanticLabel: context.tr('contacts.favorite')),
+                            ],
+                            if (conversation.isBlocked) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.block_rounded,
+                                  size: 15,
+                                  color: AppColors.danger,
+                                  semanticLabel: context.tr('contacts.blocked')),
+                            ],
+                          ],
+                        ),
                       ),
-                      if (conversation.isFavorite) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.star_rounded,
-                            size: 17,
-                            color: const Color(0xFFE0A100),
-                            semanticLabel: context.tr('contacts.favorite')),
-                      ],
-                      if (conversation.isBlocked) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.block_rounded,
-                            size: 15,
-                            color: AppColors.danger,
-                            semanticLabel: context.tr('contacts.blocked')),
-                      ],
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       Text(shortAgo(conversation.lastActivity),
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 11)),

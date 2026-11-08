@@ -9,6 +9,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'community_widgets.dart';
 import 'hub_post_detail_page.dart';
 import 'hub_reactions.dart';
@@ -57,12 +58,16 @@ class _HubTabState extends State<HubTab> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openShare,
-        backgroundColor: AppColors.primaryBlueDark,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text(context.tr('community.share'),
-            style: const TextStyle(color: Colors.white)),
+      // Lifted by the shelf height, since the page runs down behind the shelf.
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+        child: FloatingActionButton.extended(
+          onPressed: _openShare,
+          backgroundColor: AppColors.primaryBlueDark,
+          icon: const Icon(Icons.add_rounded, color: Colors.white),
+          label: Text(context.tr('community.share'),
+              style: const TextStyle(color: Colors.white)),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () => hub.refresh(),
@@ -76,7 +81,7 @@ class _HubTabState extends State<HubTab> {
                     ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, shelfBottomSpace(context) + 72),
                     itemCount: hub.feed.length,
                     itemBuilder: (_, i) => _PostCard(post: hub.feed[i]),
                   ),

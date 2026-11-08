@@ -84,7 +84,7 @@ class _CaregiverShellState extends State<CaregiverShell> {
       case 4:
         return const CommunityPage();
       case 5:
-        return PianoPage(key: _pianoKey);
+        return AboveShelf(child: PianoPage(key: _pianoKey));
       case 6:
         return SettingsPage(onBack: backToDashboard);
       default:

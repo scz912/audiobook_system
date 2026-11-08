@@ -590,6 +590,24 @@ class _ShelfPainter extends CustomPainter {
       old.topEnd != topEnd || old.sag != sag || old.dye != dye || old.sunk != sunk;
 }
 
+/* Space for the end of a scrolling page shown above the shelf: the shelf's
+   height plus a little breathing room, so the last item can scroll fully
+   clear of the spheres while the rest of the page shows behind them.
+   Outside a shelf screen it's just the breathing room plus any system inset. */
+double shelfBottomSpace(BuildContext context) =>
+    MediaQuery.paddingOf(context).bottom + 24;
+
+/* Keeps a page that doesn't scroll (like the piano) out from behind the
+   shelf, as pages used to be. */
+class AboveShelf extends StatelessWidget {
+  final Widget child;
+  const AboveShelf({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) =>
+      SafeArea(top: false, left: false, right: false, child: child);
+}
+
 /* A tab screen with the shelf taskbar. The page background is dyed with
    the open tab's colour; switching tabs sends that colour out as a wave
    of ripples from the tapped sphere until it fills the screen, and the
@@ -705,8 +723,11 @@ class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPr
           slotKeys: _slotKeys,
         ),
       ),
-      // Built once per change of page, not every frame of the wave.
-      child: SafeArea(child: widget.body),
+      /* Built once per change of page, not every frame of the wave. The
+         page runs down behind the shelf (no band cutting it off above the
+         spheres); the shelf's height stays in MediaQuery's bottom padding,
+         so each page ends its scrolling with shelfBottomSpace(). */
+      child: SafeArea(bottom: false, child: widget.body),
     );
   }
 }
