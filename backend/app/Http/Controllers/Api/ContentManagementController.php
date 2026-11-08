@@ -9,8 +9,10 @@ use App\Services\GeminiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class ContentManagementController extends ApiController
 {
@@ -456,6 +458,79 @@ class ContentManagementController extends ApiController
             ]);
             return $this->errorResponse('Could not delete content', 'SERVER_ERROR', 500);
         }
+    }
+
+    /* Save a book someone shared (in a chat or the hub) into my own library
+       as a private copy, pages and all, so my children can play it and I can
+       edit it. Saving the same book again returns the copy already made.
+       The copy points at the same image and audio files; nothing deletes
+       those when a book or page changes, so they stay valid. */
+    public function saveCopy(Request $request, string $audiobookId): JsonResponse
+    {
+        $caregiver = $request->get('auth_caregiver');
+        $me = $caregiver?->caregiver_id;
+        $this->logEvent('Content', 'saveCopy called', [
+            'audiobook_id' => $audiobookId,
+        ]);
+
+        $book = Audiobook::openableBy($caregiver)
+            ->where('audiobook_id', $audiobookId)
+            ->first();
+        if (!$book || !$me) {
+            return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
+        }
+        if ($book->isOwnedBy($me)) {
+            return $this->successResponse('Already in your library', $this->serialize($book));
+        }
+        $existing = Audiobook::where('caregiver_id', $me)
+            ->where('source_audiobook_id', $book->audiobook_id)
+            ->first();
+        if ($existing) {
+            return $this->successResponse('Already in your library', $this->serialize($existing));
+        }
+
+        try {
+            $copy = DB::transaction(function () use ($book, $me) {
+                $copy = $book->replicate(['caregiver_id', 'visibility', 'source_audiobook_id']);
+                $copy->audiobook_id = (string) Str::uuid();
+                $copy->caregiver_id = $me;
+                $copy->visibility = 'private';
+                $copy->source_audiobook_id = $book->audiobook_id;
+                // Keep the background music only if it's one I can use too
+                // (not the sharer's private upload).
+                if ($copy->track_id && !MusicTrack::visibleTo($me)->where('track_id', $copy->track_id)->exists()) {
+                    $copy->track_id = null;
+                }
+                $copy->save();
+
+                $pages = DB::table('audiobook_pages')
+                    ->where('audiobook_id', $book->audiobook_id)
+                    ->get()
+                    ->map(function ($page) use ($copy) {
+                        $row = (array) $page;
+                        $row['page_id'] = (string) Str::uuid();
+                        $row['audiobook_id'] = $copy->audiobook_id;
+                        return $row;
+                    })
+                    ->all();
+                foreach (array_chunk($pages, 200) as $chunk) {
+                    DB::table('audiobook_pages')->insert($chunk);
+                }
+                return $copy;
+            });
+        } catch (\Throwable $e) {
+            $this->logError('Content', 'saveCopy exception', [
+                'audiobook_id' => $audiobookId,
+                'error'        => $e->getMessage(),
+            ]);
+            return $this->errorResponse('Could not save this audiobook', 'SERVER_ERROR', 500);
+        }
+
+        $this->logEvent('Content', 'saveCopy success', [
+            'audiobook_id' => $audiobookId,
+            'copy_id'      => $copy->audiobook_id,
+        ]);
+        return $this->successResponse('Saved to your library', $this->serialize($copy->load('pages')));
     }
 
     /* Update one page (text, image, or audio boundary). Multipart so a new

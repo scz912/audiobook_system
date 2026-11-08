@@ -2,14 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../i18n/i18n.dart';
 import '../../models/community/chat_message.dart';
 import '../../models/community/conversation.dart';
+import '../../models/content_item.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/emoji_picker_button.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
+import 'shared_book_card.dart';
 
 /* One chat thread. Messages refresh every few seconds by polling - simple
    and works on any host. Swap for WebSockets later if you want live push. */
@@ -91,6 +97,53 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
     }
   }
 
+  // Pick one of my audiobooks and send it into this chat.
+  Future<void> _shareBook() async {
+    if (_sending) return;
+    final book = await showModalBottomSheet<ContentItem>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => const _BookPickerSheet(),
+    );
+    if (book == null || book.audiobookId == null || !mounted) return;
+    setState(() => _sending = true);
+    final resp = await DatabaseService.sendChatMessage(
+      _conversationId,
+      '',
+      audiobookId: book.audiobookId,
+    );
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (resp.success && resp.data is ChatMessage) {
+      setState(() => _messages = [..._messages, resp.data as ChatMessage]);
+      _scrollToBottom();
+    } else {
+      AppSnackbar.error(resp.message, context: context);
+    }
+  }
+
+  /* Save a book shared here into my library. Every message carrying that
+     book then shows it as saved. */
+  Future<bool> _saveBook(String audiobookId) async {
+    final resp = await DatabaseService.saveAudiobookCopy(audiobookId);
+    if (!mounted) return resp.success;
+    if (resp.success) {
+      setState(() {
+        _messages = [
+          for (final m in _messages)
+            m.book?.audiobookId == audiobookId ? m.withBookSaved() : m,
+        ];
+      });
+      AppSnackbar.success(context.trRead('community.saved_to_library'),
+          context: context);
+    } else {
+      AppSnackbar.error(resp.message, context: context);
+    }
+    return resp.success;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -128,6 +181,7 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
                           itemBuilder: (_, i) => _Bubble(
                             message: _messages[i],
                             showSender: widget.conversation.isGroup,
+                            onSaveBook: _saveBook,
                           ),
                         ),
             ),
@@ -135,6 +189,7 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
               controller: _msgCtrl,
               sending: _sending,
               onSend: _send,
+              onShareBook: _shareBook,
             ),
           ],
         ),
@@ -146,7 +201,12 @@ class _ChatThreadPageState extends State<ChatThreadPage> {
 class _Bubble extends StatelessWidget {
   final ChatMessage message;
   final bool showSender;
-  const _Bubble({required this.message, required this.showSender});
+  final Future<bool> Function(String audiobookId) onSaveBook;
+  const _Bubble({
+    required this.message,
+    required this.showSender,
+    required this.onSaveBook,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +239,17 @@ class _Bubble extends StatelessWidget {
                 ),
               ),
             ),
-          Text(message.body,
-              style: const TextStyle(color: AppColors.textPrimary, height: 1.35)),
+          if (message.book != null)
+            Padding(
+              padding: EdgeInsets.only(bottom: message.body.isEmpty ? 0 : 6),
+              child: SharedBookCard(
+                book: message.book!,
+                onSave: () => onSaveBook(message.book!.audiobookId),
+              ),
+            ),
+          if (message.body.isNotEmpty)
+            Text(message.body,
+                style: const TextStyle(color: AppColors.textPrimary, height: 1.35)),
           const SizedBox(height: 3),
           Text(
             exactTime(message.sentAt),
@@ -225,10 +294,12 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onShareBook;
   const _Composer({
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.onShareBook,
   });
 
   @override
@@ -243,6 +314,13 @@ class _Composer extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            IconButton(
+              tooltip: context.tr('community.share_book'),
+              onPressed: sending ? null : onShareBook,
+              icon: const Icon(Icons.auto_stories_outlined,
+                  color: AppColors.primaryBlueDark),
+            ),
+            EmojiPickerButton(controller: controller),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -264,6 +342,112 @@ class _Composer extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/* My library, to pick a book to send. Shows linear and interactive books
+   with their covers; tapping one returns it. */
+class _BookPickerSheet extends StatefulWidget {
+  const _BookPickerSheet();
+
+  @override
+  State<_BookPickerSheet> createState() => _BookPickerSheetState();
+}
+
+class _BookPickerSheetState extends State<_BookPickerSheet> {
+  List<ContentItem>? _books;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final resp = await DatabaseService.getContentList();
+    if (!mounted) return;
+    setState(() {
+      if (resp.success && resp.data is List<ContentItem>) {
+        _books = (resp.data as List<ContentItem>)
+            .where((b) => b.audiobookId != null)
+            .toList();
+      } else {
+        _error = resp.message;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final books = _books;
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text(context.tr('community.share_book'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          ),
+          Expanded(
+            child: books == null
+                ? Center(
+                    child: _error != null
+                        ? Text(_error!,
+                            style: const TextStyle(color: AppColors.textSecondary))
+                        : const CircularProgressIndicator())
+                : books.isEmpty
+                    ? Center(
+                        child: Text(context.tr('community.no_books_to_share'),
+                            style: const TextStyle(color: AppColors.textSecondary)))
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                        itemCount: books.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 4),
+                        itemBuilder: (_, i) {
+                          final b = books[i];
+                          return ListTile(
+                            onTap: () => Navigator.of(context).pop(b),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: (b.coverImage ?? '').isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: b.coverImage!,
+                                        fit: BoxFit.cover,
+                                        memCacheWidth: 140,
+                                        errorWidget: (_, _, _) => Container(
+                                            color: AppColors.softLavender),
+                                      )
+                                    : Container(
+                                        color: AppColors.softLavender,
+                                        child: const Icon(Icons.auto_stories_rounded,
+                                            color: AppColors.primaryBlueDark),
+                                      ),
+                              ),
+                            ),
+                            title: Text(b.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text(context.tr(b.bookFormat == 'interactive'
+                                ? 'community.book_interactive'
+                                : 'community.book_linear')),
+                            trailing: const Icon(Icons.send_rounded,
+                                color: AppColors.primaryBlueDark),
+                          );
+                        },
+                      ),
+          ),
+        ],
       ),
     );
   }

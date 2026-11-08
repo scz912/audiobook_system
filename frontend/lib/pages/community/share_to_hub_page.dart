@@ -7,6 +7,7 @@ import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/emoji_picker_button.dart';
 import '../../widgets/soft_card.dart';
 
 // Pick one of my audiobooks and share it to the hub.
@@ -109,7 +110,11 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
                             hintText: context.tr('community.write_something'),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: EmojiPickerButton(controller: _captionCtrl),
+                        ),
+                        const SizedBox(height: 8),
                         // Optionally attach one of your stories.
                         if (_books.isNotEmpty) ...[
                           Text(context.tr('community.choose_story_optional'),

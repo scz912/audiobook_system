@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Caregiver;
+use App\Models\Conversation;
 use App\Models\Friendship;
 use App\Models\HubPost;
 use Illuminate\Http\JsonResponse;
@@ -116,6 +117,11 @@ class FriendshipController extends ApiController
         $friendship->status = $accepted ? 'accepted' : 'declined';
         $friendship->requester_seen = false;
         $friendship->save();
+
+        // New friends can message each other straight from the Chat tab.
+        if ($accepted) {
+            Conversation::openDirect($friendship->requester_id, $friendship->addressee_id);
+        }
 
         return $accepted
             ? $this->successResponse('You are now friends', ['status' => 'accepted'])

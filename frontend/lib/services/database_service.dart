@@ -708,6 +708,11 @@ class DatabaseService {
 
   // listening history
 
+  /* Session saves still on their way to the server. The player sends them
+     fire-and-forget, so leaving Child Mode waits on these before reloading
+     the children's listening minutes. */
+  static final Set<Future<ApiResponse>> _pendingSessionSaves = {};
+
   static Future<ApiResponse> recordListeningSession({
     required String childId,
     required String audiobookId,
@@ -718,7 +723,7 @@ class DatabaseService {
     int? pauseCount,
     int? skipCount,
   }) {
-    return _post('/listening-history/record', body: {
+    final save = _post('/listening-history/record', body: {
       'child_id': childId,
       'audiobook_id': audiobookId,
       'duration_seconds': ?durationSeconds,
@@ -728,7 +733,14 @@ class DatabaseService {
       'pause_count': ?pauseCount,
       'skip_count': ?skipCount,
     });
+    _pendingSessionSaves.add(save);
+    save.whenComplete(() => _pendingSessionSaves.remove(save));
+    return save;
   }
+
+  // Completes once every session save sent so far has finished.
+  static Future<void> pendingSessionSaves() =>
+      Future.wait(_pendingSessionSaves.toList()).then((_) {});
 
   static Future<ApiResponse> listeningHistoryFor(String childId) {
     return _post('/listening-history/child/$childId');
@@ -1042,9 +1054,32 @@ class DatabaseService {
     return _wrapList(resp, ChatMessage.fromJson);
   }
 
-  static Future<ApiResponse> sendChatMessage(String conversationId, String body) async {
-    final resp = await _post('/chat/$conversationId/send', body: {'body': body});
+  /* Send text, an audiobook, or both. The book must be one I can open
+     (my own, or one shared with me). */
+  static Future<ApiResponse> sendChatMessage(
+    String conversationId,
+    String body, {
+    String? audiobookId,
+  }) async {
+    final resp = await _post('/chat/$conversationId/send', body: {
+      if (body.isNotEmpty) 'body': body,
+      'audiobook_id': ?audiobookId,
+    });
     return _wrapOne(resp, ChatMessage.fromJson);
+  }
+
+  /* Save a book shared in a chat or hub post into my own library. Returns
+     the copy (or the one saved before) as a ContentItem. */
+  static Future<ApiResponse> saveAudiobookCopy(String audiobookId) async {
+    final resp = await _post('/content/$audiobookId/save-copy');
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: ContentItem.fromJson(resp.data as Map<String, dynamic>),
+      );
+    }
+    return resp;
   }
 
   static Future<ApiResponse> markConversationRead(String conversationId) =>

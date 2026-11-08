@@ -15,6 +15,8 @@ class HubPost {
   final String? bookAuthor;
   final String? bookLanguage;
   final String? coverImage;
+  // I made the book or already saved a copy of it.
+  final bool bookInMyLibrary;
 
   final int likeCount;
   final int commentCount;
@@ -32,6 +34,7 @@ class HubPost {
     this.bookAuthor,
     this.bookLanguage,
     this.coverImage,
+    this.bookInMyLibrary = false,
     this.likeCount = 0,
     this.commentCount = 0,
     this.likedByMe = false,
@@ -55,6 +58,7 @@ class HubPost {
       bookAuthor: book == null ? null : safeNullableString(book['author']),
       bookLanguage: book == null ? null : safeNullableString(book['language']),
       coverImage: book == null ? null : safeNullableString(book['cover_image']),
+      bookInMyLibrary: book != null && safeBool(book['in_my_library']),
       likeCount: safeInt(json['like_count']) ?? 0,
       commentCount: safeInt(json['comment_count']) ?? 0,
       likedByMe: safeBool(json['liked_by_me']),
@@ -75,9 +79,31 @@ class HubPost {
       bookAuthor: bookAuthor,
       bookLanguage: bookLanguage,
       coverImage: coverImage,
+      bookInMyLibrary: bookInMyLibrary,
       likeCount: count,
       commentCount: commentCount,
       likedByMe: liked,
+      isMine: isMine,
+    );
+  }
+
+  // A copy with the shared book marked as saved to my library.
+  HubPost copyWithBookSaved() {
+    return HubPost(
+      postId: postId,
+      caption: caption,
+      includeMusic: includeMusic,
+      createdAt: createdAt,
+      author: author,
+      audiobookId: audiobookId,
+      bookTitle: bookTitle,
+      bookAuthor: bookAuthor,
+      bookLanguage: bookLanguage,
+      coverImage: coverImage,
+      bookInMyLibrary: true,
+      likeCount: likeCount,
+      commentCount: commentCount,
+      likedByMe: likedByMe,
       isMine: isMine,
     );
   }

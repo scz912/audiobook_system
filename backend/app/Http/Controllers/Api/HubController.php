@@ -204,13 +204,7 @@ class HubController extends ApiController
                 'avatar_emoji' => $author->avatar_emoji,
                 'avatar_color' => $author->avatar_color,
             ] : null,
-            'audiobook'     => $book ? [
-                'audiobook_id' => $book->audiobook_id,
-                'title'        => $book->title,
-                'author'       => $book->author,
-                'language'     => $book->language,
-                'cover_image'  => $this->mediaUrl($book->cover_image),
-            ] : null,
+            'audiobook'     => $this->sharedBook($book, $meId),
             'like_count'    => HubLike::where('post_id', $post->post_id)->count(),
             'comment_count' => HubComment::where('post_id', $post->post_id)->count(),
             'liked_by_me'   => HubLike::where('post_id', $post->post_id)

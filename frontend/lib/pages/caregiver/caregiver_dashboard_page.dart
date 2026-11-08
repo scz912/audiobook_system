@@ -35,6 +35,8 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
 
   // Engagement and the most-listened books, across all children.
   Future<void> _loadStats() async {
+    // Right after Child Mode, let its last session finish saving first.
+    await DatabaseService.pendingSessionSaves();
     final resp = await DatabaseService.getInsightsOverview();
     if (!mounted) return;
     if (resp.success && resp.data is InsightsOverview) {

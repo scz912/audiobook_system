@@ -10,10 +10,12 @@ import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/emoji_picker_button.dart';
 import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
+import 'shared_book_card.dart';
 
 // A shared post with its comments and a comment box.
 class HubPostDetailPage extends StatefulWidget {
@@ -244,6 +246,24 @@ class _PostHeader extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
+            const SizedBox(height: 8),
+            Center(
+              child: SaveToLibraryButton(
+                inMyLibrary: live.bookInMyLibrary,
+                onSave: () async {
+                  final resp = await hub.saveBook(live);
+                  if (!context.mounted) return resp.success;
+                  if (resp.success) {
+                    AppSnackbar.success(
+                        context.trRead('community.saved_to_library'),
+                        context: context);
+                  } else {
+                    AppSnackbar.error(resp.message, context: context);
+                  }
+                  return resp.success;
+                },
+              ),
+            ),
           ],
           const Divider(height: 22),
           InkWell(
@@ -339,6 +359,7 @@ class _CommentBox extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            EmojiPickerButton(controller: controller),
             Expanded(
               child: TextField(
                 controller: controller,

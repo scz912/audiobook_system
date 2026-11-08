@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/community/hub_post.dart';
+import '../services/api_service.dart';
 import '../services/database_service.dart';
 
 // The shared-audiobook feed.
@@ -44,6 +45,20 @@ class HubState extends ChangeNotifier {
       _replace(post.postId, post.copyWithLike(liked: liked, count: count));
       notifyListeners();
     }
+  }
+
+  /* Save the post's book into my library. Every post sharing that book
+     then shows it as saved. */
+  Future<ApiResponse> saveBook(HubPost post) async {
+    final resp = await DatabaseService.saveAudiobookCopy(post.audiobookId!);
+    if (resp.success) {
+      _feed = [
+        for (final p in _feed)
+          p.audiobookId == post.audiobookId ? p.copyWithBookSaved() : p,
+      ];
+      notifyListeners();
+    }
+    return resp;
   }
 
   Future<bool> removePost(String postId) async {

@@ -31,6 +31,9 @@ class _EditContentPageState extends State<EditContentPage> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _language = 'en';
+  // easy / medium / hard (lowercase, as the backend stores it); null if
+  // the book was never given one.
+  String? _difficulty;
   bool _savingMeta = false;
 
   // One draft per page, holding its text controller and any new image.
@@ -68,6 +71,7 @@ class _EditContentPageState extends State<EditContentPage> {
       _descCtrl.text = book.description ?? '';
       _language = (book.language ?? 'en').toLowerCase();
       if (_language != 'en' && _language != 'ms') _language = 'en';
+      _difficulty = book.difficulty?.toLowerCase();
       _pages
         ..clear()
         ..addAll(book.pages.map(_PageDraft.fromExisting));
@@ -93,6 +97,9 @@ class _EditContentPageState extends State<EditContentPage> {
     }
     if (_language != (book.language ?? 'en').toLowerCase()) {
       patch['language'] = _language;
+    }
+    if (_difficulty != null && _difficulty != book.difficulty?.toLowerCase()) {
+      patch['difficulty'] = _difficulty;
     }
     if (patch.isEmpty) return;
 
@@ -260,8 +267,11 @@ class _EditContentPageState extends State<EditContentPage> {
                     titleCtrl: _titleCtrl,
                     descCtrl: _descCtrl,
                     language: _language,
+                    difficulty: _difficulty,
                     saving: _savingMeta,
                     onLanguageChanged: (v) => setState(() => _language = v),
+                    onDifficultyChanged: (v) =>
+                        setState(() => _difficulty = v),
                     onSave: _saveMetadata,
                   ),
                   const SizedBox(height: 22),
@@ -334,17 +344,25 @@ class _MetadataCard extends StatelessWidget {
   final TextEditingController titleCtrl;
   final TextEditingController descCtrl;
   final String language;
+  final String? difficulty;
   final bool saving;
   final ValueChanged<String> onLanguageChanged;
+  final ValueChanged<String> onDifficultyChanged;
   final VoidCallback onSave;
   const _MetadataCard({
     required this.titleCtrl,
     required this.descCtrl,
     required this.language,
+    required this.difficulty,
     required this.saving,
     required this.onLanguageChanged,
+    required this.onDifficultyChanged,
     required this.onSave,
   });
+
+  // Same levels as the AI generator, which writes 1 / 2 / 3+ sentences
+  // per page for easy / medium / hard (GeminiService::sentencesPerPage).
+  static const _levels = ['easy', 'medium', 'hard'];
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +414,33 @@ class _MetadataCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Text(context.tr('content.field_difficulty'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final level in _levels)
+                SoftChip(
+                  label: context.tr('content.difficulty_$level'),
+                  selected: difficulty == level,
+                  selectedColor: AppColors.softMint,
+                  onTap: () => onDifficultyChanged(level),
+                ),
+            ],
+          ),
+          if (difficulty != null && _levels.contains(difficulty)) ...[
+            const SizedBox(height: 6),
+            Text(
+              context.tr('content.difficulty_hint_$difficulty'),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerRight,
