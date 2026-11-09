@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
 import '../../services/database_service.dart';
+import '../../services/reading_progress.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
@@ -37,6 +38,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
   // (child_id, date) so the lock survives restarts and clears at midnight.
   bool _moodLockedForToday = false;
   ContentItem? _featured;
+  // The book this child left part-way through, if any.
+  ReadingProgress? _progress;
 
   // Mood `labelKey` is a translation key, resolved with context.tr().
   static const List<_Mood> _moods = [
@@ -51,6 +54,31 @@ class _ChildHomePageState extends State<ChildHomePage> {
     super.initState();
     _loadFeatured();
     _loadTodayMood();
+    _loadProgress();
+    ReadingProgress.changed.addListener(_loadProgress);
+  }
+
+  @override
+  void dispose() {
+    ReadingProgress.changed.removeListener(_loadProgress);
+    super.dispose();
+  }
+
+  Future<void> _loadProgress() async {
+    final childId = context.read<ProfilesState>().activeProfile?.childId;
+    if (childId == null) return;
+    final p = await ReadingProgress.load(childId);
+    if (mounted) setState(() => _progress = p);
+  }
+
+  void _continueReading(ReadingProgress p) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AudioPlayerPage(
+        title: p.title,
+        audiobookId: p.audiobookId,
+        resumeFrom: p,
+      ),
+    ));
   }
 
   Future<void> _loadFeatured() async {
@@ -151,6 +179,14 @@ class _ChildHomePageState extends State<ChildHomePage> {
           ],
         ),
         const SizedBox(height: 20),
+
+        if (_progress != null) ...[
+          _ContinueCard(
+            progress: _progress!,
+            onTap: () => _continueReading(_progress!),
+          ),
+          const SizedBox(height: 18),
+        ],
 
         SoftCard(
           key: widget.moodCardKey,
@@ -318,6 +354,127 @@ class _Mood {
   final String emoji;
   final Color color;
   const _Mood(this.id, this.labelKey, this.emoji, this.color);
+}
+
+/* "Continue reading": the book left part-way through, how far along it
+   is, and a big play button that opens it at that page. */
+class _ContinueCard extends StatelessWidget {
+  final ReadingProgress progress;
+  final VoidCallback onTap;
+  const _ContinueCard({required this.progress, required this.onTap});
+
+  static const _ink = Color(0xFF26215C);
+
+  @override
+  Widget build(BuildContext context) {
+    final total = progress.totalPages;
+    final shown = progress.pageNumber.clamp(1, total < 1 ? 1 : total);
+    final fraction = total > 0 ? shown / total : 0.0;
+    return Semantics(
+      button: true,
+      label: '${context.tr('child.continue_reading')}: ${progress.title}',
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFE9A8), Color(0xFFFFC9A8)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: _ink, width: 3),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.bookmark_rounded, size: 20, color: _ink),
+                    const SizedBox(width: 6),
+                    Text(
+                      context.tr('child.continue_reading').toUpperCase(),
+                      style: const TextStyle(
+                        color: _ink,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _StartStoryCover(url: progress.coverImage),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            progress.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _ink,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 20,
+                              height: 1.2,
+                            ),
+                          ),
+                          if (total > 1) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: fraction,
+                                minHeight: 10,
+                                color: _ink,
+                                backgroundColor: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              context
+                                  .tr('player.page_of')
+                                  .replaceAll('{current}', '$shown')
+                                  .replaceAll('{total}', '$total'),
+                              style: const TextStyle(
+                                color: _ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _ink, width: 3),
+                      ),
+                      child: const Icon(Icons.play_arrow_rounded, size: 40, color: _ink),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /* The big "Today's pick" button on the child home. Solid gradient and a

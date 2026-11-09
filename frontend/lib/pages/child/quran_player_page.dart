@@ -3,12 +3,14 @@ import 'dart:math' as math;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/quran.dart';
 import '../../services/quran_pack_service.dart';
+import '../../state/language_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/player_controls.dart';
@@ -206,7 +208,7 @@ class _QuranPlayerPageState extends State<QuranPlayerPage> {
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),
               Text(
-                '${c.nameAr} • ${c.meaningEn}',
+                '${c.nameAr} • ${c.meaning(context.watch<LanguageState>().code)}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 13),

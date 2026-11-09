@@ -113,7 +113,7 @@ class _FormatSlider extends StatelessWidget {
           height: 52,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: AppColors.softLavender.withValues(alpha: 0.45),
+            color: Colors.white.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(26),
             border: Border.all(color: AppColors.cardBorder),
           ),
@@ -131,9 +131,12 @@ class _FormatSlider extends StatelessWidget {
                 child: FractionallySizedBox(
                   widthFactor: 0.5,
                   heightFactor: 1,
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: interactive
+                          ? const Color(0xFFD9C8FF)
+                          : const Color(0xFFB8E6C8),
                       borderRadius: BorderRadius.circular(22),
                       boxShadow: [
                         BoxShadow(
@@ -148,10 +151,10 @@ class _FormatSlider extends StatelessWidget {
               ),
               Row(
                 children: [
-                  _segment('Linear', Icons.menu_book_rounded,
-                      _BookFormat.linear),
-                  _segment('Interactive', Icons.touch_app_rounded,
-                      _BookFormat.interactive),
+                  _segment(context.tr('content.format_linear'),
+                      Icons.menu_book_rounded, _BookFormat.linear),
+                  _segment(context.tr('content.format_interactive'),
+                      Icons.touch_app_rounded, _BookFormat.interactive),
                 ],
               ),
             ],
@@ -161,9 +164,9 @@ class _FormatSlider extends StatelessWidget {
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: Text(
-            interactive
-                ? 'The story pauses and lets the child choose what happens.'
-                : 'A classic story, read from start to end.',
+            context.tr(interactive
+                ? 'upload.format_interactive_hint'
+                : 'upload.format_linear_hint'),
             key: ValueKey(interactive),
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -186,7 +189,7 @@ class _FormatSlider extends StatelessWidget {
             Icon(icon,
                 size: 18,
                 color: selected
-                    ? AppColors.primaryBlueDark
+                    ? AppColors.textPrimary
                     : AppColors.textSecondary),
             const SizedBox(width: 6),
             Text(
@@ -217,20 +220,20 @@ class _GuideBanner extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              Icon(Icons.lightbulb_outline_rounded,
+              const Icon(Icons.lightbulb_outline_rounded,
                   color: AppColors.textPrimary),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'New to interactive books? Read the guide',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  context.tr('upload.guide_banner'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
-              Icon(Icons.chevron_right_rounded),
+              const Icon(Icons.chevron_right_rounded),
             ],
           ),
         ),
@@ -268,6 +271,7 @@ class _InteractivePageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final d = draft;
     return SoftCard(
+      color: d.interactive ? const Color(0xFFF3EEFF) : _Tint.page,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -283,7 +287,9 @@ class _InteractivePageCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  d.interactive ? 'Page $pageNumber · Question' : 'Page $pageNumber',
+                  context
+                      .tr(d.interactive ? 'upload.page_question' : 'content.page_number')
+                      .replaceAll('{n}', '$pageNumber'),
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 13),
                 ),
@@ -298,7 +304,7 @@ class _InteractivePageCard extends StatelessWidget {
                   onPressed: onRemove,
                   icon: const Icon(Icons.delete_outline_rounded,
                       color: AppColors.textSecondary),
-                  tooltip: 'Remove page',
+                  tooltip: context.tr('upload.remove_page'),
                 ),
             ],
           ),
@@ -307,18 +313,14 @@ class _InteractivePageCard extends StatelessWidget {
             controller: d.text,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: d.interactive
-                  ? 'Story text that ends with a question, e.g. '
-                      '"What should Mia pack for the picnic?"'
-                  : 'Text for this page…',
+              hintText: context.tr(
+                  d.interactive ? 'upload.question_hint' : 'upload.page_text_hint'),
             ),
           ),
           if (d.interactive) ...[
             const SizedBox(height: 12),
             Text(
-              d.split
-                  ? 'Choices (2 - one for each page version)'
-                  : 'Choices the child can tap (2 to 4)',
+              context.tr(d.split ? 'upload.choices_split' : 'upload.choices'),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
             const SizedBox(height: 6),
@@ -334,7 +336,9 @@ class _InteractivePageCard extends StatelessWidget {
                         maxLength: 60,
                         onChanged: (_) => onChanged(),
                         decoration: InputDecoration(
-                          hintText: 'Choice ${i + 1}, e.g. a red apple',
+                          hintText: context
+                              .tr('upload.choice_hint')
+                              .replaceAll('{n}', '${i + 1}'),
                           isDense: true,
                           counterText: '',
                           contentPadding: const EdgeInsets.symmetric(
@@ -347,7 +351,7 @@ class _InteractivePageCard extends StatelessWidget {
                         onPressed: () => _update(() => d.removeChoice(i)),
                         icon: const Icon(Icons.remove_circle_outline_rounded,
                             color: AppColors.textSecondary),
-                        tooltip: 'Remove choice',
+                        tooltip: context.tr('upload.remove_choice'),
                       ),
                   ],
                 ),
@@ -360,8 +364,8 @@ class _InteractivePageCard extends StatelessWidget {
                   style: TextButton.styleFrom(
                       foregroundColor: AppColors.primaryBlueDark),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Add choice',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  label: Text(context.tr('upload.add_choice'),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
           ],
@@ -369,7 +373,7 @@ class _InteractivePageCard extends StatelessWidget {
           _ImagePickerBox(
             imagePath: d.imagePath,
             height: 130,
-            hint: 'Add a picture for this page',
+            hint: context.tr('upload.page_picture_hint'),
             onPick: () => pickImage((p) => d.imagePath = p),
             onClear: d.imagePath == null
                 ? null
@@ -428,7 +432,7 @@ class _InteractiveChip extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              'Interactive',
+              context.tr('upload.interactive_chip'),
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
@@ -453,15 +457,19 @@ class _SplitToggle extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text('Split into 2 pages',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            Text('A different next page for each choice',
-                style:
-                    TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-          ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(context.tr('upload.split'),
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              Text(context.tr('upload.split_hint'),
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11)),
+            ],
+          ),
         ),
         const SizedBox(width: 6),
         Switch.adaptive(
@@ -511,19 +519,15 @@ class _ResponseBox extends StatelessWidget {
               border: Border.all(color: AppColors.cardBorder),
             ),
             child: Text(
-              d.split
-                  ? 'Page $pageNumber · Split pages'
-                  : 'Page $pageNumber · Response page',
+              context
+                  .tr(d.split ? 'upload.page_split' : 'upload.page_response')
+                  .replaceAll('{n}', '$pageNumber'),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            d.split
-                ? 'Write a different page for each choice. Only the one the '
-                    'child picks is read, then the story carries on as normal.'
-                : 'Everyone hears this page. Put the placeholder where the '
-                    'child\'s answer should be read out.',
+            context.tr(d.split ? 'upload.split_explain' : 'upload.response_explain'),
             style:
                 const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
@@ -540,8 +544,8 @@ class _ResponseBox extends StatelessWidget {
                     _insertChoiceToken(c, c.selection.baseOffset);
                   },
                 ),
-                const Text('Drag into the text, or tap to add at the cursor',
-                    style: TextStyle(
+                Text(context.tr('upload.drag_hint'),
+                    style: const TextStyle(
                         color: AppColors.textMuted, fontSize: 11.5)),
               ],
             ),
@@ -551,7 +555,7 @@ class _ResponseBox extends StatelessWidget {
             _ImagePickerBox(
               imagePath: d.response.imagePath,
               height: 110,
-              hint: 'Add a picture for this page',
+              hint: context.tr('upload.page_picture_hint'),
               onPick: () => pickImage((p) => d.response.imagePath = p),
               onClear: d.response.imagePath == null
                   ? null
@@ -563,7 +567,7 @@ class _ResponseBox extends StatelessWidget {
           ] else
             for (var b = 0; b < 2; b++) ...[
               _BranchBox(
-                label: _branchLabel(b),
+                label: _branchLabel(context, b),
                 branch: d.branches[b],
                 onChanged: onChanged,
                 pickImage: pickImage,
@@ -575,9 +579,11 @@ class _ResponseBox extends StatelessWidget {
     );
   }
 
-  String _branchLabel(int b) {
+  String _branchLabel(BuildContext context, int b) {
     final choice = draft.choices.length > b ? draft.choices[b].text.trim() : '';
-    return choice.isEmpty ? 'If choice ${b + 1} is picked' : 'If "$choice" is picked';
+    return choice.isEmpty
+        ? context.tr('upload.if_choice_n').replaceAll('{n}', '${b + 1}')
+        : context.tr('upload.if_choice').replaceAll('{choice}', choice);
   }
 }
 
@@ -632,13 +638,13 @@ class _BranchBox extends StatelessWidget {
             controller: branch.text,
             maxLines: 3,
             decoration:
-                const InputDecoration(hintText: 'Text for this version…'),
+                InputDecoration(hintText: context.tr('upload.version_hint')),
           ),
           const SizedBox(height: 8),
           _ImagePickerBox(
             imagePath: branch.imagePath,
             height: 100,
-            hint: 'Add a picture',
+            hint: context.tr('upload.add_picture'),
             onPick: () => pickImage((p) => branch.imagePath = p),
             onClear: branch.imagePath == null
                 ? null
@@ -658,7 +664,7 @@ class _PlaceholderChip extends StatelessWidget {
   final VoidCallback onTap;
   const _PlaceholderChip({required this.onTap});
 
-  static Widget _chip({double opacity = 1}) {
+  static Widget _chip(String label, {double opacity = 1}) {
     return Opacity(
       opacity: opacity,
       child: Container(
@@ -667,14 +673,14 @@ class _PlaceholderChip extends StatelessWidget {
           color: AppColors.primaryBlueDark,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.drag_indicator_rounded, size: 16, color: Colors.white),
-            SizedBox(width: 4),
+            const Icon(Icons.drag_indicator_rounded, size: 16, color: Colors.white),
+            const SizedBox(width: 4),
             Text(
-              'Child\'s answer',
-              style: TextStyle(
+              label,
+              style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
                   fontSize: 12.5),
@@ -687,13 +693,14 @@ class _PlaceholderChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = context.tr('upload.child_answer');
     return Draggable<String>(
       data: AudiobookPage.choiceToken,
       // The drop point is the finger, so the text lands where it's released.
       dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: Material(color: Colors.transparent, child: _chip()),
-      childWhenDragging: _chip(opacity: 0.4),
-      child: GestureDetector(onTap: onTap, child: _chip()),
+      feedback: Material(color: Colors.transparent, child: _chip(label)),
+      childWhenDragging: _chip(label, opacity: 0.4),
+      child: GestureDetector(onTap: onTap, child: _chip(label)),
     );
   }
 }
@@ -744,8 +751,8 @@ class _PlaceholderTextField extends StatelessWidget {
           child: TextField(
             controller: controller,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'e.g. Mia put {choice} in her basket. It looked yummy!',
+            decoration: InputDecoration(
+              hintText: context.tr('upload.response_hint'),
             ),
           ),
         );
@@ -773,14 +780,16 @@ class _InteractionSettingsCard extends StatelessWidget {
     required this.onShowGuide,
   });
 
-  String _plural(int n, String word) => n == 1 ? '$n $word' : '$n ${word}s';
-
   @override
   Widget build(BuildContext context) {
+    String questions(int n) => context
+        .tr(n == 1 ? 'upload.n_interaction_one' : 'upload.n_interaction_other')
+        .replaceAll('{n}', '$n');
     // 1 interaction per 4 pages, rounded down (7 pages -> 1).
     final cap = pageCount ~/ 4;
     final placeholders = interactions - splits;
     return SoftCard(
+      color: _Tint.ai,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -797,24 +806,25 @@ class _InteractionSettingsCard extends StatelessWidget {
                     size: 18, color: AppColors.primaryBlueDark),
               ),
               const SizedBox(width: 10),
-              const Expanded(
-                child: Text('Interactions',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              Expanded(
+                child: Text(context.tr('upload.interactions'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
               ),
               TextButton.icon(
                 onPressed: onShowGuide,
                 style: TextButton.styleFrom(
                     foregroundColor: AppColors.primaryBlueDark),
                 icon: const Icon(Icons.help_outline_rounded, size: 18),
-                label: const Text('Guide'),
+                label: Text(context.tr('upload.guide')),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          const _Label('Interaction frequency'),
+          _Label(context.tr('upload.interaction_frequency'),
+              icon: Icons.help_outline_rounded, color: _Tint.lavender),
           _CountStepper(
-            title: 'Interaction frequency',
+            title: context.tr('upload.interaction_frequency'),
             value: interactions,
             min: 1,
             max: cap,
@@ -822,16 +832,18 @@ class _InteractionSettingsCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Up to 1 interaction for every 4 pages, rounded down. With '
-            '$pageCount pages you can have up to ${_plural(cap, 'interaction')}. '
-            'Fewer pauses keep the story calm and easy to follow.',
+            context
+                .tr('upload.frequency_hint')
+                .replaceAll('{pages}', '$pageCount')
+                .replaceAll('{count}', questions(cap)),
             style:
                 const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 16),
-          const _Label('Interaction split'),
+          _Label(context.tr('upload.interaction_split'),
+              icon: Icons.call_split_rounded, color: _Tint.peach),
           _CountStepper(
-            title: 'Interaction split',
+            title: context.tr('upload.interaction_split'),
             value: splits,
             min: 0,
             max: interactions,
@@ -840,15 +852,13 @@ class _InteractionSettingsCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             splits == 0
-                ? 'No split pages. After each question the next page is the '
-                    'same for everyone and simply says the child\'s answer '
-                    '(2 or 3 choices per question).'
-                : '${_plural(splits, 'question')} will split: the page right '
-                    'after it gets 2 different versions, one for each of its 2 '
-                    'choices, then the story joins back together.'
-                    '${placeholders > 0 ? ' The other ${_plural(placeholders, 'question')} '
-                        'will say the child\'s answer on the next page '
-                        '(2 or 3 choices).' : ''}',
+                ? context.tr('upload.split_none_hint')
+                : context.tr('upload.split_some_hint').replaceAll('{count}', questions(splits)) +
+                    (placeholders > 0
+                        ? context
+                            .tr('upload.split_rest_hint')
+                            .replaceAll('{count}', questions(placeholders))
+                        : ''),
             style:
                 const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
@@ -882,7 +892,8 @@ class _CountStepper extends StatelessWidget {
     );
     if (typed == null) return;
     if (typed > max && context.mounted) {
-      AppSnackbar.info('The most allowed is $max, so it was set to $max.',
+      AppSnackbar.info(
+          context.trRead('upload.max_set').replaceAll('{max}', '$max'),
           context: context);
     }
     onChanged(typed.clamp(min, max));
@@ -985,19 +996,20 @@ class _NumberEntryDialogState extends State<_NumberEntryDialog> {
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-        decoration: InputDecoration(helperText: 'Maximum ${widget.max}'),
+        decoration: InputDecoration(
+            helperText: context.tr('upload.maximum').replaceAll('{max}', '${widget.max}')),
         onSubmitted: (_) => _done(),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.tr('common.cancel')),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryBlueDark),
           onPressed: _done,
-          child: const Text('OK'),
+          child: Text(context.tr('common.ok')),
         ),
       ],
     );
@@ -1025,93 +1037,63 @@ class _InteractiveGuideDialog extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
             child: Row(
               children: [
-                Icon(Icons.touch_app_rounded,
+                const Icon(Icons.touch_app_rounded,
                     color: AppColors.primaryBlueDark),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text('How interactive audiobooks work',
-                      style: TextStyle(
+                  child: Text(context.tr('upload.guide_title'),
+                      style: const TextStyle(
                           fontSize: 18, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
           ),
-          const Flexible(
+          Flexible(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'An interactive audiobook pauses at certain pages and asks '
-                    'the child a question. The story waits until the child taps '
-                    'one of the choices, then answers back using what they '
-                    'picked. The child becomes part of the story.',
-                    style: TextStyle(height: 1.45),
+                    context.tr('upload.guide_intro'),
+                    style: const TextStyle(height: 1.45),
                   ),
                   _GuideSection(
                     icon: Icons.touch_app_outlined,
-                    title: 'Interactive (top right of a page)',
-                    body: 'Turns that page into a question page. Write the story '
-                        'text so it ends with a clear question. The page right '
-                        'after it becomes its response page, so it can\'t be a '
-                        'question too. That\'s why a question page uses up 2 '
-                        'page numbers.',
+                    title: context.tr('upload.guide_interactive_title'),
+                    body: context.tr('upload.guide_interactive_body'),
                   ),
                   _GuideSection(
                     icon: Icons.list_rounded,
-                    title: 'Choices',
-                    body: 'The buttons the child taps. Start with 2 and add up to '
-                        '4. Each choice is also read aloud, so keep it short, '
-                        'like "a red apple" or "go to the beach".',
+                    title: context.tr('upload.guide_choices_title'),
+                    body: context.tr('upload.guide_choices_body'),
                   ),
                   _GuideSection(
                     icon: Icons.short_text_rounded,
-                    title: 'Response page and the "Child\'s answer" placeholder',
-                    body: 'Everyone hears the same response page, but the '
-                        'placeholder is replaced with the child\'s choice. Drag '
-                        'the "Child\'s answer" label into the text (or tap it to '
-                        'add it at the cursor). It shows as {choice}. Example: '
-                        '"Mia put {choice} in her basket." becomes "Mia put a '
-                        'red apple in her basket."',
+                    title: context.tr('upload.guide_response_title'),
+                    body: context.tr('upload.guide_response_body'),
                   ),
                   _GuideSection(
                     icon: Icons.call_split_rounded,
-                    title: 'Split into 2 pages (bottom right)',
-                    body: 'Instead of one response page, you write 2 different '
-                        'pages: one for each choice. Only the page for the '
-                        'child\'s choice is read. Split questions have exactly '
-                        '2 choices, so extra choices are removed. After the '
-                        'split, the story joins back into one page for everyone.',
+                    title: context.tr('upload.guide_split_title'),
+                    body: context.tr('upload.guide_split_body'),
                   ),
                   _GuideSection(
                     icon: Icons.image_outlined,
-                    title: 'Pictures',
-                    body: 'Every page, response page, and split version can have '
-                        'its own picture, so a split can show 2 different scenes.',
+                    title: context.tr('upload.guide_pictures_title'),
+                    body: context.tr('upload.guide_pictures_body'),
                   ),
-                  SizedBox(height: 14),
-                  Text('Suggestions',
-                      style: TextStyle(
+                  const SizedBox(height: 14),
+                  Text(context.tr('upload.guide_tips'),
+                      style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.w700)),
-                  SizedBox(height: 6),
-                  _GuideTip('Use about 1 question for every 4 pages. Too many '
-                      'pauses can be tiring.'),
-                  _GuideTip('Make every choice a good one. There should be no '
-                      'right or wrong answer, and nothing scary on any path.'),
-                  _GuideTip('Keep choices short, concrete and easy to picture, '
-                      'and make them clearly different from each other.'),
-                  _GuideTip('Read the response page out loud with each choice '
-                      'in place of {choice} to check it always makes sense.'),
-                  _GuideTip('Save split pages for bigger moments, and write the '
-                      'page after a split so it fits both versions.'),
-                  _GuideTip('Give a gentle cue before the question, like '
-                      '"Now it\'s your turn to choose!", so the pause feels '
-                      'expected rather than sudden.'),
+                  const SizedBox(height: 6),
+                  for (var i = 1; i <= 6; i++)
+                    _GuideTip(context.tr('upload.guide_tip$i')),
                 ],
               ),
             ),
@@ -1126,8 +1108,8 @@ class _InteractiveGuideDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Got it',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(context.tr('upload.guide_ok'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ),
         ],

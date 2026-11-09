@@ -6,6 +6,7 @@ use App\Jobs\GenerateAudiobookImages;
 use App\Models\Audiobook;
 use App\Models\MusicTrack;
 use App\Services\GeminiService;
+use App\Services\StarterLibrary;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -490,34 +491,7 @@ class ContentManagementController extends ApiController
         }
 
         try {
-            $copy = DB::transaction(function () use ($book, $me) {
-                $copy = $book->replicate(['caregiver_id', 'visibility', 'source_audiobook_id']);
-                $copy->audiobook_id = (string) Str::uuid();
-                $copy->caregiver_id = $me;
-                $copy->visibility = 'private';
-                $copy->source_audiobook_id = $book->audiobook_id;
-                // Keep the background music only if it's one I can use too
-                // (not the sharer's private upload).
-                if ($copy->track_id && !MusicTrack::visibleTo($me)->where('track_id', $copy->track_id)->exists()) {
-                    $copy->track_id = null;
-                }
-                $copy->save();
-
-                $pages = DB::table('audiobook_pages')
-                    ->where('audiobook_id', $book->audiobook_id)
-                    ->get()
-                    ->map(function ($page) use ($copy) {
-                        $row = (array) $page;
-                        $row['page_id'] = (string) Str::uuid();
-                        $row['audiobook_id'] = $copy->audiobook_id;
-                        return $row;
-                    })
-                    ->all();
-                foreach (array_chunk($pages, 200) as $chunk) {
-                    DB::table('audiobook_pages')->insert($chunk);
-                }
-                return $copy;
-            });
+            $copy = StarterLibrary::copy($book, $me);
         } catch (\Throwable $e) {
             $this->logError('Content', 'saveCopy exception', [
                 'audiobook_id' => $audiobookId,

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Caregiver;
 use App\Models\CaregiverSettings;
+use App\Services\StarterLibrary;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class AuthController extends ApiController
             'device_name'   => 'nullable|string|max:255',
             // 'independent' = a teenager using the app on their own.
             'account_type'  => 'nullable|in:caregiver,independent',
-            'age'           => 'nullable|integer|min:1|max:18',
+            'age'           => 'nullable|integer|min:1|max:120',
         ]);
 
         if ($validator->fails()) {
@@ -73,6 +74,17 @@ class AuthController extends ApiController
                 }
                 return $caregiver;
             });
+
+            // Starter books, so the library isn't empty. A failure here
+            // must not undo the sign-up, so it's only logged.
+            try {
+                StarterLibrary::giveTo($caregiver->caregiver_id);
+            } catch (\Throwable $e) {
+                $this->logError('Auth', 'starter books failed', [
+                    'caregiver_id' => $caregiver->caregiver_id,
+                    'error'        => $e->getMessage(),
+                ]);
+            }
 
             $this->logEvent('Auth', 'register success', [
                 'caregiver_id' => $caregiver->caregiver_id,

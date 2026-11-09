@@ -437,7 +437,7 @@ class _ChapterTile extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${chapter.meaningEn} • $versesLabel',
+                            '${chapter.meaning(context.watch<LanguageState>().code)} • $versesLabel',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

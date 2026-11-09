@@ -48,6 +48,8 @@ class ShelfNavBar extends StatefulWidget {
   final Color? dye;
   // One per tab, so [ShelfTabScaffold] can find where each sphere is.
   final List<GlobalKey>? slotKeys;
+  // One per tab, on the sphere itself, so a guide can ring it exactly.
+  final List<GlobalKey>? sphereKeys;
   // Show the open tab's name under (or beside) its sphere.
   final bool showLabels;
 
@@ -60,6 +62,7 @@ class ShelfNavBar extends StatefulWidget {
     this.vertical = false,
     this.dye,
     this.slotKeys,
+    this.sphereKeys,
     this.showLabels = false,
   });
 
@@ -250,6 +253,7 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
                                         focus.clamp(0.0, 1.0);
                               return _buildSlot(
                                 item: item,
+                                sphereKey: widget.sphereKeys?[i],
                                 d: d,
                                 slot: slot,
                                 shelfTop: shelfTopAt(x),
@@ -283,6 +287,7 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
 
   Widget _buildSlot({
     required ShelfNavItem item,
+    required GlobalKey? sphereKey,
     required double d,
     required double slot,
     required double shelfTop,
@@ -339,6 +344,7 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
           width: size,
           height: size,
           child: _NavSphere(
+            key: sphereKey,
             item: item,
             focus: focus.clamp(0.0, 1.0),
             // The vertical bar is turned a quarter anticlockwise, so a
@@ -435,7 +441,7 @@ class _NavSphere extends StatelessWidget {
   final double focus;
   final bool rotateIcon;
 
-  const _NavSphere({required this.item, required this.focus, required this.rotateIcon});
+  const _NavSphere({super.key, required this.item, required this.focus, required this.rotateIcon});
 
   @override
   Widget build(BuildContext context) {
@@ -757,6 +763,7 @@ class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPro
   );
   final _stackKey = GlobalKey();
   late List<GlobalKey> _slotKeys = _keysFor(widget.items.length);
+  late List<GlobalKey> _sphereKeys = _keysFor(widget.items.length);
 
   late Color _from = _colorOf(widget.currentIndex);
   late Color _to = _from;
@@ -775,6 +782,7 @@ class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPro
     super.didUpdateWidget(oldWidget);
     if (widget.items.length != oldWidget.items.length) {
       _slotKeys = _keysFor(widget.items.length);
+      _sphereKeys = _keysFor(widget.items.length);
     }
     if (widget.currentIndex != oldWidget.currentIndex) {
       _from = _current;
@@ -797,15 +805,14 @@ class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPro
     return stack.globalToLocal(slot.localToGlobal(local));
   }
 
-  /* A tab's sphere on screen, as a square round it, for a guide to ring.
-     Follows the bar's turn in landscape. */
+  /* A tab's sphere on screen, exactly where it's drawn (bobbing, grown
+     when open, sitting in its cup), for a guide to ring. Follows the
+     bar's turn in landscape. */
   Rect? sphereRect(int i) {
-    if (i < 0 || i >= _slotKeys.length) return null;
-    final slot = _slotKeys[i].currentContext?.findRenderObject() as RenderBox?;
-    if (slot == null || !slot.attached || !slot.hasSize) return null;
-    final center = slot.localToGlobal(Offset(slot.size.width / 2, slot.size.height * 0.4));
-    final radius = math.min(slot.size.width * 0.42, 34.0);
-    return Rect.fromCircle(center: center, radius: radius);
+    if (i < 0 || i >= _sphereKeys.length) return null;
+    final sphere = _sphereKeys[i].currentContext?.findRenderObject() as RenderBox?;
+    if (sphere == null || !sphere.attached || !sphere.hasSize) return null;
+    return MatrixUtils.transformRect(sphere.getTransformTo(null), Offset.zero & sphere.size);
   }
 
   @override
@@ -873,6 +880,7 @@ class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPro
                   vertical: true,
                   dye: _current,
                   slotKeys: _slotKeys,
+                  sphereKeys: _sphereKeys,
                 ),
               ),
             ],
@@ -898,6 +906,7 @@ class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPro
           rotateItems: widget.rotateItems,
           dye: _current,
           slotKeys: _slotKeys,
+          sphereKeys: _sphereKeys,
         ),
     );
   }

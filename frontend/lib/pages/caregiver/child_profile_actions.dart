@@ -59,7 +59,7 @@ class ChildProfileActions {
     if (!context.mounted) return;
     if (!ok) {
       AppSnackbar.error(
-        profiles.lastError ?? 'Could not remove profile',
+        profiles.lastError ?? context.trRead('profiles.err_remove'),
         context: context,
       );
     }

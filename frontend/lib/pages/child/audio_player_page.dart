@@ -10,6 +10,7 @@ import '../../i18n/i18n.dart';
 import '../../models/audiobook.dart';
 import '../../models/user_settings.dart';
 import '../../services/database_service.dart';
+import '../../services/reading_progress.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
@@ -26,11 +27,15 @@ class AudioPlayerPage extends StatefulWidget {
      and no listening session saved. */
   final bool previewMode;
 
+  // "Continue reading": open at the page (and answers) saved last time.
+  final ReadingProgress? resumeFrom;
+
   const AudioPlayerPage({
     super.key,
     required this.title,
     this.audiobookId,
     this.previewMode = false,
+    this.resumeFrom,
   });
 
   @override
@@ -39,7 +44,8 @@ class AudioPlayerPage extends StatefulWidget {
 
 class _AudioPlayerPageState extends State<AudioPlayerPage> {
   final AudioEngine _engine = AudioEngine.instance;
-  final PageController _pageController = PageController();
+  // Swapped once for one that opens at the saved page, before it's shown.
+  PageController _pageController = PageController();
 
   Audiobook? _audiobook;
   // The pages being shown. For an interactive book this is only the path
@@ -168,6 +174,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   void dispose() {
     _listenWatch.stop();
     _recordSessionIfNeeded();
+    _saveProgress(); // before stop(), while the recording's position is real
     _audioCompleteSub?.cancel();
     _naturalPosSub?.cancel();
     _audioPosSub?.cancel();
@@ -216,6 +223,63 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       pauseCount: _pauseCount,
       skipCount: _skipCount,
     );
+  }
+
+  /* Remember where the child stopped, for "Continue reading" on the home
+     page; forget it once the book is finished. Fire-and-forget, so it's
+     safe from dispose(). */
+  void _saveProgress() {
+    if (widget.previewMode) return;
+    final childId = _activeChildId;
+    final audiobookId = widget.audiobookId;
+    final book = _audiobook;
+    if (childId == null || audiobookId == null || book == null || _pages.isEmpty) return;
+    if (_reachedEnd) {
+      ReadingProgress.clear(childId, audiobookId: audiobookId);
+      return;
+    }
+    final positionMs =
+        (!_useTts && _audioReady) ? _engine.player.position.inMilliseconds : 0;
+    // Only peeked at the first page: keep whatever was saved before.
+    if (_page == 0 && positionMs < 3000) return;
+    final page = _page.clamp(0, _pages.length - 1);
+    ReadingProgress.save(
+      childId,
+      ReadingProgress(
+        audiobookId: audiobookId,
+        title: widget.title,
+        coverImage: book.coverImage,
+        page: page,
+        pageNumber: _displayPageNumber(page),
+        totalPages: _displayTotalPages,
+        audioPositionMs: positionMs,
+        answers: Map.of(_answers),
+      ),
+    );
+  }
+
+  // Open at the saved page: same answers, same page, same spot in the
+  // recording. Runs before the pages are first shown.
+  Future<void> _applyResume() async {
+    final resume = widget.resumeFrom;
+    if (resume == null || resume.audiobookId != widget.audiobookId || _pages.isEmpty) return;
+    if (_allPages.isNotEmpty && resume.answers.isNotEmpty) {
+      _answers
+        ..clear()
+        ..addAll(resume.answers);
+      _pages = _buildInteractivePath();
+    }
+    final page = resume.page.clamp(0, _pages.length - 1);
+    if (page > 0) {
+      _page = page;
+      _pageController.dispose();
+      _pageController = PageController(initialPage: page);
+    }
+    if (!_useTts && _audioReady && resume.audioPositionMs > 0) {
+      try {
+        await _engine.seek(Duration(milliseconds: resume.audioPositionMs));
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadAudiobook() async {
@@ -306,12 +370,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
           _useTts = true;
           if (mounted) {
             AppSnackbar.warning(
-              'Could not load this book\'s audio. Using AI narration instead.',
+              context.trRead('player.err_audio'),
               context: context,
             );
           }
         }
       }
+      await _applyResume();
+      if (!mounted) return;
     } else {
       _pages = _pagesFromText(_defaultStoryText, null);
       _page = 0;
@@ -1137,7 +1203,10 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
             border: Border.all(color: AppColors.cardBorder),
           ),
           child: Text(
-            'Page $current of $total',
+            context
+                .tr('player.page_of')
+                .replaceAll('{current}', '$current')
+                .replaceAll('{total}', '$total'),
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
@@ -1167,7 +1236,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       children: [
         RoundIconButton(
           icon: Icons.chevron_left_rounded,
-          label: 'Back',
+          label: context.tr('player.back_btn'),
           color: AppColors.softLavender,
           enabled: _page > 0,
           onTap: () => _changePage(_page - 1),
@@ -1183,7 +1252,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         const SizedBox(width: 12),
         RoundIconButton(
           icon: Icons.chevron_right_rounded,
-          label: 'Next',
+          label: context.tr('player.next_btn'),
           color: AppColors.softMint,
           enabled: _page < _pages.length - 1,
           onTap: () => _changePage(_page + 1),
@@ -1274,7 +1343,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
             const SizedBox(height: 18),
             _SettingSectionLabel(
               icon: Icons.library_music_rounded,
-              label: 'Background Music Volume',
+              label: context.tr('player.bgm_volume'),
               trailing: _ValuePill(value: '$_bgmVolume%'),
             ),
             const SizedBox(height: 4),
@@ -1602,7 +1671,10 @@ class _StorybookPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  'Page $pageNumber of $totalPages',
+                  context
+                      .tr('player.page_of')
+                      .replaceAll('{current}', '$pageNumber')
+                      .replaceAll('{total}', '$totalPages'),
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 12,

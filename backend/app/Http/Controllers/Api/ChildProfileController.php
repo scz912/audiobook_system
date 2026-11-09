@@ -85,7 +85,8 @@ class ChildProfileController extends ApiController
 
         $validator = Validator::make($request->all(), [
             'name'              => 'sometimes|string|max:50',
-            'age'               => 'sometimes|integer|min:1|max:18',
+            // Up to 120: an independent account is the person's own profile.
+            'age'               => 'sometimes|integer|min:1|max:120',
             'avatar_emoji'      => 'sometimes|string|max:8',
             'avatar_color'      => 'sometimes|string|max:9',
             'favorite_genre'    => 'sometimes|nullable|string|max:50',

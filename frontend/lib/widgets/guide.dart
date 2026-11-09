@@ -190,6 +190,8 @@ class _GuideOverlayState extends State<GuideOverlay>
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Nothing to tap behind a celebration, so catch every touch.
+          if (step.celebrate) const Positioned.fill(child: AbsorbPointer()),
           IgnorePointer(
             child: CustomPaint(
               painter: _SpotlightPainter(
@@ -254,7 +256,10 @@ class _GuideContent extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(16, atTop ? 72 : 16, 16, atTop ? 16 : 150),
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: step.turned ? 420 : 520),
-                child: card,
+                /* Touches on Paige, the bubble or round Next stop here, so
+                   a slightly-off tap never plays the piano (it reads raw
+                   pointers) or opens whatever is beneath. */
+                child: Listener(behavior: HitTestBehavior.opaque, child: card),
               ),
             ),
           ),
@@ -295,19 +300,24 @@ class _GuideContent extends StatelessWidget {
       button: true,
       label: context.tr(isLast ? 'guide.done' : 'guide.next'),
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onNext,
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: _sun,
-            shape: BoxShape.circle,
-            border: Border.all(color: _ink, width: 3),
-          ),
-          child: Icon(
-            isLast ? Icons.check_rounded : Icons.arrow_forward_rounded,
-            size: 36,
-            color: _ink,
+        child: Padding(
+          // Extra room to hit, for small or shaky fingers.
+          padding: const EdgeInsets.all(8),
+          child: Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: _sun,
+              shape: BoxShape.circle,
+              border: Border.all(color: _ink, width: 3),
+            ),
+            child: Icon(
+              isLast ? Icons.check_rounded : Icons.arrow_forward_rounded,
+              size: 38,
+              color: _ink,
+            ),
           ),
         ),
       ),
@@ -320,7 +330,7 @@ class _GuideContent extends StatelessWidget {
           paige,
           const SizedBox(height: 8),
           bubble,
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           next,
         ],
       );
@@ -338,7 +348,7 @@ class _GuideContent extends StatelessWidget {
             Expanded(child: bubble),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 2),
         next,
       ],
     );
@@ -403,7 +413,7 @@ class _SpotlightPainter extends CustomPainter {
     final hole = Path();
     late final RRect ring;
     if (circle) {
-      final r = t.shortestSide / 2 + 6;
+      final r = t.shortestSide / 2 + 10;
       hole.addOval(Rect.fromCircle(center: t.center, radius: r));
       ring = RRect.fromRectAndRadius(
           Rect.fromCircle(center: t.center, radius: r + 4 + 4 * pulse), Radius.circular(r + 8));

@@ -10,4 +10,7 @@ extension I18nContext on BuildContext {
 
   // Use in callbacks - doesn't rebuild.
   String trRead(String key) => read<LanguageState>().tr(key);
+
+  // Short month name (1 = January) in the app's language.
+  String shortMonth(int month) => tr('months.short').split(',')[month - 1];
 }

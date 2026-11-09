@@ -1,4 +1,5 @@
 import '_json_helpers.dart';
+import 'quran_meanings_ms.dart';
 
 /* The Al-Quran pack. The app ships a small manifest (assets/quran/
    quran_manifest.json) that lists every chapter and how big it is; the
@@ -124,6 +125,13 @@ class QuranChapter {
     required this.installedBytes,
   });
 
+  String get meaningMs => number >= 1 && number <= quranMeaningsMs.length
+      ? quranMeaningsMs[number - 1]
+      : meaningEn;
+
+  // What the chapter's name means, in the app's language.
+  String meaning(String languageCode) => languageCode == 'ms' ? meaningMs : meaningEn;
+
   // Whether a search box entry finds this chapter (name, meaning or number).
   bool matches(String query) {
     final q = query.trim().toLowerCase();
@@ -131,6 +139,7 @@ class QuranChapter {
         '$number' == q ||
         nameEn.toLowerCase().contains(q) ||
         meaningEn.toLowerCase().contains(q) ||
+        meaningMs.toLowerCase().contains(q) ||
         nameAr.contains(q);
   }
 

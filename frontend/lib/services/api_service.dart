@@ -1,3 +1,5 @@
+import '../i18n/api_messages.dart';
+
 class ApiResponse {
   final bool success;
   final String message;
@@ -15,12 +17,12 @@ class ApiResponse {
     final status = (json['status']?.toString() ?? '').toUpperCase();
     return ApiResponse(
       success: status == 'SUCCESS',
-      message: json['message']?.toString() ?? '',
+      message: localizeApiMessage(json['message']?.toString() ?? ''),
       data: data ?? json['data'],
       error: json['error_code']?.toString(),
     );
   }
 
   factory ApiResponse.failure(String message, {String error = 'CLIENT_ERROR'}) =>
-      ApiResponse(success: false, message: message, error: error);
+      ApiResponse(success: false, message: localizeApiMessage(message), error: error);
 }

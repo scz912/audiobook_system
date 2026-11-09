@@ -20,7 +20,7 @@ import 'share_to_hub_page.dart';
 void _listenToPost(BuildContext context, HubPost post) {
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => AudioPlayerPage(
-      title: post.bookTitle ?? 'Story',
+      title: post.bookTitle ?? context.tr('community.book_linear'),
       audiobookId: post.audiobookId,
       previewMode: true,
     ),
@@ -144,7 +144,7 @@ class _PostCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(post.author?.name ?? 'Family',
+                      Text(post.author?.name ?? context.tr('community.family'),
                           style: const TextStyle(fontWeight: FontWeight.w700)),
                       Text(shortAgo(post.createdAt),
                           style: const TextStyle(
@@ -178,7 +178,7 @@ class _PostCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(post.bookTitle ?? 'Story',
+                          Text(post.bookTitle ?? context.tr('community.book_linear'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -277,7 +277,7 @@ class _PostCard extends StatelessWidget {
     if (confirmed != true) return;
     final ok = await hub.removePost(post.postId);
     if (context.mounted && !ok) {
-      AppSnackbar.error('Could not delete post', context: context);
+      AppSnackbar.error(context.trRead('hub.err_delete'), context: context);
     }
   }
 }

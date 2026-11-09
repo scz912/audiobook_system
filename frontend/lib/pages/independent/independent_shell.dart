@@ -14,6 +14,7 @@ import '../../widgets/shelf_nav_bar.dart';
 import '../caregiver/content_management_page.dart';
 import '../caregiver/insights_page.dart';
 import '../caregiver/settings_page.dart';
+import '../caregiver/upload_content_page.dart';
 import '../child/child_home_page.dart';
 import '../child/story_library_page.dart';
 import '../community/community_page.dart';
@@ -165,7 +166,13 @@ class _IndependentShellState extends State<IndependentShell> {
           onPaigeTap: _guide.start,
         );
       case _storiesTab:
-        return StoryLibraryPage(onBack: backHome, shelf: _shelf);
+        return StoryLibraryPage(
+          onBack: backHome,
+          shelf: _shelf,
+          onCreate: (format) => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => UploadContentPage(interactive: format == StoryShelf.interactive),
+          )),
+        );
       case 2:
         return ContentManagementPage(onBack: backHome);
       case 3:

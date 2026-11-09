@@ -425,15 +425,16 @@ class _ContentTile extends StatelessWidget {
     this.onCancel,
   });
 
+  // [label] is a translation key.
   static ({IconData icon, Color bg, String label}) _typeMetaFor(ContentItem item) {
     if (item.isGenerated) {
-      return (icon: Icons.auto_awesome, bg: AppColors.iconCirclePurple, label: 'AI');
+      return (icon: Icons.auto_awesome, bg: AppColors.iconCirclePurple, label: 'content.type_ai');
     }
     final type = (item.type ?? '').toLowerCase();
     if (type == 'audio') {
-      return (icon: Icons.headphones_outlined, bg: AppColors.iconCircleGreen, label: 'Audio');
+      return (icon: Icons.headphones_outlined, bg: AppColors.iconCircleGreen, label: 'content.type_audio');
     }
-    return (icon: Icons.description_outlined, bg: AppColors.iconCirclePeach, label: 'Text');
+    return (icon: Icons.description_outlined, bg: AppColors.iconCirclePeach, label: 'content.type_text');
   }
 
   @override
@@ -520,7 +521,7 @@ class _ContentTile extends StatelessWidget {
                         ],
                       ),
                     ),
-                    processing ? _generatingBadge(context) : _typeBadge(meta),
+                    processing ? _generatingBadge(context) : _typeBadge(context, meta),
                   ],
                 ),
               ),
@@ -585,14 +586,14 @@ class _ContentTile extends StatelessWidget {
     );
   }
 
-  Widget _typeBadge(({IconData icon, Color bg, String label}) meta) {
+  Widget _typeBadge(BuildContext context, ({IconData icon, Color bg, String label}) meta) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: meta.bg,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(meta.label,
+      child: Text(context.tr(meta.label),
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
     );
   }

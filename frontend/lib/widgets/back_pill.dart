@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n/i18n.dart';
 import '../theme/app_colors.dart';
 
 /* Compact circular back button - sits in the top-left of a page header.
@@ -7,10 +8,10 @@ import '../theme/app_colors.dart';
    shown as a tooltip; the button itself stays icon-only so it doesn't
    stretch full width. */
 class BackPill extends StatelessWidget {
-  final String label;
+  final String? label;
   final VoidCallback? onTap;
 
-  const BackPill({super.key, this.label = 'Back', this.onTap});
+  const BackPill({super.key, this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,7 @@ class BackPill extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: Tooltip(
-          message: label,
+          message: label ?? context.tr('common.back'),
           child: InkWell(
             onTap: onTap ?? () => Navigator.of(context).maybePop(),
             borderRadius: BorderRadius.circular(20),

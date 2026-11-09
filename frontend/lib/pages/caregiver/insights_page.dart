@@ -878,7 +878,7 @@ class _RecentTile extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          _shortWhen(session.at),
+          _shortWhen(context, session.at),
           style: const TextStyle(
             fontSize: 11,
             color: AppColors.textSecondary,
@@ -888,17 +888,13 @@ class _RecentTile extends StatelessWidget {
     );
   }
 
-  String _shortWhen(String iso) {
+  String _shortWhen(BuildContext context, String iso) {
     // "2026-05-29 13:14" → "May 29, 13:14" so it fits the small slot.
     try {
       final parts = iso.split(' ');
       if (parts.length != 2) return iso;
       final date = DateTime.parse('${parts[0]}T${parts[1]}:00');
-      const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ];
-      return '${months[date.month - 1]} ${date.day}, ${parts[1]}';
+      return '${context.shortMonth(date.month)} ${date.day}, ${parts[1]}';
     } catch (_) {
       return iso;
     }
@@ -1176,12 +1172,8 @@ String _relativeWhen(BuildContext context, DateTime when) {
   return '${diff.inDays} ${context.tr('insights.time_days_ago')}';
 }
 
-String _absoluteWhen(DateTime when) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  return '${months[when.month - 1]} ${when.day}, '
+String _absoluteWhen(BuildContext context, DateTime when) {
+  return '${context.shortMonth(when.month)} ${when.day}, '
       '${when.hour.toString().padLeft(2, '0')}:'
       '${when.minute.toString().padLeft(2, '0')}';
 }
@@ -1408,7 +1400,7 @@ class _Footer extends StatelessWidget {
       children: [
         if (generatedAt != null) ...[
           Tooltip(
-            message: _absoluteWhen(generatedAt!),
+            message: _absoluteWhen(context, generatedAt!),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

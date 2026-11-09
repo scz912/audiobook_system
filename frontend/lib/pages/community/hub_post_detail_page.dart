@@ -166,7 +166,7 @@ class _PostHeader extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(live.author?.name ?? 'Family',
+                child: Text(live.author?.name ?? context.tr('community.family'),
                     style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
               Text(shortAgo(live.createdAt),
@@ -183,7 +183,7 @@ class _PostHeader extends StatelessWidget {
             InkWell(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => AudioPlayerPage(
-                  title: live.bookTitle ?? 'Story',
+                  title: live.bookTitle ?? context.tr('community.book_linear'),
                   audiobookId: live.audiobookId,
                   previewMode: true,
                 ),
@@ -216,7 +216,7 @@ class _PostHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(live.bookTitle ?? 'Story',
+                    child: Text(live.bookTitle ?? context.tr('community.book_linear'),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 15)),
                   ),
@@ -237,7 +237,7 @@ class _PostHeader extends StatelessWidget {
                 ),
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => AudioPlayerPage(
-                    title: live.bookTitle ?? 'Story',
+                    title: live.bookTitle ?? context.tr('community.book_linear'),
                     audiobookId: live.audiobookId,
                     previewMode: true,
                   ),
@@ -306,7 +306,7 @@ class _CommentTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(comment.author?.name ?? 'Family',
+                    Text(comment.author?.name ?? context.tr('community.family'),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 13)),
                     const SizedBox(width: 8),

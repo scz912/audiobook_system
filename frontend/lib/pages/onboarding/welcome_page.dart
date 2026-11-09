@@ -43,7 +43,6 @@ enum _Step { hi, language, about, who, account }
 class _WelcomePageState extends State<WelcomePage> {
   static const _ink = Color(0xFF26215C);
   static const _cream = Color(0xFFFFF7E8);
-  static const _sun = Color(0xFFFFC83D);
 
   late _Step _step = widget.startAtWho ? _Step.who : _Step.hi;
   bool _independent = false;
@@ -304,23 +303,7 @@ class _WelcomePageState extends State<WelcomePage> {
             const SizedBox(height: 18),
             _Sub(context.tr('welcome.age')),
             const SizedBox(height: 10),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var a = 10; a <= 18; a++)
-                  ChoiceChip(
-                    label: Text('$a', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                    selected: _age == a,
-                    selectedColor: _sun,
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: _ink, width: 2),
-                    showCheckmark: false,
-                    onSelected: (_) => setState(() => _age = a),
-                  ),
-              ],
-            ),
+            _AgePicker(age: _age, onChanged: (a) => setState(() => _age = a)),
           ],
           const SizedBox(height: 22),
           _BigButton(
@@ -519,6 +502,59 @@ class _Field extends StatelessWidget {
         hintText: hint,
         counterText: '',
         prefixIcon: Icon(icon, size: 26, color: const Color(0xFF26215C)),
+      ),
+    );
+  }
+}
+
+/* Age, 1 to 120, as a dropdown: tap it and a scrolling list opens at the
+   current age. */
+class _AgePicker extends StatelessWidget {
+  const _AgePicker({required this.age, required this.onChanged});
+
+  final int age;
+  final ValueChanged<int> onChanged;
+
+  static const minAge = 1;
+  static const maxAge = 120;
+  static const _ink = Color(0xFF26215C);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 62,
+      padding: const EdgeInsets.only(left: 18, right: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _ink, width: 3),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: age.clamp(minAge, maxAge),
+          isExpanded: true,
+          menuMaxHeight: 320,
+          borderRadius: BorderRadius.circular(20),
+          dropdownColor: Colors.white,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 36, color: _ink),
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _ink),
+          items: [
+            for (var a = minAge; a <= maxAge; a++)
+              DropdownMenuItem(
+                value: a,
+                child: Row(
+                  children: [
+                    const Icon(Icons.cake_rounded, size: 24, color: Color(0xFFFF8A65)),
+                    const SizedBox(width: 12),
+                    Text('$a'),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (a) {
+            if (a != null) onChanged(a);
+          },
+        ),
       ),
     );
   }

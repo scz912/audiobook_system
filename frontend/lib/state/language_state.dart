@@ -25,6 +25,7 @@ class LanguageState extends ChangeNotifier {
     if (stored != null && AppStrings.supportedCodes.contains(stored)) {
       _code = stored;
     }
+    AppStrings.currentCode = _code;
     _loaded = true;
     notifyListeners();
   }
@@ -33,6 +34,7 @@ class LanguageState extends ChangeNotifier {
   Future<void> setLanguage(String code) async {
     if (!AppStrings.supportedCodes.contains(code) || code == _code) return;
     _code = code;
+    AppStrings.currentCode = code;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, code);
     notifyListeners();

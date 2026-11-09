@@ -41,12 +41,34 @@ class _PageDraft {
 
 enum _Mode { write, ai }
 
+/* Colours for this page: a pastel tint per section, and a stronger colour
+   for each section's icon, so the long form is easy to scan. */
+class _Tint {
+  _Tint._();
+  static const details = Color(0xFFEFF5FF); // blue
+  static const cover = Color(0xFFFFF0F4); // pink
+  static const language = Color(0xFFEEF8F1); // mint
+  static const page = Color(0xFFF6F1FF); // lavender
+  static const music = Color(0xFFFFF7E3); // butter
+  static const ai = Color(0xFFF3EEFF); // violet
+
+  static const blue = Color(0xFF5B8DEF);
+  static const pink = Color(0xFFEC6A8F);
+  static const mint = Color(0xFF3FAF7A);
+  static const yellow = Color(0xFFE9A800);
+  static const peach = Color(0xFFF08A4B);
+  static const lavender = Color(0xFF8B6CE0);
+}
+
 /* Linear = read straight through. Interactive = some pages pause and let
    the child pick an answer that changes the next page. */
 enum _BookFormat { linear, interactive }
 
 class UploadContentPage extends StatefulWidget {
-  const UploadContentPage({super.key});
+  const UploadContentPage({super.key, this.interactive = false});
+
+  // Open on the Interactive format (from the library's Interactive shelf).
+  final bool interactive;
 
   @override
   State<UploadContentPage> createState() => _UploadContentPageState();
@@ -54,7 +76,8 @@ class UploadContentPage extends StatefulWidget {
 
 class _UploadContentPageState extends State<UploadContentPage> {
   _Mode _mode = _Mode.write;
-  _BookFormat _format = _BookFormat.linear;
+  late _BookFormat _format =
+      widget.interactive ? _BookFormat.interactive : _BookFormat.linear;
 
   // Interactive "write" pages (kept apart from the linear pages).
   final List<_InteractivePageDraft> _interactiveDrafts = [
@@ -138,7 +161,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       if (file != null) setState(() => onPicked(file.path));
     } catch (e) {
       if (mounted) {
-        AppSnackbar.error('Could not pick image: $e', context: context);
+        AppSnackbar.error(context.trRead('upload.err_pick_image').replaceAll('{error}', '$e'), context: context);
       }
     }
   }
@@ -166,7 +189,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       }
     } catch (e) {
       if (mounted) {
-        AppSnackbar.error('Could not pick audio: $e', context: context);
+        AppSnackbar.error(context.trRead('upload.err_pick_audio').replaceAll('{error}', '$e'), context: context);
       }
     }
   }
@@ -182,20 +205,17 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty) {
-      AppSnackbar.warning('Title is required', context: context);
+      AppSnackbar.warning(context.trRead('upload.err_title_required'), context: context);
       return;
     }
     final hasContent = _pageDrafts.any((p) =>
         p.text.text.trim().isNotEmpty || p.imagePath != null);
     if (!hasContent) {
-      AppSnackbar.warning('Add text or an image to at least one page',
-          context: context);
+      AppSnackbar.warning(context.trRead('upload.err_need_page'), context: context);
       return;
     }
     if (_writeBgmEnabled && _writeBgmTrack == null) {
-      AppSnackbar.warning(
-          'Please choose a background music track, or disable BGM',
-          context: context);
+      AppSnackbar.warning(context.trRead('upload.err_need_track'), context: context);
       return;
     }
 
@@ -232,8 +252,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     final audiobookId = (created.data as ContentItem).audiobookId;
     if (audiobookId == null) {
       setState(() => _submitting = false);
-      AppSnackbar.error('Created, but no audiobook id was returned',
-          context: context);
+      AppSnackbar.error(context.trRead('upload.err_no_id'), context: context);
       return;
     }
 
@@ -252,7 +271,11 @@ class _UploadContentPageState extends State<UploadContentPage> {
         audioStartMs: pageNo == 1 ? null : draft.audioStartMs,
       );
       if (!pageResp.success && mounted) {
-        AppSnackbar.warning('Page $pageNo could not be saved: ${pageResp.message}',
+        AppSnackbar.warning(
+            context
+                .trRead('upload.err_page_failed')
+                .replaceAll('{n}', '$pageNo')
+                .replaceAll('{message}', pageResp.message),
             context: context);
       }
       pageNo++;
@@ -260,7 +283,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
     if (!mounted) return;
     setState(() => _submitting = false);
-    AppSnackbar.success('Storybook added to library', context: context);
+    AppSnackbar.success(context.trRead('upload.saved'), context: context);
     Navigator.of(context).pop();
   }
 
@@ -269,8 +292,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
   Future<void> _generateAi() async {
     final topic = _aiTopicCtrl.text.trim();
     if (topic.isEmpty) {
-      AppSnackbar.warning('Please enter a topic or idea for the story',
-          context: context);
+      AppSnackbar.warning(context.trRead('upload.err_topic_required'), context: context);
       return;
     }
     setState(() => _generating = true);
@@ -340,9 +362,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        processing
-                            ? 'Creating your storybook…'
-                            : 'Created successfully!',
+                        context.tr(processing ? 'upload.creating' : 'upload.created'),
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w700),
                       ),
@@ -392,8 +412,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
                         borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Done',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(context.tr('common.done'),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
@@ -463,38 +483,38 @@ class _UploadContentPageState extends State<UploadContentPage> {
   // The first thing that would stop the book from working, or null.
   String? _interactiveProblem() {
     if (!_interactiveDrafts.any((d) => d.interactive)) {
-      return 'Turn on "Interactive" for at least one page, or switch to a '
-          'Linear audiobook.';
+      return context.trRead('upload.err_no_interactive');
     }
     final numbers = _interactivePageNumbers();
+    String at(String key, int page) =>
+        context.trRead(key).replaceAll('{n}', '$page');
     for (var i = 0; i < _interactiveDrafts.length; i++) {
       final d = _interactiveDrafts[i];
       final n = numbers[i];
       if (!d.interactive) continue;
       if (d.text.text.trim().isEmpty) {
-        return 'Page $n: write the question page text.';
+        return at('upload.err_question_text', n);
       }
       final choices = d.choiceTexts;
-      if (choices.length < 2) return 'Page $n: fill in at least 2 choices.';
+      if (choices.length < 2) return at('upload.err_two_choices', n);
       if (choices.map((c) => c.toLowerCase()).toSet().length !=
           choices.length) {
-        return 'Page $n: each choice must be different.';
+        return at('upload.err_same_choice', n);
       }
       if (d.split) {
         for (var b = 0; b < 2; b++) {
           final branch = d.branches[b];
           if (branch.text.text.trim().isEmpty && branch.imagePath == null) {
-            return 'Page ${n + 1}: fill in the page for "${choices[b]}".';
+            return at('upload.err_branch_page', n + 1).replaceAll('{choice}', choices[b]);
           }
         }
       } else {
         final response = d.response.text.text;
         if (response.trim().isEmpty) {
-          return 'Page ${n + 1}: write the response page.';
+          return at('upload.err_response_page', n + 1);
         }
         if (!response.contains(AudiobookPage.choiceToken)) {
-          return 'Page ${n + 1}: drag the "Child\'s answer" placeholder into '
-              'the response text.';
+          return at('upload.err_placeholder', n + 1);
         }
       }
     }
@@ -503,7 +523,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   Future<void> _submitInteractive() async {
     if (_titleCtrl.text.trim().isEmpty) {
-      AppSnackbar.warning('Title is required', context: context);
+      AppSnackbar.warning(context.trRead('upload.err_title_required'), context: context);
       return;
     }
     final problem = _interactiveProblem();
@@ -512,9 +532,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       return;
     }
     if (_writeBgmEnabled && _writeBgmTrack == null) {
-      AppSnackbar.warning(
-          'Please choose a background music track, or disable BGM',
-          context: context);
+      AppSnackbar.warning(context.trRead('upload.err_need_track'), context: context);
       return;
     }
 
@@ -549,7 +567,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     if (!created.success || audiobookId == null) {
       setState(() => _submitting = false);
       AppSnackbar.error(
-          created.success ? 'Created, but no audiobook id was returned' : created.message,
+          created.success ? context.trRead('upload.err_no_id') : created.message,
           context: context);
       return;
     }
@@ -596,12 +614,10 @@ class _UploadContentPageState extends State<UploadContentPage> {
     setState(() => _submitting = false);
     if (failed.isNotEmpty) {
       AppSnackbar.warning(
-          'Saved, but page(s) ${failed.join(', ')} could not be saved. '
-          'Check them in the library.',
+          context.trRead('upload.err_pages_failed').replaceAll('{pages}', failed.join(', ')),
           context: context);
     } else {
-      AppSnackbar.success('Interactive storybook added to library',
-          context: context);
+      AppSnackbar.success(context.trRead('upload.saved_interactive'), context: context);
     }
     Navigator.of(context).pop();
   }
@@ -616,24 +632,25 @@ class _UploadContentPageState extends State<UploadContentPage> {
         ..._writeDetailsSection(),
         const SizedBox(height: 14),
         SoftCard(
+          color: _Tint.language,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Label(context.tr('upload.story_language')),
+              _Label(context.tr('upload.story_language'),
+                  icon: Icons.translate_rounded, color: _Tint.mint),
               const SizedBox(height: 8),
               _manualLanguagePicker(),
               const SizedBox(height: 10),
-              const Text(
-                'Pages are read aloud by the app\'s narrator voice. A whole-book '
-                'recording can\'t be used here, because the story changes with '
-                'the child\'s answers.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              Text(
+                context.tr('upload.interactive_voice_note'),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
         ),
         const SizedBox(height: 14),
-        const _Label('Pages'),
+        _Label(context.tr('upload.pages'),
+            icon: Icons.menu_book_rounded, color: _Tint.lavender),
         const SizedBox(height: 8),
         for (int i = 0; i < _interactiveDrafts.length; i++) ...[
           _InteractivePageCard(
@@ -657,8 +674,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           icon: const Icon(Icons.add_rounded, size: 20),
-          label: const Text('Add page',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          label: Text(context.tr('content.add_page'),
+              style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 14),
         _BgmCard(
@@ -682,13 +699,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
         SizedBox(
           width: double.infinity,
           child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
+            style: _saveStyle,
             onPressed: _submitting ? null : _submitInteractive,
             child: _submitting
                 ? const SizedBox(
@@ -696,9 +707,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
                     height: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save Interactive Storybook',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                : Text(context.tr('upload.save_interactive'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 16)),
           ),
         ),
       ],
@@ -708,21 +719,57 @@ class _UploadContentPageState extends State<UploadContentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
+      backgroundColor: AppColors.background,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF1D2), Color(0xFFF3ECFF), Color(0xFFE9F3FF)],
+            stops: [0, 0.45, 1],
+          ),
+        ),
+        child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
             const BackPill(),
             const SizedBox(height: 16),
-            Text(
-              context.tr('upload.title'),
-              style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Add a new story for your children',
-              style: TextStyle(color: AppColors.textSecondary),
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFFC83D), Color(0xFFF08A4B)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.auto_stories_rounded,
+                      color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr('upload.title'),
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        context.tr('upload.subtitle'),
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             _FormatSlider(
@@ -749,64 +796,88 @@ class _UploadContentPageState extends State<UploadContentPage> {
               _buildAiForm(),
           ],
         ),
+        ),
       ),
     );
   }
 
   // write form
 
+  static final _saveStyle = FilledButton.styleFrom(
+    backgroundColor: _Tint.mint,
+    foregroundColor: Colors.white,
+    disabledBackgroundColor: _Tint.mint.withValues(alpha: 0.5),
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  );
+
+  // Easy is green, Medium yellow, Hard orange.
+  static Color _difficultyColor(String d) => switch (d) {
+        'Medium' => const Color(0xFFFDE08A),
+        'Hard' => const Color(0xFFFFC09A),
+        _ => const Color(0xFFB8E6C8),
+      };
+
   // Title / topic / difficulty / tags card and the cover card (both formats).
   List<Widget> _writeDetailsSection() {
     return [
       SoftCard(
+        color: _Tint.details,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _Label('Title'),
+            _Label(context.tr('upload.title_field'),
+                icon: Icons.title_rounded, color: _Tint.blue),
             TextField(
                 controller: _titleCtrl,
                 decoration:
-                    const InputDecoration(hintText: 'e.g. The Gentle Dragon')),
+                    InputDecoration(hintText: context.tr('upload.title_hint'))),
             const SizedBox(height: 14),
-            const _Label('Topic'),
+            _Label(context.tr('upload.topic'),
+                icon: Icons.lightbulb_rounded, color: _Tint.yellow),
             TextField(
                 controller: _topicCtrl,
                 decoration:
-                    const InputDecoration(hintText: 'e.g. Fantasy, Animals')),
+                    InputDecoration(hintText: context.tr('upload.topic_hint'))),
             const SizedBox(height: 14),
-            const _Label('Difficulty'),
+            _Label(context.tr('content.field_difficulty'),
+                icon: Icons.speed_rounded, color: _Tint.peach),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: ['Easy', 'Medium', 'Hard'].map((d) {
                 return SoftChip(
-                  label: d,
+                  label: context.tr('content.difficulty_${d.toLowerCase()}'),
+                  selectedColor: _difficultyColor(d),
                   selected: _difficulty == d,
                   onTap: () => setState(() => _difficulty = d),
                 );
               }).toList(),
             ),
             const SizedBox(height: 14),
-            const _Label('Tags'),
+            _Label(context.tr('upload.tags'),
+                icon: Icons.sell_rounded, color: _Tint.mint),
             TextField(
                 controller: _tagsCtrl,
-                decoration: const InputDecoration(
-                    hintText: 'comma, separated, tags')),
+                decoration: InputDecoration(
+                    hintText: context.tr('upload.tags_hint'))),
           ],
         ),
       ),
       const SizedBox(height: 14),
       // Cover image.
       SoftCard(
+        color: _Tint.cover,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _Label('Cover image'),
+            _Label(context.tr('upload.cover_image'),
+                icon: Icons.image_rounded, color: _Tint.pink),
             const SizedBox(height: 8),
             _ImagePickerBox(
               imagePath: _coverPath,
               height: 150,
-              hint: 'Add a cover image',
+              hint: context.tr('upload.cover_hint'),
               onPick: () => _pickImage((p) => _coverPath = p),
               onClear: _coverPath == null
                   ? null
@@ -842,14 +913,17 @@ class _UploadContentPageState extends State<UploadContentPage> {
         ..._writeDetailsSection(),
         const SizedBox(height: 14),
         SoftCard(
+          color: _Tint.language,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Label(context.tr('upload.story_language')),
+              _Label(context.tr('upload.story_language'),
+                  icon: Icons.translate_rounded, color: _Tint.mint),
               const SizedBox(height: 8),
               _manualLanguagePicker(),
               const SizedBox(height: 16),
-              _Label(context.tr('upload.book_audio')),
+              _Label(context.tr('upload.book_audio'),
+                  icon: Icons.headphones_rounded, color: _Tint.blue),
               const SizedBox(height: 6),
               Text(
                 context.tr('upload.book_audio_hint'),
@@ -886,7 +960,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
         ),
         const SizedBox(height: 14),
         // Per-page builder.
-        const _Label('Pages'),
+        _Label(context.tr('upload.pages'),
+            icon: Icons.menu_book_rounded, color: _Tint.lavender),
         const SizedBox(height: 8),
         for (int i = 0; i < _pageDrafts.length; i++) ...[
           _PageEditorCard(
@@ -911,8 +986,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
           icon: const Icon(Icons.add_rounded, size: 20),
-          label: const Text('Add page',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          label: Text(context.tr('content.add_page'),
+              style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 14),
         _BgmCard(
@@ -936,13 +1011,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
         SizedBox(
           width: double.infinity,
           child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
+            style: _saveStyle,
             onPressed: _submitting ? null : _submit,
             child: _submitting
                 ? const SizedBox(
@@ -950,16 +1019,15 @@ class _UploadContentPageState extends State<UploadContentPage> {
                     height: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save Storybook',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                : Text(context.tr('upload.save_storybook'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 16)),
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
-          'Each page can have its own text and picture. The first image (or the '
-          'cover) is used as the library thumbnail.',
-          style: TextStyle(
+        Text(
+          context.tr('upload.pages_note'),
+          style: const TextStyle(
               color: AppColors.textMuted, fontSize: 12, height: 1.4),
         ),
       ],
@@ -973,6 +1041,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SoftCard(
+          color: _Tint.ai,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -989,35 +1058,37 @@ class _UploadContentPageState extends State<UploadContentPage> {
                         size: 18, color: AppColors.primaryBlueDark),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text('Generate with Gemini AI',
-                        style: TextStyle(
+                  Expanded(
+                    child: Text(context.tr('upload.ai_heading'),
+                        style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
-                'Describe a topic and AI will write a calm, autism-friendly '
-                'story for you to review.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              Text(
+                context.tr('upload.ai_intro'),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 14),
-              const _Label('Topic / idea'),
+              _Label(context.tr('upload.ai_topic'),
+                  icon: Icons.lightbulb_rounded, color: _Tint.yellow),
               TextField(
                 controller: _aiTopicCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'e.g. A shy turtle who makes a new friend',
+                decoration: InputDecoration(
+                  hintText: context.tr('upload.ai_topic_hint'),
                 ),
               ),
               const SizedBox(height: 14),
-              const _Label('Difficulty'),
+              _Label(context.tr('content.field_difficulty'),
+                  icon: Icons.speed_rounded, color: _Tint.peach),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: ['Easy', 'Medium', 'Hard'].map((d) {
                   return SoftChip(
-                    label: d,
+                    label: context.tr('content.difficulty_${d.toLowerCase()}'),
+                    selectedColor: _difficultyColor(d),
                     selected: _aiDifficulty == d,
                     onTap: () => setState(() => _aiDifficulty = d),
                   );
@@ -1026,16 +1097,17 @@ class _UploadContentPageState extends State<UploadContentPage> {
               const SizedBox(height: 6),
               // Matches the backend's sentencesPerPage().
               Text(
-                switch (_aiDifficulty) {
-                  'Medium' => '2 sentences on each page.',
-                  'Hard' => '3 or more sentences on each page.',
-                  _ => '1 sentence on each page.',
-                },
+                context.tr(switch (_aiDifficulty) {
+                  'Medium' => 'content.difficulty_hint_medium',
+                  'Hard' => 'content.difficulty_hint_hard',
+                  _ => 'content.difficulty_hint_easy',
+                }),
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 14),
-              const _Label('Story length (pages)'),
+              _Label(context.tr('upload.ai_length'),
+                  icon: Icons.menu_book_rounded, color: _Tint.lavender),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1045,7 +1117,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
                         : _pageOptions)
                     .map((p) {
                   return SoftChip(
-                    label: p,
+                    label: p == 'Auto' ? context.tr('upload.ai_page_count_auto') : p,
                     selected: _aiPages == p,
                     selectedColor: AppColors.softMint,
                     onTap: () => setState(() => _setAiPages(p)),
@@ -1054,16 +1126,15 @@ class _UploadContentPageState extends State<UploadContentPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                _format == _BookFormat.interactive
-                    ? 'Each page is one AI picture (~10-15s). A split page '
-                        'needs 2 pictures, so it takes a little longer.'
-                    : '“Auto” picks a short length (4-6 pages). Each page is one AI '
-                        'picture (~10-15s), so fewer pages means a faster result.',
+                context.tr(_format == _BookFormat.interactive
+                    ? 'upload.ai_length_hint_interactive'
+                    : 'upload.ai_length_hint'),
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 14),
-              _Label(context.tr('upload.ai_language')),
+              _Label(context.tr('upload.ai_language'),
+                  icon: Icons.translate_rounded, color: _Tint.mint),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1098,16 +1169,17 @@ class _UploadContentPageState extends State<UploadContentPage> {
         ],
         const SizedBox(height: 14),
         SoftCard(
+          color: _Tint.cover,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Label('Base text (optional)'),
+              _Label(context.tr('upload.base_text'),
+                  icon: Icons.notes_rounded, color: _Tint.pink),
               TextField(
                 controller: _aiBaseTextCtrl,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText:
-                      'Paste existing text to rewrite into a gentle story, or leave empty.',
+                decoration: InputDecoration(
+                  hintText: context.tr('upload.base_text_hint'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1116,11 +1188,11 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 value: _aiGenerateImage,
                 activeThumbColor: AppColors.primaryBlueDark,
                 onChanged: (v) => setState(() => _aiGenerateImage = v),
-                title: const Text('Generate a cover image',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text(
-                  'Uses Gemini image generation (may be skipped on the free tier).',
-                  style: TextStyle(color: AppColors.textSecondary),
+                title: Text(context.tr('upload.gen_cover'),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  context.tr('upload.gen_cover_hint'),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -1149,7 +1221,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
           width: double.infinity,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryBlueDark,
+              backgroundColor: _Tint.lavender,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape:
@@ -1165,7 +1237,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
                   )
                 : const Icon(Icons.auto_awesome, size: 20),
             label: Text(
-              _generating ? 'Generating…' : 'Generate with AI',
+              context.tr(_generating ? 'upload.generating' : 'upload.generate_ai'),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ),
@@ -1201,16 +1273,16 @@ class _PendingCard extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     Text(
-                      'Creating your storybook…',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                      context.tr('upload.creating'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      'Writing the story and drawing each picture.',
-                      style: TextStyle(
+                      context.tr('upload.pending_body'),
+                      style: const TextStyle(
                           color: AppColors.textSecondary, fontSize: 12.5),
                     ),
                   ],
@@ -1225,10 +1297,9 @@ class _PendingCard extends StatelessWidget {
               color: AppColors.background,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
-              'Each page gets its own AI picture (about 10-15s each), so this '
-              'can take up to a minute. Please keep the app open.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            child: Text(
+              context.tr('upload.pending_wait'),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
           ),
         ],
@@ -1340,6 +1411,7 @@ class _PageEditorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
+      color: _Tint.page,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1352,7 +1424,7 @@ class _PageEditorCard extends StatelessWidget {
                   color: AppColors.softMint,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text('Page ${index + 1}',
+                child: Text(context.tr('content.page_number').replaceAll('{n}', '${index + 1}'),
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 13)),
               ),
@@ -1362,7 +1434,7 @@ class _PageEditorCard extends StatelessWidget {
                   onPressed: onRemove,
                   icon: const Icon(Icons.delete_outline_rounded,
                       color: AppColors.textSecondary),
-                  tooltip: 'Remove page',
+                  tooltip: context.tr('upload.remove_page'),
                 ),
             ],
           ),
@@ -1370,15 +1442,15 @@ class _PageEditorCard extends StatelessWidget {
           TextField(
             controller: draft.text,
             maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Text for this page…',
+            decoration: InputDecoration(
+              hintText: context.tr('upload.page_text_hint'),
             ),
           ),
           const SizedBox(height: 10),
           _ImagePickerBox(
             imagePath: draft.imagePath,
             height: 130,
-            hint: 'Add a picture for this page',
+            hint: context.tr('upload.page_picture_hint'),
             onPick: onPickImage,
             onClear: draft.imagePath == null ? null : onClearImage,
           ),
@@ -1404,8 +1476,8 @@ class _ModeToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _segment('Write', Icons.edit_outlined, _Mode.write),
-          _segment('Generate with AI', Icons.auto_awesome, _Mode.ai),
+          _segment(context.tr('upload.mode_write'), Icons.edit_outlined, _Mode.write),
+          _segment(context.tr('upload.generate_ai'), Icons.auto_awesome, _Mode.ai),
         ],
       ),
     );
@@ -1420,7 +1492,13 @@ class _ModeToggle extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primaryBlue : Colors.transparent,
+            gradient: selected
+                ? LinearGradient(
+                    colors: value == _Mode.write
+                        ? const [Color(0xFFFFE08A), Color(0xFFFFC96B)]
+                        : const [Color(0xFFD9C8FF), Color(0xFFB9A2F5)],
+                  )
+                : null,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1837,16 +1915,32 @@ class _AudioPickerRow extends StatelessWidget {
 
 class _Label extends StatelessWidget {
   final String text;
-  const _Label(this.text);
+  final IconData? icon;
+  final Color color;
+  const _Label(this.text, {this.icon, this.color = AppColors.primaryBlueDark});
 
   @override
   Widget build(BuildContext context) {
+    final label = Text(
+      text,
+      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      ),
+      child: icon == null
+          ? label
+          : Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  child: Icon(icon, size: 15, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: label),
+              ],
+            ),
     );
   }
 }
@@ -1878,6 +1972,7 @@ class _BgmCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
+      color: _Tint.music,
       padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1887,12 +1982,10 @@ class _BgmCard extends StatelessWidget {
             value: enabled,
             activeThumbColor: AppColors.primaryBlueDark,
             onChanged: onToggle,
-            title: const Text('Background Music',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            title: Text(context.tr('upload.bgm'),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(
-              autoAllowed
-                  ? 'AI will pick a fitting track, or choose one below.'
-                  : 'Add gentle music behind the narration.',
+              context.tr(autoAllowed ? 'upload.bgm_auto_hint' : 'upload.bgm_hint'),
               style:
                   const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
@@ -1918,15 +2011,15 @@ class _BgmCard extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.library_music_rounded, size: 18),
                 label: Text(
-                  autoAllowed ? 'Choose a track (optional)' : 'Choose a track',
+                  context.tr(autoAllowed ? 'upload.choose_track_optional' : 'upload.choose_track'),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
               if (autoAllowed) ...[
                 const SizedBox(height: 6),
-                const Text(
-                  'Leave empty to let AI pick the best match for the story.',
-                  style: TextStyle(
+                Text(
+                  context.tr('upload.bgm_leave_empty'),
+                  style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 12),
                 ),
               ],
@@ -1937,8 +2030,8 @@ class _BgmCard extends StatelessWidget {
                 const Icon(Icons.volume_up_rounded,
                     size: 18, color: AppColors.textSecondary),
                 const SizedBox(width: 6),
-                const Text('Volume',
-                    style: TextStyle(
+                Text(context.tr('upload.volume'),
+                    style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 13)),
                 const Spacer(),
                 Text('$volume%',
@@ -2011,8 +2104,8 @@ class _SelectedTrackRow extends StatelessWidget {
           ),
           GestureDetector(
             onTap: onChangeTap,
-            child: const Text('Change',
-                style: TextStyle(
+            child: Text(context.tr('upload.change'),
+                style: const TextStyle(
                     color: AppColors.primaryBlueDark,
                     fontSize: 12,
                     fontWeight: FontWeight.w600)),

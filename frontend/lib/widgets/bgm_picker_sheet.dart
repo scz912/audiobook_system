@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../i18n/i18n.dart';
 import '../models/music_track.dart';
 import '../services/database_service.dart';
 import '../theme/app_colors.dart';
@@ -172,7 +173,8 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
         withData: false,
       );
     } catch (e) {
-      await _showMessage('Could not open files', '$e');
+      if (!mounted) return;
+      await _showMessage(context.trRead('bgm.err_open'), '$e');
       return;
     }
     final file = result?.files.single;
@@ -182,13 +184,13 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
     // Some pickers ignore the extension filter, so check again here.
     final ext = (file.extension ?? '').toLowerCase();
     if (!_uploadExtensions.contains(ext)) {
-      await _showMessage('Unsupported file',
-          'This file type can\'t be used. Please upload your music as an MP3 file.');
+      if (!mounted) return;
+      await _showMessage(context.trRead('bgm.err_type_title'), context.trRead('bgm.err_type_body'));
       return;
     }
     if (file.size > _maxUploadBytes) {
-      await _showMessage('File too large',
-          'Please choose a music file smaller than 40 MB.');
+      if (!mounted) return;
+      await _showMessage(context.trRead('bgm.err_size_title'), context.trRead('bgm.err_size_body'));
       return;
     }
 
@@ -216,8 +218,8 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
 
     if (!resp.success || resp.data is! MusicTrack) {
       await _showMessage(
-        'Couldn\'t add music',
-        resp.message.isNotEmpty ? resp.message : 'Please try again.',
+        context.trRead('bgm.err_add_title'),
+        resp.message.isNotEmpty ? resp.message : context.trRead('bgm.try_again'),
       );
       return;
     }
@@ -242,22 +244,18 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.copyright_rounded,
             color: AppColors.warning, size: 32),
-        title: const Text('Copyright notice'),
-        content: const Text(
-          'If the music you upload is subject to copyright issues, we as '
-          'developers will take down the music. Please make sure the music '
-          'you use is free from copyright issues.',
-        ),
+        title: Text(ctx.tr('bgm.copyright_title')),
+        content: Text(ctx.tr('bgm.copyright_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(ctx.tr('common.cancel')),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryBlueDark),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('I understand'),
+            child: Text(ctx.tr('bgm.understand')),
           ),
         ],
       ),
@@ -304,7 +302,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
+            child: Text(ctx.tr('common.ok')),
           ),
         ],
       ),
@@ -338,17 +336,17 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
             padding: const EdgeInsets.fromLTRB(20, 4, 8, 0),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Choose Background Music',
-                    style:
-                        TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    context.tr('bgm.title'),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                 ),
                 TextButton.icon(
                   onPressed: _uploading ? null : _uploadMusic,
                   icon: const Icon(Icons.upload_rounded, size: 20),
-                  label: const Text('Upload'),
+                  label: Text(context.tr('common.upload')),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primaryBlueDark,
                     textStyle: const TextStyle(fontWeight: FontWeight.w700),
@@ -366,7 +364,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'Search title or composer',
+                hintText: context.tr('bgm.search_hint'),
                 prefixIcon: const Icon(Icons.search_rounded, size: 20),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 filled: true,
@@ -400,14 +398,14 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
                 ? const Center(
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : _tracks.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                          padding: EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(24),
                           child: Text(
-                            'No tracks found.\nTry clearing some filters.',
+                            context.tr('bgm.none_found'),
                             textAlign: TextAlign.center,
-                            style:
-                                TextStyle(color: AppColors.textSecondary),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary),
                           ),
                         ),
                       )
@@ -448,8 +446,8 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
                     : () => Navigator.of(context).pop(_pickedTrack),
                 child: Text(
                   _pickedTrack == null
-                      ? 'Select a track'
-                      : 'Use "${_pickedTrack!.title}"',
+                      ? context.tr('bgm.select')
+                      : context.tr('bgm.use').replaceAll('{title}', _pickedTrack!.title),
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
@@ -621,9 +619,9 @@ class _TrackTile extends StatelessWidget {
                           const Icon(Icons.person_outline_rounded,
                               size: 13, color: AppColors.textSecondary),
                           const SizedBox(width: 3),
-                          const Text(
-                            'Your upload',
-                            style: TextStyle(
+                          Text(
+                            context.tr('bgm.your_upload'),
+                            style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textSecondary),
                           ),
@@ -698,25 +696,24 @@ class _UploadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(
+            const CircularProgressIndicator(
                 strokeWidth: 2, color: AppColors.primaryBlueDark),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
-              'Uploading your music…',
-              style: TextStyle(fontWeight: FontWeight.w700),
+              context.tr('bgm.uploading'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Text(
-              'We convert it to MP3 if needed, then the AI listens to it\n'
-              'and adds mood tags. This can take up to a minute.',
+              context.tr('bgm.uploading_body'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -760,7 +757,7 @@ class _UploadDetailsDialogState extends State<_UploadDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add your music'),
+      title: Text(context.tr('bgm.add_title')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -768,21 +765,21 @@ class _UploadDetailsDialogState extends State<_UploadDetailsDialog> {
             controller: _titleCtrl,
             maxLength: 200,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Title'),
+            decoration: InputDecoration(labelText: context.tr('bgm.field_title')),
           ),
           TextField(
             controller: _composerCtrl,
             maxLength: 200,
             textCapitalization: TextCapitalization.words,
             decoration:
-                const InputDecoration(labelText: 'Composer (optional)'),
+                InputDecoration(labelText: context.tr('bgm.field_composer')),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.tr('common.cancel')),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
@@ -791,7 +788,7 @@ class _UploadDetailsDialogState extends State<_UploadDetailsDialog> {
             title: _titleCtrl.text.trim(),
             composer: _composerCtrl.text.trim(),
           )),
-          child: const Text('Upload'),
+          child: Text(context.tr('common.upload')),
         ),
       ],
     );
@@ -816,15 +813,15 @@ class _UploadResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final tagged = track.tags.isNotEmpty;
     return AlertDialog(
-      title: Text('"${track.title}" added'),
+      title: Text(context.tr('bgm.added').replaceAll('{title}', track.title)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (tagged) ...[
-              const Text('AI tags',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(context.tr('bgm.ai_tags'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -853,17 +850,15 @@ class _UploadResultDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: AppColors.cardBorder),
                       ),
-                      child: Text('Tempo: ${track.tempo}',
+                      child: Text(context.tr('bgm.tempo').replaceAll('{tempo}', '${track.tempo}'),
                           style: const TextStyle(fontSize: 12)),
                     ),
                 ],
               ),
             ] else
-              const Text(
-                'The AI couldn\'t tag this track right now. It\'s saved and '
-                'you can still pick it, but it won\'t be chosen automatically '
-                'for stories.',
-                style: TextStyle(color: AppColors.textSecondary),
+              Text(
+                context.tr('bgm.untagged'),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
             if (track.aiSummary != null) ...[
               const SizedBox(height: 14),
@@ -887,7 +882,7 @@ class _UploadResultDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
+          child: Text(context.tr('common.ok')),
         ),
       ],
     );

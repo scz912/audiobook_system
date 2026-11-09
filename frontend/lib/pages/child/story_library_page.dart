@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
@@ -10,6 +11,7 @@ import '../../models/quran.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../services/quran_pack_service.dart';
+import '../../state/language_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
@@ -32,7 +34,10 @@ class StoryLibraryPage extends StatefulWidget {
   final VoidCallback? onBack;
   // Lets a guide switch the shelf (Linear / Interactive / Al-Quran).
   final ValueListenable<StoryShelf>? shelf;
-  const StoryLibraryPage({super.key, this.onBack, this.shelf});
+  /* Adds a "Create" tile after the books, for accounts that make their own
+     (not Child Mode). Opens the editor for the shelf's format. */
+  final Future<void> Function(StoryShelf format)? onCreate;
+  const StoryLibraryPage({super.key, this.onBack, this.shelf, this.onCreate});
 
   @override
   State<StoryLibraryPage> createState() => _StoryLibraryPageState();
@@ -118,15 +123,28 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
       .where((s) => s.status != 'processing' && s.bookFormat == _library.name)
       .toList();
 
+  Future<void> _create() async {
+    final onCreate = widget.onCreate;
+    if (onCreate == null) return;
+    await onCreate(_library);
+    // A new book (or one still making pictures) shows up straight away.
+    if (mounted) await _loadStories(silent: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final stories = _inFormat;
+    final canCreate = widget.onCreate != null;
     final showQuran = _library == StoryShelf.quran;
     return Scaffold(
       // As a Child Mode tab (it has onBack there) the taskbar's dyed
       // background shows through; as its own page it has the usual one.
       backgroundColor: widget.onBack != null ? Colors.transparent : AppColors.background,
+      /* The page runs on behind the shelf (it's see-through there), as on
+         the caregiver's pages; shelfBottomSpace() below keeps the last row
+         clear of it. */
       body: SafeArea(
+        bottom: false,
         child: RefreshIndicator(
           onRefresh: _loadStories,
           child: ListView(
@@ -188,7 +206,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
                   iconBackground: AppColors.softPink,
                   iconColor: AppColors.primaryBlueDark,
                 )
-              else if (stories.isEmpty)
+              else if (stories.isEmpty && !canCreate)
                 EmptyState(
                   icon: Icons.menu_book_outlined,
                   title: context.tr('library.no_stories_title'),
@@ -199,7 +217,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: stories.length,
+                  itemCount: stories.length + (canCreate ? 1 : 0),
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -208,6 +226,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
                     childAspectRatio: 0.85,
                   ),
                   itemBuilder: (context, i) {
+                    if (i == stories.length) return _CreateTile(onTap: _create);
                     final s = stories[i];
                     return _StoryGridTile(
                       story: s,
@@ -324,7 +343,7 @@ class _QuranChapterTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${chapter.meaningEn} • $versesLabel',
+                  '${chapter.meaning(context.watch<LanguageState>().code)} • $versesLabel',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -389,6 +408,59 @@ class _StoryGridTile extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/* The last tile on the shelf: a big plus to make a new book. */
+class _CreateTile extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CreateTile({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.tr('library.create');
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Ink(
+            decoration: BoxDecoration(
+              color: AppColors.surface.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.primaryBlueDark, width: 2.5),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primaryBlueDark,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add_rounded, size: 48, color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: AppColors.primaryBlueDark,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
