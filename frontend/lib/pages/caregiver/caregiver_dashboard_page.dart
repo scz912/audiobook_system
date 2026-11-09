@@ -4,16 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/insights_overview.dart';
-import '../../navigation/app_navigation_service.dart';
 import '../../services/database_service.dart';
-import '../../state/auth_state.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/stat_sphere_carousel.dart';
 import '../child/audio_player_page.dart';
-import '../shared/auth_gate.dart';
+import '../shared/logout_dialog.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
 
@@ -105,7 +103,7 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
                 onPressed: () {
                   showDialog(
                     context: context,
-                    builder: (_) => const _LogoutDialog(),
+                    builder: (_) => const LogoutDialog(),
                   );
                 },
                 style: FilledButton.styleFrom(
@@ -316,46 +314,4 @@ class _TopBookTile extends StatelessWidget {
         child: const Icon(Icons.auto_stories_rounded,
             color: AppColors.primaryBlueDark, size: 32),
       );
-}
-
-class _LogoutDialog extends StatelessWidget {
-  const _LogoutDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text(context.tr('caregiver.logout_title')),
-      content: Text(context.tr('caregiver.logout_body')),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(context.tr('common.cancel')),
-        ),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.warning,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () async {
-            // Grab these before popping the dialog so we don't use a dead
-            // context after the await.
-            final auth = context.read<AuthState>();
-            final navigator = AppNavigationService.navigatorKey.currentState;
-            Navigator.pop(context);
-            await auth.logout();
-            // Child Mode swaps out AuthGate, so reset the stack to a fresh
-            // one - now signed out, it shows the LoginPage.
-            navigator?.pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const AuthGate()),
-              (route) => false,
-            );
-          },
-          icon: const Icon(Icons.logout_rounded, size: 18),
-          label: Text(context.tr('caregiver.logout'),
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-        ),
-      ],
-    );
-  }
 }

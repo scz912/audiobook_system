@@ -7,12 +7,16 @@ class AppColors {
   static const Color surface = Colors.white;
   static const Color cardBorder = Color(0xFFE3E8EE);
 
-  static const Color textPrimary = Color(0xFF2D3748);
-  static const Color textSecondary = Color(0xFF718096);
-  static const Color textMuted = Color(0xFFA0AEC0);
+  /* Text is kept dark: the old light greys looked blurry on the pale
+     backgrounds. Secondary and muted text still read clearly (contrast
+     about 7:1 and 4.5:1 on white). */
+  static const Color textPrimary = Color(0xFF1A202C);
+  static const Color textSecondary = Color(0xFF4A5568);
+  static const Color textMuted = Color(0xFF718096);
 
   static const Color primaryBlue = Color(0xFFAFC4DC);
-  static const Color primaryBlueDark = Color(0xFF7C9EC0);
+  // Links, icons and filled buttons with white text: dark enough to read.
+  static const Color primaryBlueDark = Color(0xFF5B7FA6);
   static const Color softLavender = Color(0xFFD9C8E8);
   static const Color softMint = Color(0xFFC8E4D2);
   static const Color softMintDark = Color(0xFFA8D5BA);

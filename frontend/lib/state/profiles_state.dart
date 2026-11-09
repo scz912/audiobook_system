@@ -9,6 +9,8 @@ class ProfilesState extends ChangeNotifier {
   String? _currentMood;
   String? _ownerCaregiverId; // which caregiver the loaded profiles belong to
   bool _loading = false;
+  // Whether this caregiver's profiles have been fetched at least once.
+  bool _hasLoaded = false;
   String? _lastError;
 
   List<ChildProfile> get profiles => List.unmodifiable(_profiles);
@@ -18,6 +20,7 @@ class ProfilesState extends ChangeNotifier {
      listening session. */
   String? get currentMood => _currentMood;
   bool get loading => _loading;
+  bool get hasLoaded => _hasLoaded;
   String? get lastError => _lastError;
 
   void setMood(String? mood) {
@@ -35,6 +38,7 @@ class ProfilesState extends ChangeNotifier {
       _profiles = const [];
       _activeProfile = null;
       _ownerCaregiverId = caregiverId;
+      _hasLoaded = false;
       notifyListeners();
     }
     _loading = true;
@@ -48,6 +52,7 @@ class ProfilesState extends ChangeNotifier {
       _lastError = resp.message;
     }
     _loading = false;
+    _hasLoaded = true;
     notifyListeners();
   }
 
@@ -142,6 +147,7 @@ class ProfilesState extends ChangeNotifier {
     _activeProfile = null;
     _currentMood = null;
     _ownerCaregiverId = null;
+    _hasLoaded = false;
     notifyListeners();
   }
 }

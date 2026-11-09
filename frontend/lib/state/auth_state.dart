@@ -36,12 +36,16 @@ class AuthState extends ChangeNotifier {
     required String pin,
     String? email,
     String? mobileNumber,
+    String accountType = 'caregiver',
+    int? age,
   }) async {
     final resp = await DatabaseService.register(
       name: name,
       pin: pin,
       email: email,
       mobileNumber: mobileNumber,
+      accountType: accountType,
+      age: age,
     );
     return _handleAuthResponse(resp);
   }

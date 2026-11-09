@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Validator;
 
 class TtsController extends ApiController
 {
-    // Match the app's voice names to Gemini's voices.
+    /* Match the app's voice names to Gemini's voices. The app offers two;
+       the three retired names still come from older app versions, so they
+       get the nearest of the two. */
     private const VOICE_MAP = [
         'calm_female'    => 'Kore',   // firm, warm female
-        'gentle_female'  => 'Leda',   // soft, youthful female
         'warm_male'      => 'Orus',   // warm male
-        'friendly_child' => 'Puck',   // upbeat, playful
-        'soothing_elder' => 'Charon', // deep, calm
+        'gentle_female'  => 'Kore',
+        'friendly_child' => 'Kore',
+        'soothing_elder' => 'Orus',
     ];
 
     /* Make a voice clip for a page of text with Gemini TTS.

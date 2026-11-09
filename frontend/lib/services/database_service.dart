@@ -122,10 +122,14 @@ class DatabaseService {
     String? mobileNumber,
     String? deviceId,
     String? deviceName,
+    String accountType = 'caregiver', // or 'independent'
+    int? age, // the teenager's age, for an independent account
   }) async {
     final resp = await _post('/auth/register', requireAuth: false, body: {
       'name': name,
       'pin': pin,
+      'account_type': accountType,
+      'age': ?age,
       if (email != null && email.isNotEmpty) 'email': email,
       if (mobileNumber != null && mobileNumber.isNotEmpty)
         'mobile_number': mobileNumber,

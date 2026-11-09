@@ -2074,19 +2074,13 @@ class _VoicePill extends StatelessWidget {
 
   static const _icons = <NarratorVoice, IconData>{
     NarratorVoice.calmFemale: Icons.female_rounded,
-    NarratorVoice.gentleFemale: Icons.female_rounded,
     NarratorVoice.warmMale: Icons.male_rounded,
-    NarratorVoice.friendlyChild: Icons.child_care_rounded,
-    NarratorVoice.soothingElder: Icons.elderly_rounded,
   };
 
   // A soft tint per voice so unselected chips look distinct but still calm.
   static const _tints = <NarratorVoice, Color>{
     NarratorVoice.calmFemale: AppColors.softPink,
-    NarratorVoice.gentleFemale: AppColors.softLavender,
     NarratorVoice.warmMale: AppColors.softMint,
-    NarratorVoice.friendlyChild: AppColors.softYellow,
-    NarratorVoice.soothingElder: AppColors.softPeach,
   };
 
   @override

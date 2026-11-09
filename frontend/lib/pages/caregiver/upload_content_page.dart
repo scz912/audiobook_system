@@ -145,8 +145,12 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   Future<void> _pickAudio() async {
     try {
+      /* By extension rather than FileType.audio: on iPhone that opens the
+         Apple Music library, which can't reach files a caregiver recorded
+         or downloaded. These are the types the backend accepts. */
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.audio,
+        type: FileType.custom,
+        allowedExtensions: const ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'flac'],
         allowMultiple: false,
         withData: false,
       );

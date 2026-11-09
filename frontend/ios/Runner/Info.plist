@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>autism_audiobook</string>
+	<string>Audiobook</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -26,6 +26,30 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Piano recordings are saved in the app's Documents folder. These two
+	     make that folder show up in the Files app (On My iPhone), since
+	     iPhones have no Downloads folder. -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<!-- Why the app asks for each permission. iOS closes the app if one is
+	     missing when the permission is requested. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose pictures for storybook covers, story pages and chat backgrounds.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a picture to use in a storybook.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Choose an audio file to narrate a storybook or play as background music.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connect to the audiobook server on your local network.</string>
+	<!-- The live server is HTTPS. This only allows a development server on
+	     this computer or the local network (plain HTTP). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

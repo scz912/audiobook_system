@@ -11,6 +11,8 @@ import '../../state/hub_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../caregiver/caregiver_shell.dart';
+import '../independent/independent_shell.dart';
+import '../onboarding/welcome_page.dart';
 import 'login_page.dart';
 import 'splash_page.dart';
 
@@ -33,10 +35,15 @@ class _AuthGateState extends State<AuthGate> {
   String? _lastCaregiverId;
   bool _holdSplash = false;
   Timer? _splashTimer;
+  // Whether this device has been through the welcome flow (null = loading).
+  bool? _welcomeSeen;
 
   @override
   void initState() {
     super.initState();
+    WelcomePage.seen().then((seen) {
+      if (mounted) setState(() => _welcomeSeen = seen);
+    });
     if (!_splashPlayed) {
       _splashPlayed = true;
       _holdSplash = true;
@@ -66,26 +73,36 @@ class _AuthGateState extends State<AuthGate> {
           .addPostFrameCallback((_) => _onAuthChanged(auth.status));
     }
 
-    final showSplash = _holdSplash || auth.status == AuthStatus.unknown;
+    final showSplash = _holdSplash ||
+        auth.status == AuthStatus.unknown ||
+        (auth.status == AuthStatus.signedOut && _welcomeSeen == null);
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 500),
       switchInCurve: Curves.easeOut,
       switchOutCurve: Curves.easeIn,
       child: KeyedSubtree(
-        key: ValueKey(showSplash ? 'splash' : auth.status),
-        child: showSplash ? const SplashPage() : _pageFor(auth.status),
+        key: ValueKey(showSplash
+            ? 'splash'
+            : '${auth.status}-${auth.user?.accountType}-$_welcomeSeen'),
+        child: showSplash ? const SplashPage() : _pageFor(auth),
       ),
     );
   }
 
-  Widget _pageFor(AuthStatus status) {
-    switch (status) {
+  Widget _pageFor(AuthState auth) {
+    switch (auth.status) {
       case AuthStatus.unknown:
         return const SplashPage();
       case AuthStatus.signedOut:
-        return const LoginPage();
+        // First time on this device: Paige's welcome, then an account.
+        return _welcomeSeen == false
+            ? WelcomePage(onLogin: () => setState(() => _welcomeSeen = true))
+            : const LoginPage();
       case AuthStatus.signedIn:
-        return const CaregiverShell();
+        // A teenager on their own gets everything in one app.
+        return auth.user?.isIndependent ?? false
+            ? const IndependentShell()
+            : const CaregiverShell();
     }
   }
 
@@ -94,6 +111,8 @@ class _AuthGateState extends State<AuthGate> {
     final profiles = context.read<ProfilesState>();
     final settings = context.read<SettingsState>();
     if (status == AuthStatus.signedIn) {
+      // Has an account now: after logging out, show the login page.
+      if (_welcomeSeen != true) setState(() => _welcomeSeen = true);
       // On sign-in, load this caregiver's profiles. On sign-out, clear them
       // so the next caregiver doesn't see old data.
       final caregiverId = context.read<AuthState>().user?.caregiverId;

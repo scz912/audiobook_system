@@ -12,6 +12,8 @@ class AppTheme {
       bodyColor: AppColors.textPrimary,
       displayColor: AppColors.textPrimary,
     );
+    // Bolder and a little bigger than default, so labels are easy to read.
+    final buttonText = GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 17);
 
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.background,
@@ -39,21 +41,54 @@ class AppTheme {
           color: AppColors.textPrimary,
         ),
         titleMedium: textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          fontSize: 17,
           color: AppColors.textPrimary,
         ),
         bodyLarge: textTheme.bodyLarge?.copyWith(
-          fontSize: 16,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
         bodyMedium: textTheme.bodyMedium?.copyWith(
-          fontSize: 14,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
           color: AppColors.textSecondary,
         ),
         labelLarge: textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+      // Big, clear icons and buttons that are easy to see and to tap.
+      iconTheme: const IconThemeData(size: 26, color: AppColors.textPrimary),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          iconSize: 24,
+          textStyle: buttonText,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          iconSize: 24,
+          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          iconSize: 28,
+          minimumSize: const Size(48, 48),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        labelStyle: GoogleFonts.nunito(
+          fontWeight: FontWeight.w700,
           fontSize: 15,
+          color: AppColors.textPrimary,
         ),
       ),
       cardTheme: CardThemeData(
@@ -74,10 +109,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: GoogleFonts.nunito(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
+          textStyle: buttonText,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -88,10 +120,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: GoogleFonts.nunito(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
+          textStyle: buttonText,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -110,7 +139,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.primaryBlueDark, width: 1.5),
         ),
-        hintStyle: GoogleFonts.nunito(color: AppColors.textMuted, fontSize: 15),
+        hintStyle: GoogleFonts.nunito(
+          color: AppColors.textMuted,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.background,

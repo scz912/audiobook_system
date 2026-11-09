@@ -23,8 +23,10 @@ class ShelfNavItem {
 
 /* The app's taskbar: a curved shelf with each tab as a glossy sphere
    resting along its top edge. The open tab's sphere is 25% bigger and bobs
-   gently up and down (one full bob every 2 seconds), with its name shown
-   under it.
+   gently up and down (one full bob every 2 seconds). Tabs are icons only:
+   names are left out to keep the bar calm and wordless for children
+   ([showLabels] brings the open tab's name back). Screen readers still
+   read each tab's name.
 
    On the sideways piano page the shelf sinks away and each sphere is held
    in its own cup on a stick instead, fanned out along the curve, and
@@ -46,6 +48,8 @@ class ShelfNavBar extends StatefulWidget {
   final Color? dye;
   // One per tab, so [ShelfTabScaffold] can find where each sphere is.
   final List<GlobalKey>? slotKeys;
+  // Show the open tab's name under (or beside) its sphere.
+  final bool showLabels;
 
   const ShelfNavBar({
     super.key,
@@ -56,6 +60,7 @@ class ShelfNavBar extends StatefulWidget {
     this.vertical = false,
     this.dye,
     this.slotKeys,
+    this.showLabels = false,
   });
 
   @override
@@ -156,7 +161,9 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
     final dye = widget.dye ?? AppColors.primaryBlue;
 
     final padding = MediaQuery.paddingOf(context);
-    final labelHeight = MediaQuery.textScalerOf(context).scale(_labelFontSize) * 1.35;
+    final labelHeight = widget.showLabels
+        ? MediaQuery.textScalerOf(context).scale(_labelFontSize) * 1.35
+        : 0.0;
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -256,8 +263,9 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
                                 // the screen at either end.
                                 labelRoomLeft: x - slot / 2,
                                 labelRoomRight: width - (x + slot / 2),
-                                showLabel:
-                                    selected && (widget.vertical || !widget.rotateItems),
+                                showLabel: widget.showLabels &&
+                                    selected &&
+                                    (widget.vertical || !widget.rotateItems),
                               );
                             },
                           ),
@@ -738,10 +746,10 @@ class ShelfTabScaffold extends StatefulWidget {
   static Color backgroundFor(Color tabColor) => Color.lerp(AppColors.background, tabColor, 0.5)!;
 
   @override
-  State<ShelfTabScaffold> createState() => _ShelfTabScaffoldState();
+  State<ShelfTabScaffold> createState() => ShelfTabScaffoldState();
 }
 
-class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerProviderStateMixin {
+class ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerProviderStateMixin {
   late final AnimationController _wave = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 750),
@@ -763,12 +771,12 @@ class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPr
   Color get _current => Color.lerp(_from, _to, Curves.easeOut.transform(_wave.value))!;
 
   @override
-  void didUpdateWidget(covariant ShelfTabScaffold old) {
-    super.didUpdateWidget(old);
-    if (widget.items.length != old.items.length) {
+  void didUpdateWidget(covariant ShelfTabScaffold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.items.length != oldWidget.items.length) {
       _slotKeys = _keysFor(widget.items.length);
     }
-    if (widget.currentIndex != old.currentIndex) {
+    if (widget.currentIndex != oldWidget.currentIndex) {
       _from = _current;
       _to = _colorOf(widget.currentIndex);
       _origin = _sphereCenter(widget.currentIndex) ?? _origin;
@@ -787,6 +795,17 @@ class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPr
     if (slot == null || stack == null) return null;
     final local = Offset(slot.size.width / 2, slot.size.height * 0.4);
     return stack.globalToLocal(slot.localToGlobal(local));
+  }
+
+  /* A tab's sphere on screen, as a square round it, for a guide to ring.
+     Follows the bar's turn in landscape. */
+  Rect? sphereRect(int i) {
+    if (i < 0 || i >= _slotKeys.length) return null;
+    final slot = _slotKeys[i].currentContext?.findRenderObject() as RenderBox?;
+    if (slot == null || !slot.attached || !slot.hasSize) return null;
+    final center = slot.localToGlobal(Offset(slot.size.width / 2, slot.size.height * 0.4));
+    final radius = math.min(slot.size.width * 0.42, 34.0);
+    return Rect.fromCircle(center: center, radius: radius);
   }
 
   @override

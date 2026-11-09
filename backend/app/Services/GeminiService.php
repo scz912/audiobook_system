@@ -237,8 +237,7 @@ Rules:
   exactly: "reading_speed", "narrator_voice", "volume", "text_scale",
   "auto_play_next", "read_along".
 - For reading_speed: a number between 0.5 and 2.0 (step 0.05).
-- For narrator_voice: one of "calm_female", "gentle_female", "warm_male",
-  "friendly_child", "soothing_elder".
+- For narrator_voice: "calm_female" or "warm_male".
 - For volume: a number between 0.0 and 1.0 (step 0.05).
 - For text_scale: a number between 0.7 and 2.0 (step 0.05).
 - For auto_play_next, read_along: true or false.

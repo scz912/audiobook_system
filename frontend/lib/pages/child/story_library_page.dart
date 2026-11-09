@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../i18n/i18n.dart';
@@ -22,21 +23,23 @@ import 'quran_player_page.dart';
 
 /* The same three kinds of audiobook as the caregiver's Content Management
    slider. */
-enum _Library { linear, interactive, quran }
+enum StoryShelf { linear, interactive, quran }
 
 class StoryLibraryPage extends StatefulWidget {
   /* Optional back-arrow override. As a tab body, ChildShell passes a
      callback to go to the Home tab. When pushed as a normal route this is
      null and Navigator.maybePop() is used. */
   final VoidCallback? onBack;
-  const StoryLibraryPage({super.key, this.onBack});
+  // Lets a guide switch the shelf (Linear / Interactive / Al-Quran).
+  final ValueListenable<StoryShelf>? shelf;
+  const StoryLibraryPage({super.key, this.onBack, this.shelf});
 
   @override
   State<StoryLibraryPage> createState() => _StoryLibraryPageState();
 }
 
 class _StoryLibraryPageState extends State<StoryLibraryPage> {
-  _Library _library = _Library.linear;
+  StoryShelf _library = StoryShelf.linear;
 
   List<ContentItem> _stories = const [];
   bool _loading = true;
@@ -46,13 +49,24 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   @override
   void initState() {
     super.initState();
+    final shelf = widget.shelf;
+    if (shelf != null) {
+      _library = shelf.value;
+      shelf.addListener(_followShelf);
+    }
     _loadStories();
   }
 
   @override
   void dispose() {
+    widget.shelf?.removeListener(_followShelf);
     _pollTimer?.cancel();
     super.dispose();
+  }
+
+  void _followShelf() {
+    final shelf = widget.shelf;
+    if (shelf != null && mounted) setState(() => _library = shelf.value);
   }
 
   Future<void> _loadStories({bool silent = false}) async {
@@ -107,7 +121,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final stories = _inFormat;
-    final showQuran = _library == _Library.quran;
+    final showQuran = _library == StoryShelf.quran;
     return Scaffold(
       // As a Child Mode tab (it has onBack there) the taskbar's dyed
       // background shows through; as its own page it has the usual one.
@@ -145,16 +159,16 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
               // Pictures only for the children: a storybook, a puzzle piece
               // for the stories that ask questions, and a mosque for the
               // Quran. The words stay as screen-reader labels.
-              SegmentedSlider<_Library>(
+              SegmentedSlider<StoryShelf>(
                 value: _library,
                 height: 64,
                 onChanged: (l) => setState(() => _library = l),
                 items: [
-                  SegmentedSliderItem.emoji(_Library.linear,
+                  SegmentedSliderItem.emoji(StoryShelf.linear,
                       context.tr('content.format_linear'), '📖'),
-                  SegmentedSliderItem.emoji(_Library.interactive,
+                  SegmentedSliderItem.emoji(StoryShelf.interactive,
                       context.tr('content.format_interactive'), '🧩'),
-                  SegmentedSliderItem.emoji(_Library.quran,
+                  SegmentedSliderItem.emoji(StoryShelf.quran,
                       context.tr('content.format_quran'), '🕌'),
                 ],
               ),

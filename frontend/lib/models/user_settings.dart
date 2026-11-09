@@ -1,11 +1,9 @@
 import '_json_helpers.dart';
 
+// Two voices: one female, one male.
 enum NarratorVoice {
   calmFemale,
-  gentleFemale,
   warmMale,
-  friendlyChild,
-  soothingElder,
 }
 
 extension NarratorVoiceX on NarratorVoice {
@@ -13,43 +11,26 @@ extension NarratorVoiceX on NarratorVoice {
     switch (this) {
       case NarratorVoice.calmFemale:
         return 'calm_female';
-      case NarratorVoice.gentleFemale:
-        return 'gentle_female';
       case NarratorVoice.warmMale:
         return 'warm_male';
-      case NarratorVoice.friendlyChild:
-        return 'friendly_child';
-      case NarratorVoice.soothingElder:
-        return 'soothing_elder';
     }
   }
 
   String get label {
     switch (this) {
       case NarratorVoice.calmFemale:
-        return 'Calm Female';
-      case NarratorVoice.gentleFemale:
-        return 'Gentle Female';
+        return 'Female';
       case NarratorVoice.warmMale:
-        return 'Warm Male';
-      case NarratorVoice.friendlyChild:
-        return 'Friendly Child';
-      case NarratorVoice.soothingElder:
-        return 'Soothing Elder';
+        return 'Male';
     }
   }
 
+  // The three retired voices map to the nearest of the two.
   static NarratorVoice fromApi(String? value) {
     switch (value) {
-      case 'gentle_female':
-        return NarratorVoice.gentleFemale;
       case 'warm_male':
-        return NarratorVoice.warmMale;
-      case 'friendly_child':
-        return NarratorVoice.friendlyChild;
       case 'soothing_elder':
-        return NarratorVoice.soothingElder;
-      case 'calm_female':
+        return NarratorVoice.warmMale;
       default:
         return NarratorVoice.calmFemale;
     }

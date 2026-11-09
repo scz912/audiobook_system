@@ -48,12 +48,10 @@ class ChildSettings extends Model
         'read_along'         => true,
     ];
 
+    // Two voices to choose from: one female, one male.
     public const ALLOWED_VOICES = [
         'calm_female',
-        'gentle_female',
         'warm_male',
-        'friendly_child',
-        'soothing_elder',
     ];
 
     public function uniqueIds(): array

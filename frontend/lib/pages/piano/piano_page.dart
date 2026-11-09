@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -10,6 +11,7 @@ import '../../i18n/i18n.dart';
 import '../../services/piano_export_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/guide.dart';
 import 'piano_keyboard.dart';
 import 'recording_player_view.dart';
 
@@ -28,7 +30,19 @@ const _bodyBottom = Color(0xFF2C3060);
    record button in the top bar captures the keys played; when the
    recording is stopped it can be listened to and saved as an MP3. */
 class PianoPage extends StatefulWidget {
-  const PianoPage({super.key});
+  const PianoPage({
+    super.key,
+    this.onGuideEvent,
+    this.recordButtonKey,
+    this.stopButtonKey,
+  });
+
+  // Tells a running guide when a note is played, a recording starts or
+  // stops, or one is saved.
+  final ValueChanged<GuideEvent>? onGuideEvent;
+  // So a guide can ring the record and stop buttons.
+  final GlobalKey? recordButtonKey;
+  final GlobalKey? stopButtonKey;
 
   @override
   State<PianoPage> createState() => PianoPageState();
@@ -55,6 +69,10 @@ class PianoPageState extends State<PianoPage> {
   @override
   void initState() {
     super.initState();
+    /* The page is already drawn sideways for a phone held upright. If the
+       phone's auto-rotate also turned the app, the piano would be turned
+       twice, so keep the app upright while the piano is open. */
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _loadKeys();
   }
 
@@ -73,6 +91,8 @@ class PianoPageState extends State<PianoPage> {
 
   @override
   void dispose() {
+    // Back to the app's normal rotation for the other pages.
+    SystemChrome.setPreferredOrientations([]);
     _ticker?.cancel();
     for (final p in _keyPlayers) {
       p.dispose();
@@ -87,6 +107,7 @@ class PianoPageState extends State<PianoPage> {
       p.play();
     }
     if (_mode == _Mode.recording) _events.add(PianoNoteEvent(key, _clock.elapsed));
+    widget.onGuideEvent?.call(GuideEvent.notePlayed);
   }
 
   // ---- Recording ----
@@ -99,6 +120,7 @@ class PianoPageState extends State<PianoPage> {
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) => setState(() {}));
     setState(() => _mode = _Mode.recording);
+    widget.onGuideEvent?.call(GuideEvent.recordingStarted);
   }
 
   void _togglePause() {
@@ -134,6 +156,7 @@ class PianoPageState extends State<PianoPage> {
       _saved = false;
       _mode = _Mode.listening;
     });
+    widget.onGuideEvent?.call(GuideEvent.recordingStopped);
   }
 
   // ---- Listening ----
@@ -174,13 +197,21 @@ class PianoPageState extends State<PianoPage> {
       return;
     }
 
+    final name = await _askName();
+    if (name == null || !mounted) return;
+
     setState(() => _saving = true);
     try {
-      final file = await PianoExportService.saveMp3(mix.pcm);
+      final file = await PianoExportService.saveMp3(mix.pcm, name: name);
       if (!mounted) return;
       _saved = true;
+      widget.onGuideEvent?.call(GuideEvent.recordingSaved);
       AppSnackbar.success(
-        context.trRead('piano.saved_to').replaceAll('{name}', file.uri.pathSegments.last),
+        context
+            .trRead(PianoExportService.savesToFilesApp
+                ? 'piano.saved_to_files'
+                : 'piano.saved_to')
+            .replaceAll('{name}', file.uri.pathSegments.last),
         context: _snackContext,
       );
     } catch (_) {
@@ -204,7 +235,9 @@ class PianoPageState extends State<PianoPage> {
           icon: Icons.folder_rounded,
           iconColor: AppColors.success,
           title: ctx.tr('piano.permission_title'),
-          body: ctx.tr('piano.permission_body'),
+          body: ctx.tr(PianoExportService.savesToFilesApp
+              ? 'piano.permission_body_files'
+              : 'piano.permission_body'),
           cancel: ctx.tr('piano.permission_deny'),
           confirm: ctx.tr('piano.permission_allow'),
           confirmColor: AppColors.success,
@@ -212,6 +245,17 @@ class PianoPageState extends State<PianoPage> {
       ),
     );
     return ok ?? false;
+  }
+
+  // Asks what to call the recording. Null if cancelled; empty = a dated name.
+  Future<String?> _askName() {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => const RotatedBox(
+        quarterTurns: _quarterTurns,
+        child: _NameDialog(),
+      ),
+    );
   }
 
   Future<bool> _confirmDiscard() async {
@@ -322,6 +366,7 @@ class PianoPageState extends State<PianoPage> {
       case _Mode.playing:
         return [
           _CircleButton(
+            key: widget.recordButtonKey,
             tooltip: context.tr('piano.record'),
             onTap: _startRecording,
             size: 48,
@@ -346,6 +391,7 @@ class PianoPageState extends State<PianoPage> {
           ),
           const SizedBox(width: 10),
           _CircleButton(
+            key: widget.stopButtonKey,
             tooltip: context.tr('piano.stop'),
             onTap: _stopRecording,
             size: 48,
@@ -466,6 +512,7 @@ class _CircleButton extends StatelessWidget {
   final double size;
 
   const _CircleButton({
+    super.key,
     this.icon,
     this.child,
     required this.tooltip,
@@ -666,6 +713,79 @@ class _PianoDialog extends StatelessWidget {
             elevation: 0,
           ),
           child: Text(confirm, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ),
+      ],
+    );
+  }
+}
+
+// "Give it a name?" before saving a recording.
+class _NameDialog extends StatefulWidget {
+  const _NameDialog();
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  final _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      scrollable: true,
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      icon: CircleAvatar(
+        radius: 24,
+        backgroundColor: AppColors.success.withValues(alpha: 0.15),
+        child: const Icon(Icons.edit_rounded, color: AppColors.success),
+      ),
+      title: Text(
+        context.tr('piano.name_title'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: TextField(
+          controller: _name,
+          autofocus: true,
+          maxLength: 40,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          decoration: InputDecoration(
+            hintText: context.tr('piano.name_hint'),
+            counterText: '',
+          ),
+          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+        ),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            context.tr('common.cancel'),
+            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+          ),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(context).pop(_name.text.trim()),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.success,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 0,
+          ),
+          icon: const Icon(Icons.save_alt_rounded),
+          label: Text(context.tr('piano.name_save'), style: const TextStyle(fontWeight: FontWeight.w800)),
         ),
       ],
     );

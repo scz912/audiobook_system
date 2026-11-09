@@ -128,13 +128,16 @@ class AudiobookVisibilityTest extends TestCase
         $this->assertSame(0, $fresh->pages()->count());
     }
 
-    public function test_older_shared_books_stay_editable(): void
+    // Each caregiver now gets their own copy of the older books (see the
+    // give_each_caregiver_own_copy_of_shared_books migration), so a book
+    // with no owner can't be changed: one family's edit would hit everyone.
+    public function test_books_with_no_owner_cannot_be_edited(): void
     {
         $book = $this->book(null, 'public');
 
         $this->api($this->caregiver(), "/content/{$book->audiobook_id}/update", ['title' => 'Renamed'])
-            ->assertOk();
-        $this->assertSame('Renamed', $book->fresh()->title);
+            ->assertNotFound();
+        $this->assertSame('A public story', $book->fresh()->title);
     }
 
     public function test_migration_makes_books_made_with_the_old_public_option_private(): void

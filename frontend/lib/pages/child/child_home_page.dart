@@ -8,12 +8,24 @@ import '../../services/database_service.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/paige_mascot.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'audio_player_page.dart';
 
 class ChildHomePage extends StatefulWidget {
-  const ChildHomePage({super.key});
+  const ChildHomePage({
+    super.key,
+    this.moodCardKey,
+    this.paigeKey,
+    this.onPaigeTap,
+  });
+
+  // So a guide can ring the mood card and Paige.
+  final GlobalKey? moodCardKey;
+  final GlobalKey? paigeKey;
+  // Paige in the corner replays the guide ("I'm always here").
+  final VoidCallback? onPaigeTap;
 
   @override
   State<ChildHomePage> createState() => _ChildHomePageState();
@@ -96,13 +108,32 @@ class _ChildHomePageState extends State<ChildHomePage> {
       padding: EdgeInsets.fromLTRB(20, 12, 20, shelfBottomSpace(context)),
       children: [
         const SizedBox(height: 8),
-        Center(
-          child: Container(
-            width: 88, height: 88,
-            decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 44)),
-          ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: Container(
+                width: 88, height: 88,
+                decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(emoji, style: const TextStyle(fontSize: 44)),
+              ),
+            ),
+            if (widget.onPaigeTap != null)
+              Positioned(
+                right: 0,
+                top: -4,
+                child: Semantics(
+                  button: true,
+                  label: context.tr('guide.replay'),
+                  child: GestureDetector(
+                    key: widget.paigeKey,
+                    onTap: widget.onPaigeTap,
+                    child: const PaigeMascot(width: 72),
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
         Row(
@@ -122,6 +153,7 @@ class _ChildHomePageState extends State<ChildHomePage> {
         const SizedBox(height: 20),
 
         SoftCard(
+          key: widget.moodCardKey,
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

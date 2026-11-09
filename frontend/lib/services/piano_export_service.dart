@@ -11,7 +11,8 @@ import '../audio/piano_synth.dart';
 
 enum StorageAccess { granted, denied, permanentlyDenied }
 
-/* Saves piano recordings as MP3 files in the phone's Downloads folder.
+/* Saves piano recordings as MP3 files in the phone's Downloads folder (on
+   iPhone, the app's folder in the Files app).
 
    Android 10 and older need the storage permission for that, so it is
    requested from the system. Android 11+ lets apps add files to Downloads
@@ -48,23 +49,46 @@ class PianoExportService {
 
   static Future<void> openSettings() => openAppSettings();
 
+  /* iPhones have no Downloads folder: recordings go to the app's own
+     folder, which Info.plist makes visible in the Files app. */
+  static bool get savesToFilesApp => Platform.isIOS;
+
   /* Encodes the recording to MP3 and writes it. Returns the saved file.
+     [name] is what the child called it; empty or null gives a dated name.
      Falls back to the app's own folder if Downloads can't be written. */
-  static Future<File> saveMp3(Int16List pcm) async {
+  static Future<File> saveMp3(Int16List pcm, {String? name}) async {
     final bytes = await _encodeMp3(pcm);
-    final name = 'piano_${_timestamp()}.mp3';
+    final base = _fileName(name);
 
     if (Platform.isAndroid) {
       try {
         final dir = Directory(_publicDownloads);
         await dir.create(recursive: true);
-        return await File('${dir.path}/$name').writeAsBytes(bytes, flush: true);
+        return await _freeFile(dir, base).writeAsBytes(bytes, flush: true);
       } on FileSystemException {
         // Fall through to the app folder below.
       }
     }
     final docs = await getApplicationDocumentsDirectory();
-    return File('${docs.path}/$name').writeAsBytes(bytes, flush: true);
+    return _freeFile(docs, base).writeAsBytes(bytes, flush: true);
+  }
+
+  // A safe file name from what was typed (no slashes and the like).
+  static String _fileName(String? name) {
+    final cleaned = (name ?? '')
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1F]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return cleaned.isEmpty ? 'piano_${_timestamp()}' : cleaned;
+  }
+
+  // "My song.mp3", or "My song (2).mp3" if that's taken, so nothing is overwritten.
+  static File _freeFile(Directory dir, String base) {
+    var file = File('${dir.path}/$base.mp3');
+    for (var n = 2; file.existsSync(); n++) {
+      file = File('${dir.path}/$base ($n).mp3');
+    }
+    return file;
   }
 
   static Future<Uint8List> _encodeMp3(Int16List pcm) async {

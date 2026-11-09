@@ -6,6 +6,7 @@ import '../../models/ai_suggestion.dart';
 import '../../models/insights_overview.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
+import '../../state/auth_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
@@ -200,6 +201,15 @@ class _InsightsPageState extends State<InsightsPage> {
   }
 
   Widget _buildList(BuildContext context) {
+    /* A personal account is one listener: no child picker, no per-child
+       summary, and their own suggestions straight away. */
+    final personal = context.watch<AuthState>().user?.isIndependent ?? false;
+    final me = context.watch<ProfilesState>().activeProfile;
+    if (personal && me != null && _selectedChildId != me.childId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _selectChild(me.childId);
+      });
+    }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -210,18 +220,20 @@ class _InsightsPageState extends State<InsightsPage> {
             context.tr('insights.title'),
             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 6),
-          Text(
-            context.tr('insights.subtitle'),
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          _ChildScopeSelector(
-            selectedChildId: _selectedChildId,
-            onSelect: _selectChild,
-            viewingLabel: context.tr('insights.viewing'),
-            allLabel: context.tr('insights.viewing_all'),
-          ),
+          if (!personal) ...[
+            const SizedBox(height: 6),
+            Text(
+              context.tr('insights.subtitle'),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            _ChildScopeSelector(
+              selectedChildId: _selectedChildId,
+              onSelect: _selectChild,
+              viewingLabel: context.tr('insights.viewing'),
+              allLabel: context.tr('insights.viewing_all'),
+            ),
+          ],
           const SizedBox(height: 16),
           if (_selectedChildId != null) ...[
             _SuggestionsCard(
@@ -318,11 +330,13 @@ class _InsightsPageState extends State<InsightsPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            _SectionHeader(
-                key: _perChildKey, title: context.tr('insights.per_child')),
-            const SizedBox(height: 10),
-            for (final c in _data.children) ...[
+            if (!personal) ...[
+              const SizedBox(height: 20),
+              _SectionHeader(
+                  key: _perChildKey, title: context.tr('insights.per_child')),
+              const SizedBox(height: 10),
+            ],
+            for (final c in personal ? const <ChildInsight>[] : _data.children) ...[
               _ChildInsightCard(
                 child: c,
                 minutesLabel: _formatMinutes(c.listeningMinutes),

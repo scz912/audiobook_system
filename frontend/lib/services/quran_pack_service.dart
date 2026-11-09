@@ -68,8 +68,14 @@ class QuranPackService extends ChangeNotifier {
     final raw = await rootBundle.loadString(_manifestAsset);
     _manifest =
         QuranManifest.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    final support = await getApplicationSupportDirectory();
-    _root = Directory('${support.path}/quran');
+    /* On iPhone, Application Support is backed up to iCloud, and Apple
+       rejects apps that back up content they can download again. Caches
+       isn't backed up. iOS may clear it when the phone runs out of space;
+       chapters then just show as not downloaded. */
+    final base = Platform.isIOS
+        ? await getApplicationCacheDirectory()
+        : await getApplicationSupportDirectory();
+    _root = Directory('${base.path}/quran');
     await _chaptersDir.create(recursive: true);
     await _elementsDir.create(recursive: true);
     // Leftovers from a download that was interrupted (app killed).

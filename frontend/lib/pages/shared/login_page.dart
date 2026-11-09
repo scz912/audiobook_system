@@ -5,8 +5,13 @@ import '../../i18n/i18n.dart';
 import '../../state/auth_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/paige_mascot.dart';
 import '../../widgets/soft_card.dart';
+import '../onboarding/welcome_page.dart';
 
+/* Sign in with email and PIN. New accounts are made in the welcome flow
+   ("Create account" opens it at "who is using the app"), which asks
+   whether a parent helps or the person uses the app on their own. */
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -15,15 +20,12 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _isRegisterMode = false;
   bool _busy = false;
-  final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _pinCtrl = TextEditingController();
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
     _emailCtrl.dispose();
     _pinCtrl.dispose();
     super.dispose();
@@ -34,22 +36,12 @@ class _LoginPageState extends State<LoginPage> {
       _toast(context.trRead('login.err_pin_4_digits'));
       return;
     }
-    if (_isRegisterMode && _nameCtrl.text.trim().isEmpty) {
-      _toast(context.trRead('login.err_name_required'));
-      return;
-    }
     setState(() => _busy = true);
     final auth = context.read<AuthState>();
-    final ok = _isRegisterMode
-        ? await auth.register(
-            name: _nameCtrl.text.trim(),
-            pin: _pinCtrl.text,
-            email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-          )
-        : await auth.login(
-            pin: _pinCtrl.text,
-            email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-          );
+    final ok = await auth.login(
+      pin: _pinCtrl.text,
+      email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+    );
     if (!mounted) return;
     setState(() => _busy = false);
     if (!ok) _toast(auth.lastError ?? context.trRead('login.err_auth_failed'));
@@ -57,6 +49,12 @@ class _LoginPageState extends State<LoginPage> {
 
   void _toast(String msg) {
     AppSnackbar.warning(msg, context: context);
+  }
+
+  void _createAccount() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const WelcomePage(startAtWho: true)),
+    );
   }
 
   @override
@@ -72,47 +70,28 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 68, height: 68,
-                    decoration: const BoxDecoration(
-                      color: AppColors.iconCircleBlue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.menu_book_outlined, size: 32),
-                  ),
-                  const SizedBox(height: 16),
+                  const Center(child: PaigeMascot(width: 120)),
+                  const SizedBox(height: 12),
                   Text(
-                    _isRegisterMode
-                        ? context.tr('login.create_account')
-                        : context.tr('login.welcome_back'),
+                    context.tr('login.welcome_back'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _isRegisterMode
-                        ? context.tr('login.subtitle_register')
-                        : context.tr('login.subtitle_login'),
+                    context.tr('login.subtitle_login'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 16, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 22),
-                  if (_isRegisterMode) ...[
-                    TextField(
-                      controller: _nameCtrl,
-                      decoration: InputDecoration(
-                          hintText: context.tr('login.name_hint')),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   TextField(
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
-                      hintText: _isRegisterMode
-                          ? context.tr('login.email_optional')
-                          : context.tr('login.email'),
+                      hintText: context.tr('login.email'),
+                      prefixIcon: const Icon(Icons.mail_rounded),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -121,20 +100,23 @@ class _LoginPageState extends State<LoginPage> {
                     keyboardType: TextInputType.number,
                     obscureText: true,
                     maxLength: 4,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: context.tr('login.pin_hint'),
                       counterText: '',
+                      prefixIcon: const Icon(Icons.lock_rounded),
                     ),
+                    onSubmitted: (_) => _busy ? null : _submit(),
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
-                    height: 52,
+                    height: 56,
                     child: FilledButton(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primaryBlue,
                         foregroundColor: AppColors.textPrimary,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       onPressed: _busy ? null : _submit,
@@ -144,38 +126,30 @@ class _LoginPageState extends State<LoginPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              _isRegisterMode
-                                  ? context.tr('login.sign_up')
-                                  : context.tr('login.sign_in'),
+                              context.tr('login.sign_in'),
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16),
+                                  fontWeight: FontWeight.w800, fontSize: 18),
                             ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => setState(() => _isRegisterMode = !_isRegisterMode),
+                    onPressed: _busy ? null : _createAccount,
                     // The question stays grey; the action verb is coloured +
                     // underlined so it clearly looks tappable.
                     child: Text.rich(
                       TextSpan(
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(fontSize: 16),
                         children: [
                           TextSpan(
-                            text: _isRegisterMode
-                                ? context.tr('login.toggle_to_login_prefix')
-                                : context.tr('login.toggle_to_register_prefix'),
+                            text: context.tr('login.toggle_to_register_prefix'),
                             style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           TextSpan(
-                            text: _isRegisterMode
-                                ? context.tr('login.toggle_to_login_action')
-                                : context.tr('login.toggle_to_register_action'),
+                            text: context.tr('login.toggle_to_register_action'),
                             style: const TextStyle(
                               color: AppColors.primaryBlueDark,
                               fontWeight: FontWeight.w800,

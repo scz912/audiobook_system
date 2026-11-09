@@ -7,6 +7,7 @@ use App\Models\CaregiverSettings;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -28,6 +29,9 @@ class AuthController extends ApiController
             'mobile_number' => 'nullable|string|max:20|unique:caregivers,mobile_number',
             'device_id'     => 'nullable|string|max:255',
             'device_name'   => 'nullable|string|max:255',
+            // 'independent' = a teenager using the app on their own.
+            'account_type'  => 'nullable|in:caregiver,independent',
+            'age'           => 'nullable|integer|min:1|max:18',
         ]);
 
         if ($validator->fails()) {
@@ -42,21 +46,37 @@ class AuthController extends ApiController
         }
 
         try {
-            $caregiver = Caregiver::create([
-                'name'          => $request->input('name'),
-                'email'         => $request->input('email'),
-                'mobile_number' => $request->input('mobile_number'),
-                'pin'           => $request->input('pin'),
-                'device_id'     => $request->input('device_id'),
-                'device_name'   => $request->input('device_name'),
-                'is_active'     => true,
-            ]);
+            $independent = $request->input('account_type') === 'independent';
+            $caregiver = DB::transaction(function () use ($request, $independent) {
+                $caregiver = Caregiver::create([
+                    'name'          => $request->input('name'),
+                    'account_type'  => $independent ? 'independent' : 'caregiver',
+                    'email'         => $request->input('email'),
+                    'mobile_number' => $request->input('mobile_number'),
+                    'pin'           => $request->input('pin'),
+                    'device_id'     => $request->input('device_id'),
+                    'device_name'   => $request->input('device_name'),
+                    'is_active'     => true,
+                ]);
 
-            // Make a blank settings row.
-            CaregiverSettings::create(['caregiver_id' => $caregiver->caregiver_id]);
+                // Make a blank settings row.
+                CaregiverSettings::create(['caregiver_id' => $caregiver->caregiver_id]);
+
+                /* A teenager on their own is also the listener: one profile
+                   for them, so moods, listening history and reading
+                   settings work just as they do for a child. */
+                if ($independent) {
+                    $caregiver->childProfiles()->create([
+                        'name' => $caregiver->name,
+                        'age'  => (int) $request->input('age', 13),
+                    ]);
+                }
+                return $caregiver;
+            });
 
             $this->logEvent('Auth', 'register success', [
                 'caregiver_id' => $caregiver->caregiver_id,
+                'account_type' => $caregiver->account_type,
             ]);
             return $this->loginCaregiver($caregiver, $request);
         } catch (\Throwable $e) {
@@ -151,6 +171,7 @@ class AuthController extends ApiController
             'caregiver' => [
                 'caregiver_id'  => $caregiver->caregiver_id,
                 'name'          => $caregiver->name,
+                'account_type'  => $caregiver->account_type ?? 'caregiver',
                 'email'         => $caregiver->email,
                 'mobile_number' => $caregiver->mobile_number,
             ],
@@ -166,6 +187,7 @@ class AuthController extends ApiController
         return $this->successResponse('OK', [
             'caregiver_id'  => $caregiver->caregiver_id,
             'name'          => $caregiver->name,
+            'account_type'  => $caregiver->account_type ?? 'caregiver',
             'email'         => $caregiver->email,
             'mobile_number' => $caregiver->mobile_number,
         ]);

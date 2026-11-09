@@ -5,6 +5,7 @@ import '../../i18n/app_strings.dart';
 import '../../i18n/i18n.dart';
 import '../../models/child_profile.dart';
 import '../../models/user_settings.dart';
+import '../../state/auth_state.dart';
 import '../../state/language_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
@@ -12,6 +13,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
+import '../shared/logout_dialog.dart';
 import 'contact_list_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -42,6 +44,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
     final profiles = context.watch<ProfilesState>().profiles;
+    final personal = _personal(context);
     final settings = context.watch<SettingsState>();
 
     // Use the current child if it still exists, else the first one.
@@ -60,21 +63,26 @@ class _SettingsPageState extends State<SettingsPage> {
           context.tr('settings.title'),
           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
         ),
-        const SizedBox(height: 4),
-        Text(
-          context.tr('settings.subtitle'),
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 18),
-        if (profiles.isEmpty)
-          const _NoChildrenCard()
-        else ...[
-          _ChildSelector(
-            profiles: profiles,
-            selectedId: activeChildId,
-            onSelect: (id) => _loadChild(id, force: true),
+        if (!personal) ...[
+          const SizedBox(height: 4),
+          Text(
+            context.tr('settings.subtitle'),
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 14),
+        ],
+        const SizedBox(height: 18),
+        // A personal account's settings are just theirs: no child to pick.
+        if (profiles.isEmpty && !personal)
+          const _NoChildrenCard()
+        else if (profiles.isNotEmpty) ...[
+          if (!personal) ...[
+            _ChildSelector(
+              profiles: profiles,
+              selectedId: activeChildId,
+              onSelect: (id) => _loadChild(id, force: true),
+            ),
+            const SizedBox(height: 14),
+          ],
           if (settings.loading)
             const SoftCard(
               child: Padding(
@@ -96,6 +104,27 @@ class _SettingsPageState extends State<SettingsPage> {
         _ContactsCard(onOpen: (kind) => setState(() => _openList = kind)),
         const SizedBox(height: 14),
         const _PinChangeCard(),
+        // Someone on their own has no dashboard, where caregivers log out.
+        if (context.watch<AuthState>().user?.isIndependent ?? false) ...[
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const LogoutDialog(),
+              ),
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(context.tr('caregiver.logout'),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -261,58 +290,93 @@ class _NoChildrenCard extends StatelessWidget {
   }
 }
 
+/* A personal (independent) account is the listener themself: no child to
+   choose, fewer words, bigger icons. */
+bool _personal(BuildContext context) =>
+    context.watch<AuthState>().user?.isIndependent ?? false;
+
+// A card's title row: a coloured icon circle and the name.
+class _CardHeader extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final Widget? trailing;
+  const _CardHeader({required this.icon, required this.color, required this.title, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final big = _personal(context);
+    return Row(
+      children: [
+        Container(
+          width: big ? 52 : 36,
+          height: big ? 52 : 36,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Icon(icon, size: big ? 30 : 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(title,
+              style: TextStyle(fontSize: big ? 21 : 18, fontWeight: FontWeight.w800)),
+        ),
+        ?trailing,
+      ],
+    );
+  }
+}
+
 class _NarrationCard extends StatelessWidget {
   const _NarrationCard();
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsState>();
+    final personal = _personal(context);
     return SoftCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _CardHeader(
+            icon: Icons.record_voice_over_outlined,
+            color: AppColors.iconCircleBlue,
+            title: context.tr('settings.narration'),
+          ),
+          const SizedBox(height: 14),
+          // Two voices, side by side: a big icon each.
           Row(
             children: [
-              Container(
-                width: 36, height: 36,
-                decoration: const BoxDecoration(color: AppColors.iconCircleBlue, shape: BoxShape.circle),
-                child: const Icon(Icons.record_voice_over_outlined, size: 18),
+              Expanded(
+                child: _VoiceButton(
+                  label: context.tr('voice.calm_female'),
+                  icon: Icons.female_rounded,
+                  value: NarratorVoice.calmFemale,
+                  current: settings.voice,
+                  onTap: settings.setVoice,
+                ),
               ),
-              const SizedBox(width: 10),
-              Text(context.tr('settings.narration'),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(context.tr('settings.narrator_voice'),
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 2.4,
-            children: [
-              _VoiceButton(label: context.tr('voice.calm_female'), value: NarratorVoice.calmFemale, current: settings.voice, onTap: settings.setVoice),
-              _VoiceButton(label: context.tr('voice.gentle_female'), value: NarratorVoice.gentleFemale, current: settings.voice, onTap: settings.setVoice),
-              _VoiceButton(label: context.tr('voice.warm_male'), value: NarratorVoice.warmMale, current: settings.voice, onTap: settings.setVoice),
-              _VoiceButton(label: context.tr('voice.friendly_child'), value: NarratorVoice.friendlyChild, current: settings.voice, onTap: settings.setVoice),
-              _VoiceButton(label: context.tr('voice.soothing_elder'), value: NarratorVoice.soothingElder, current: settings.voice, onTap: settings.setVoice),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _VoiceButton(
+                  label: context.tr('voice.warm_male'),
+                  icon: Icons.male_rounded,
+                  value: NarratorVoice.warmMale,
+                  current: settings.voice,
+                  onTap: settings.setVoice,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 18),
           Row(
             children: [
-              const Icon(Icons.speed, size: 18, color: AppColors.textSecondary),
+              Icon(Icons.speed, size: personal ? 28 : 18, color: AppColors.textSecondary),
               const SizedBox(width: 6),
-              Text(context.tr('settings.reading_speed'),
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (!personal)
+                Text(context.tr('settings.reading_speed'),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               const Spacer(),
               Text('${settings.readingSpeed.toStringAsFixed(1)}x',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: personal ? 20 : 14)),
             ],
           ),
           Slider(
@@ -324,15 +388,20 @@ class _NarrationCard extends StatelessWidget {
             inactiveColor: AppColors.cardBorder,
             onChanged: settings.setReadingSpeed,
           ),
+          // Walking and running figures say slower and faster without words.
           Row(
             children: [
-              Text(context.tr('settings.slower'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              const Icon(Icons.directions_walk_rounded, color: AppColors.textSecondary),
+              if (!personal)
+                Text(context.tr('settings.slower'),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
-              Text(context.tr('settings.faster'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              if (!personal)
+                Text(context.tr('settings.faster'),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              const Icon(Icons.directions_run_rounded, color: AppColors.textSecondary),
             ],
           ),
         ],
@@ -343,29 +412,52 @@ class _NarrationCard extends StatelessWidget {
 
 class _VoiceButton extends StatelessWidget {
   final String label;
+  final IconData icon;
   final NarratorVoice value;
   final NarratorVoice current;
   final void Function(NarratorVoice) onTap;
-  const _VoiceButton({required this.label, required this.value, required this.current, required this.onTap});
+  const _VoiceButton({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.current,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final selected = value == current;
-    return InkWell(
-      onTap: () => onTap(value),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryBlue : AppColors.softPeach.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-            color: AppColors.textPrimary,
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: () => onTap(value),
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryBlue : AppColors.softPeach.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? AppColors.primaryBlueDark : Colors.transparent,
+              width: 3,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 40, color: AppColors.textPrimary),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -378,21 +470,14 @@ class _SensoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsState>();
+    final personal = _personal(context);
     return SoftCard(
       child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36, height: 36,
-                decoration: const BoxDecoration(color: AppColors.iconCircleGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.shield_outlined, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(context.tr('settings.sensory'),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
-            ],
+          _CardHeader(
+            icon: Icons.shield_outlined,
+            color: AppColors.iconCircleGreen,
+            title: context.tr('settings.sensory'),
           ),
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
@@ -400,20 +485,26 @@ class _SensoryCard extends StatelessWidget {
             activeThumbColor: AppColors.primaryBlueDark,
             value: settings.autoPlayNext,
             onChanged: settings.setAutoPlayNext,
+            secondary: personal ? const Icon(Icons.skip_next_rounded, size: 30) : null,
             title: Text(context.tr('settings.auto_play_next'),
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(context.tr('settings.auto_play_next_sub'),
-                style: const TextStyle(color: AppColors.textSecondary)),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: personal
+                ? null
+                : Text(context.tr('settings.auto_play_next_sub'),
+                    style: const TextStyle(color: AppColors.textSecondary)),
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             activeThumbColor: AppColors.primaryBlueDark,
             value: settings.readAlong,
             onChanged: settings.setReadAlong,
+            secondary: personal ? const Icon(Icons.highlight_rounded, size: 30) : null,
             title: Text(context.tr('settings.read_along'),
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(context.tr('settings.read_along_sub'),
-                style: const TextStyle(color: AppColors.textSecondary)),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: personal
+                ? null
+                : Text(context.tr('settings.read_along_sub'),
+                    style: const TextStyle(color: AppColors.textSecondary)),
           ),
         ],
       ),
@@ -428,30 +519,23 @@ class _TextSizeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsState>();
     final scale = settings.textScale;
+    final personal = _personal(context);
     return SoftCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36, height: 36,
-                decoration: const BoxDecoration(
-                    color: AppColors.iconCirclePurple, shape: BoxShape.circle),
-                child: const Icon(Icons.format_size, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(context.tr('settings.text_size'),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
-              const Spacer(),
-              Text('${(scale * 100).round()}%',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ],
+          _CardHeader(
+            icon: Icons.format_size,
+            color: AppColors.iconCirclePurple,
+            title: context.tr('settings.text_size'),
+            trailing: Text('${(scale * 100).round()}%',
+                style: const TextStyle(fontWeight: FontWeight.w800)),
           ),
-          const SizedBox(height: 8),
-          Text(context.tr('settings.text_size_sub'),
-              style: const TextStyle(color: AppColors.textSecondary)),
+          if (!personal) ...[
+            const SizedBox(height: 8),
+            Text(context.tr('settings.text_size_sub'),
+                style: const TextStyle(color: AppColors.textSecondary)),
+          ],
           const SizedBox(height: 12),
           // Shows the chosen size live.
           Container(
@@ -484,13 +568,17 @@ class _TextSizeCard extends StatelessWidget {
           ),
           Row(
             children: [
-              Text(context.tr('settings.smaller'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              const Icon(Icons.text_decrease_rounded, color: AppColors.textSecondary),
+              if (!personal)
+                Text(context.tr('settings.smaller'),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
               const Spacer(),
-              Text(context.tr('settings.larger'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              if (!personal)
+                Text(context.tr('settings.larger'),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              const Icon(Icons.text_increase_rounded, color: AppColors.textSecondary),
             ],
           ),
         ],
@@ -511,25 +599,18 @@ class _LanguageCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36, height: 36,
-                decoration: const BoxDecoration(
-                    color: AppColors.iconCircleGreen, shape: BoxShape.circle),
-                child: const Icon(Icons.translate, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(context.tr('settings.language'),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
-            ],
+          _CardHeader(
+            icon: Icons.translate,
+            color: AppColors.iconCircleGreen,
+            title: context.tr('settings.language'),
           ),
-          const SizedBox(height: 6),
-          Text(
-            context.tr('settings.language_sub'),
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
+          if (!_personal(context)) ...[
+            const SizedBox(height: 6),
+            Text(
+              context.tr('settings.language_sub'),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,

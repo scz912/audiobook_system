@@ -5,13 +5,19 @@ class Caregiver {
   final String name;
   final String? email;
   final String? mobileNumber;
+  /* 'caregiver' (a parent with child profiles and Child Mode) or
+     'independent' (a teenager using one combined app on their own). */
+  final String accountType;
 
   const Caregiver({
     required this.caregiverId,
     required this.name,
     this.email,
     this.mobileNumber,
+    this.accountType = 'caregiver',
   });
+
+  bool get isIndependent => accountType == 'independent';
 
   factory Caregiver.fromJson(Map<String, dynamic> json) {
     return Caregiver(
@@ -19,6 +25,7 @@ class Caregiver {
       name: safeString(json['name']),
       email: safeNullableString(json['email']),
       mobileNumber: safeNullableString(json['mobile_number']),
+      accountType: safeString(json['account_type'], 'caregiver'),
     );
   }
 
@@ -27,5 +34,6 @@ class Caregiver {
         'name': name,
         'email': email,
         'mobile_number': mobileNumber,
+        'account_type': accountType,
       };
 }

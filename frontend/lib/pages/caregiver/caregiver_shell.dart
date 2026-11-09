@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
+import '../../state/auth_state.dart';
 import '../../state/chat_state.dart';
 import '../../state/friends_state.dart';
+import '../../widgets/guide.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import '../community/community_page.dart';
 import '../piano/piano_page.dart';
@@ -32,10 +34,38 @@ class _CaregiverShellState extends State<CaregiverShell> {
   static const _pianoTab = 5;
   // Lets the taskbar ask the piano before leaving an unsaved recording.
   final _pianoKey = GlobalKey<PianoPageState>();
+  // Lets the guide find each tab's sphere.
+  final _shelfKey = GlobalKey<ShelfTabScaffoldState>();
+
+  /* First-time tour: Paige visits each tab and says what it's for. Shown
+     once per account on this device; Skip ends it any time. */
+  late final GuideController _guide = GuideController(
+    openTab: _selectTab,
+    onFinish: _guideDone,
+    steps: const [
+      GuideStep('guide.tour_hi', tab: 0),
+      GuideStep('guide.dashboard', tab: 0, spotlightTab: true),
+      GuideStep('guide.profiles', tab: 1, spotlightTab: true),
+      GuideStep('guide.content', tab: 2, spotlightTab: true),
+      GuideStep('guide.insights', tab: 3, spotlightTab: true),
+      GuideStep('guide.community', tab: 4, spotlightTab: true),
+      GuideStep('guide.piano', tab: _pianoTab, spotlightTab: true, turned: true),
+      GuideStep('guide.settings', tab: 6, spotlightTab: true),
+      GuideStep('guide.tour_done', tab: 0, celebrate: true),
+    ],
+  );
+  String? _guideKey;
 
   @override
   void initState() {
     super.initState();
+    final id = context.read<AuthState>().user?.caregiverId;
+    if (id != null) {
+      _guideKey = 'caregiver.$id';
+      GuideMemory.isDone(_guideKey!).then((done) {
+        if (!done && mounted) _guide.start();
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkNotifications());
     _notificationTimer = Timer.periodic(
       const Duration(seconds: 30),
@@ -46,7 +76,13 @@ class _CaregiverShellState extends State<CaregiverShell> {
   @override
   void dispose() {
     _notificationTimer?.cancel();
+    _guide.dispose();
     super.dispose();
+  }
+
+  void _guideDone() {
+    final key = _guideKey;
+    if (key != null) GuideMemory.markDone(key);
   }
 
   // Friend requests and unread messages (muted chats excluded) drive the dot.
@@ -103,7 +139,26 @@ class _CaregiverShellState extends State<CaregiverShell> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildShelf(context),
+        ListenableBuilder(
+          listenable: _guide,
+          builder: (context, _) => _guide.active
+              ? GuideOverlay(
+                  controller: _guide,
+                  tabRect: (i) => _shelfKey.currentState?.sphereRect(i),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShelf(BuildContext context) {
     return ShelfTabScaffold(
+      key: _shelfKey,
       body: _pageFor(_index),
       items: [
         for (var i = 0; i < _tabs.length; i++)

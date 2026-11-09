@@ -21,6 +21,7 @@ class Caregiver extends Model
 
     protected $fillable = [
         'name',
+        'account_type',
         'email',
         'mobile_number',
         'pin',
