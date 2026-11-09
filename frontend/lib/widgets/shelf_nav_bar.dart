@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -25,16 +26,22 @@ class ShelfNavItem {
    gently up and down (one full bob every 2 seconds), with its name shown
    under it.
 
-   In horizontal mode (the sideways piano page, or the phone turned to
-   landscape) the shelf sinks away and each sphere is held in its own cup
-   on a stick instead, fanned out along the curve. [rotateItems] turns the
-   icons a quarter clockwise, for the sideways piano page. Both changes
-   are animated. */
+   On the sideways piano page the shelf sinks away and each sphere is held
+   in its own cup on a stick instead, fanned out along the curve, and
+   [rotateItems] turns the icons a quarter clockwise. Both changes are
+   animated.
+
+   [vertical] is for the phone turned to landscape: the bar is drawn the
+   same way but shown turned a quarter anticlockwise (see
+   [ShelfTabScaffold]), so the shelf stands along the right edge of the
+   screen. The icons are turned back so they stay upright, and the open
+   tab's name sits in a pill to the left of its sphere. */
 class ShelfNavBar extends StatefulWidget {
   final List<ShelfNavItem> items;
   final int currentIndex;
   final ValueChanged<int> onTap;
   final bool rotateItems;
+  final bool vertical;
   // Colour the shelf is dyed with (the open tab's colour).
   final Color? dye;
   // One per tab, so [ShelfTabScaffold] can find where each sphere is.
@@ -46,6 +53,7 @@ class ShelfNavBar extends StatefulWidget {
     required this.currentIndex,
     required this.onTap,
     this.rotateItems = false,
+    this.vertical = false,
     this.dye,
     this.slotKeys,
   });
@@ -63,7 +71,9 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
   static const _perch = 0.2;
   // How much lower the middle of the shelf is than its ends.
   static const _sag = 12.0;
-  static const _labelHeight = 15.0;
+  // The open tab's name. Its box grows with the app's text size so the
+  // FittedBox never shrinks the text back down.
+  static const _labelFontSize = 14.0;
   static const _sidePadding = 8.0;
   // Tilt of the outermost holders in horizontal mode, in radians.
   static const _fan = 0.55;
@@ -82,6 +92,27 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
   );
   bool? _holders;
 
+  /* The vertical bar's name pill floats over the page, so it only shows
+     for a moment when a tab opens, then fades away. */
+  static const _sideLabelTime = Duration(milliseconds: 2500);
+  bool _sideLabelOn = false;
+  Timer? _sideLabelTimer;
+
+  void _flashSideLabel() {
+    _sideLabelTimer?.cancel();
+    if (!widget.vertical) return;
+    _sideLabelOn = true;
+    _sideLabelTimer = Timer(_sideLabelTime, () {
+      if (mounted) setState(() => _sideLabelOn = false);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _flashSideLabel();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -92,12 +123,14 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
   void didUpdateWidget(covariant ShelfNavBar old) {
     super.didUpdateWidget(old);
     _syncMorph();
+    if (widget.currentIndex != old.currentIndex || widget.vertical != old.vertical) {
+      _flashSideLabel();
+    }
   }
 
-  // Shelf or cups, following horizontal mode.
+  // Shelf or cups: cups only on the sideways piano page in portrait.
   void _syncMorph() {
-    final holders =
-        widget.rotateItems || MediaQuery.orientationOf(context) == Orientation.landscape;
+    final holders = widget.rotateItems && !widget.vertical;
     if (holders == _holders) return;
     final first = _holders == null;
     _holders = holders;
@@ -110,6 +143,7 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
 
   @override
   void dispose() {
+    _sideLabelTimer?.cancel();
     _bob.dispose();
     _morph.dispose();
     super.dispose();
@@ -121,21 +155,32 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
     final still = MediaQuery.of(context).disableAnimations;
     final dye = widget.dye ?? AppColors.primaryBlue;
 
+    final padding = MediaQuery.paddingOf(context);
+    final labelHeight = MediaQuery.textScalerOf(context).scale(_labelFontSize) * 1.35;
+
     return LayoutBuilder(
       builder: (context, box) {
         final width = box.maxWidth;
-        final slot = (width - _sidePadding * 2) / n;
+        /* Vertical: the bar's left end is the bottom of the screen and its
+           right end the top, so keep the spheres clear of the gesture bar
+           and the status bar there. */
+        final startPad = _sidePadding + (widget.vertical ? padding.bottom : 0);
+        final endPad = _sidePadding + (widget.vertical ? padding.top : 0);
+        final slot = (width - startPad - endPad) / n;
         final d = math.min(slot * 0.7, 48.0);
         final big = d * _focusScale;
         // Shelf top at its ends: room above for an enlarged, bobbing sphere.
         final shelfTopEnd = big * (0.5 + _perch) + _bobAmplitude + 4;
-        // The shelf runs down to the bottom edge of the screen, under the
-        // gesture bar too.
-        final bottomInset = MediaQuery.paddingOf(context).bottom;
+        // The shelf runs to the edge of the screen, under the gesture bar
+        // (or, standing on the right, under any inset there) too.
+        // Standing on the right there is usually no inset, so give the
+        // shelf at least a gesture bar's worth, or it is only a sliver.
+        final edgeInset = widget.vertical ? math.max(padding.right, 24.0) : padding.bottom;
         // Room below a closed sphere, down to the screen's edge: kept to
         // 60% of what the label and gesture bar would take, so the spheres
         // sit low (the label may run into the gesture bar's space).
-        final belowSphere = 0.6 * ((big - d) * (0.5 - _perch) + _labelHeight + 4 + bottomInset);
+        final belowSphere =
+            0.6 * ((big - d) * (0.5 - _perch) + labelHeight + 4 + edgeInset);
         final height = shelfTopEnd + _sag + d * (0.5 - _perch) + belowSphere;
 
         // Shelf top at x: a gentle curve, lowest in the middle.
@@ -164,7 +209,10 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
               ),
               for (var i = 0; i < n; i++)
                 () {
-                  final x = _sidePadding + slot * (i + 0.5);
+                  // Vertical: the bar's left end is the screen's bottom, so
+                  // count from the other end to list the tabs top to bottom.
+                  final pos = widget.vertical ? n - 1 - i : i;
+                  final x = startPad + slot * (pos + 0.5);
                   final item = widget.items[i];
                   final selected = i == widget.currentIndex;
                   return Positioned(
@@ -203,7 +251,13 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
                                 focus: focus,
                                 bob: bob,
                                 dye: dye,
-                                showLabel: selected && !widget.rotateItems,
+                                labelHeight: labelHeight,
+                                // Room for a wide label without running off
+                                // the screen at either end.
+                                labelRoomLeft: x - slot / 2,
+                                labelRoomRight: width - (x + slot / 2),
+                                showLabel:
+                                    selected && (widget.vertical || !widget.rotateItems),
                               );
                             },
                           ),
@@ -229,6 +283,9 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
     required double focus,
     required double bob,
     required Color dye,
+    required double labelHeight,
+    required double labelRoomLeft,
+    required double labelRoomRight,
     required bool showLabel,
   }) {
     final scale = 1 + (_focusScale - 1) * focus;
@@ -276,7 +333,9 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
           child: _NavSphere(
             item: item,
             focus: focus.clamp(0.0, 1.0),
-            rotateIcon: widget.rotateItems,
+            // The vertical bar is turned a quarter anticlockwise, so a
+            // quarter clockwise here keeps its icons upright.
+            rotateIcon: widget.rotateItems || widget.vertical,
           ),
         ),
         // The dish's front wall (it sits below the sphere, never over it).
@@ -284,30 +343,77 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
           Positioned.fill(
             child: IgnorePointer(child: CustomPaint(painter: bowl(true))),
           ),
-        if (showLabel)
+        if (showLabel && widget.vertical)
+          _sideLabel(item.label, center, size, labelHeight, focus.clamp(0.0, 1.0))
+        else if (showLabel)
           Positioned(
             top: center.dy + size / 2 + 1,
-            left: -6,
-            right: -6,
-            height: _labelHeight,
+            // Wider than the slot, so longer names like "Dashboard" keep
+            // their full size; only the open tab has a label.
+            left: -math.min(slot * 0.35, labelRoomLeft),
+            right: -math.min(slot * 0.35, labelRoomRight),
+            height: labelHeight,
             // Fades out in horizontal mode, where the holder sits there.
             child: Opacity(
               opacity: focus.clamp(0.0, 1.0) * (1 - m),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                child: Text(item.label, maxLines: 1, style: _labelStyle),
               ),
             ),
           ),
       ],
+    );
+  }
+
+  static const _labelStyle = TextStyle(
+    fontSize: _labelFontSize,
+    fontWeight: FontWeight.w800,
+    color: AppColors.textPrimary,
+  );
+
+  /* The vertical bar's label: a small pill to the left of the open sphere
+     on screen. The bar is drawn turned a quarter anticlockwise, so "left
+     on screen" is up here, and the pill is turned back to read normally. */
+  Widget _sideLabel(String label, Offset center, double size, double labelHeight, double focus) {
+    const maxWidth = 140.0;
+    final thickness = labelHeight + 10;
+    return Positioned(
+      left: center.dx - thickness / 2,
+      top: center.dy - size / 2 - 6 - maxWidth,
+      width: thickness,
+      height: maxWidth,
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 400),
+          opacity: _sideLabelOn ? focus : 0,
+          child: RotatedBox(
+            quarterTurns: 1,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(thickness / 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(label, maxLines: 1, style: _labelStyle),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -691,28 +797,80 @@ class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final vertical = MediaQuery.orientationOf(context) == Orientation.landscape;
     return AnimatedBuilder(
       animation: _wave,
-      builder: (context, child) => Scaffold(
+      builder: (context, child) => vertical
+          ? _buildVertical(child!)
+          : _buildBottom(child!),
+      /* Built once per change of page, not every frame of the wave. The
+         page runs down behind the shelf (no band cutting it off above the
+         spheres); the shelf's height stays in MediaQuery's bottom padding,
+         so each page ends its scrolling with shelfBottomSpace(). */
+      child: SafeArea(bottom: false, child: widget.body),
+    );
+  }
+
+  Widget get _wavePaint => Positioned.fill(
+    child: CustomPaint(
+      painter: _WavePainter(
+        from: ShelfTabScaffold.backgroundFor(_from),
+        to: ShelfTabScaffold.backgroundFor(_to),
+        ring: _to,
+        origin: _origin,
+        progress: _wave.value,
+      ),
+    ),
+  );
+
+  /* Landscape: the shelf stands along the right edge. The bar is laid out
+     as usual and turned a quarter anticlockwise, so its shelf side faces
+     the screen's edge. The page stops at the bar, and the bar looks after
+     any inset on the right itself. */
+  Widget _buildVertical(Widget page) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Stack(
+        key: _stackKey,
+        children: [
+          _wavePaint,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeRight: true,
+                  child: page,
+                ),
+              ),
+              RotatedBox(
+                quarterTurns: 3,
+                child: ShelfNavBar(
+                  items: widget.items,
+                  currentIndex: widget.currentIndex,
+                  onTap: widget.onTap,
+                  rotateItems: widget.rotateItems,
+                  vertical: true,
+                  dye: _current,
+                  slotKeys: _slotKeys,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottom(Widget page) {
+    return Scaffold(
         // The body runs behind the shelf, so the dye shows above its curve.
         extendBody: true,
         backgroundColor: AppColors.background,
         body: Stack(
           key: _stackKey,
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _WavePainter(
-                  from: ShelfTabScaffold.backgroundFor(_from),
-                  to: ShelfTabScaffold.backgroundFor(_to),
-                  ring: _to,
-                  origin: _origin,
-                  progress: _wave.value,
-                ),
-              ),
-            ),
-            child!,
-          ],
+          children: [_wavePaint, page],
         ),
         bottomNavigationBar: ShelfNavBar(
           items: widget.items,
@@ -722,12 +880,6 @@ class _ShelfTabScaffoldState extends State<ShelfTabScaffold> with SingleTickerPr
           dye: _current,
           slotKeys: _slotKeys,
         ),
-      ),
-      /* Built once per change of page, not every frame of the wave. The
-         page runs down behind the shelf (no band cutting it off above the
-         spheres); the shelf's height stays in MediaQuery's bottom padding,
-         so each page ends its scrolling with shelfBottomSpace(). */
-      child: SafeArea(bottom: false, child: widget.body),
     );
   }
 }

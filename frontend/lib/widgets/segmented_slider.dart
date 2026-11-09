@@ -5,8 +5,15 @@ import '../theme/app_colors.dart';
 class SegmentedSliderItem<T> {
   final T value;
   final String label;
-  final IconData icon;
-  const SegmentedSliderItem(this.value, this.label, this.icon);
+  final IconData? icon;
+  /* When set, the segment shows only this emoji (big, no text), for the
+     child screens where pictures read better than words. The label is still
+     used for screen readers. */
+  final String? emoji;
+  const SegmentedSliderItem(this.value, this.label, IconData this.icon)
+      : emoji = null;
+  const SegmentedSliderItem.emoji(this.value, this.label, String this.emoji)
+      : icon = null;
 }
 
 /* A pill-shaped switch with a white thumb that slides under the selected
@@ -16,12 +23,14 @@ class SegmentedSlider<T> extends StatelessWidget {
   final List<SegmentedSliderItem<T>> items;
   final T value;
   final ValueChanged<T> onChanged;
+  final double height;
 
   const SegmentedSlider({
     super.key,
     required this.items,
     required this.value,
     required this.onChanged,
+    this.height = 52,
   });
 
   @override
@@ -30,11 +39,11 @@ class SegmentedSlider<T> extends StatelessWidget {
     // Alignment runs -1 (left) .. 1 (right).
     final x = items.length == 1 ? 0.0 : -1 + 2 * index / (items.length - 1);
     return Container(
-      height: 52,
+      height: height,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.softLavender.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(height / 2),
         border: Border.all(color: AppColors.cardBorder),
       ),
       // expand: the label row must fill the pill's height, or the labels
@@ -52,7 +61,7 @@ class SegmentedSlider<T> extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(height / 2 - 4),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.06),
@@ -72,6 +81,36 @@ class SegmentedSlider<T> extends StatelessWidget {
 
   Widget _segment(SegmentedSliderItem<T> item) {
     final selected = item.value == value;
+    final emoji = item.emoji;
+    if (emoji != null) {
+      // Picture-only segment: the picked one is full size and colour, the
+      // others a little smaller and faded so the choice is obvious.
+      return Expanded(
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: item.label,
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onChanged(item.value),
+            child: Center(
+              child: AnimatedScale(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutBack,
+                scale: selected ? 1.0 : 0.8,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: selected ? 1.0 : 0.55,
+                  child: Text(emoji,
+                      style: TextStyle(fontSize: height * 0.5, height: 1.0)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final color =
         selected ? AppColors.primaryBlueDark : AppColors.textSecondary;
     return Expanded(

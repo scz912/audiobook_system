@@ -21,6 +21,9 @@ import 'theme/app_theme.dart';
 // Pages
 import 'pages/shared/auth_gate.dart';
 
+// How much bigger than its set size all text in the app is drawn.
+const double appTextScale = 1.2;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Increase image cache limits to avoid caregiver profile pictures too aggressively.
@@ -50,6 +53,17 @@ class AudiobookApp extends StatelessWidget {
         title: 'Audiobook for Autism', 
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
+        /* All text in the app is 20% bigger than its set size, on top of
+           the phone's own text-size setting, so it is easier to read. Icons
+           are not affected. */
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          final system = mq.textScaler.scale(14) / 14;
+          return MediaQuery(
+            data: mq.copyWith(textScaler: TextScaler.linear(system * appTextScale)),
+            child: child!,
+          );
+        },
         navigatorKey: AppNavigationService.navigatorKey,
         scaffoldMessengerKey: AppNavigationService.scaffoldMessengerKey,
         home: const AuthGate(), // Decides whether to show onboarding/login or the main app.

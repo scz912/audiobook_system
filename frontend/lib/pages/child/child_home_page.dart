@@ -137,6 +137,9 @@ class _ChildHomePageState extends State<ChildHomePage> {
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
+                // Without an explicit padding the grid inherits the screen's
+                // bottom inset (nav bar / safe area) as blank space.
+                padding: EdgeInsets.zero,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,

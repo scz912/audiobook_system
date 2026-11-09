@@ -142,19 +142,20 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
                 ],
               ),
               const SizedBox(height: 16),
+              // Pictures only for the children: a storybook, a puzzle piece
+              // for the stories that ask questions, and a mosque for the
+              // Quran. The words stay as screen-reader labels.
               SegmentedSlider<_Library>(
                 value: _library,
+                height: 64,
                 onChanged: (l) => setState(() => _library = l),
                 items: [
-                  SegmentedSliderItem(_Library.linear,
-                      context.tr('content.format_linear'),
-                      Icons.menu_book_rounded),
-                  SegmentedSliderItem(_Library.interactive,
-                      context.tr('content.format_interactive'),
-                      Icons.touch_app_rounded),
-                  SegmentedSliderItem(_Library.quran,
-                      context.tr('content.format_quran'),
-                      Icons.auto_stories_rounded),
+                  SegmentedSliderItem.emoji(_Library.linear,
+                      context.tr('content.format_linear'), '📖'),
+                  SegmentedSliderItem.emoji(_Library.interactive,
+                      context.tr('content.format_interactive'), '🧩'),
+                  SegmentedSliderItem.emoji(_Library.quran,
+                      context.tr('content.format_quran'), '🕌'),
                 ],
               ),
               const SizedBox(height: 16),
