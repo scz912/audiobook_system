@@ -190,8 +190,14 @@ class _GuideOverlayState extends State<GuideOverlay>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Nothing to tap behind a celebration, so catch every touch.
-          if (step.celebrate) const Positioned.fill(child: AbsorbPointer()),
+          /* Only Next and Skip work while Paige talks. When she asks for
+             something to be done (pick a mood, tap a note...), the ringed
+             spot can be touched too. */
+          Positioned.fill(
+            child: _TouchWall(
+              hole: step.waitFor != null ? target?.inflate(8) : null,
+            ),
+          ),
           IgnorePointer(
             child: CustomPaint(
               painter: _SpotlightPainter(
@@ -207,6 +213,40 @@ class _GuideOverlayState extends State<GuideOverlay>
         ],
       ),
     );
+  }
+}
+
+/* Catches every touch except inside [hole] (in screen coordinates), so
+   the page behind the guide can't be used by accident. */
+class _TouchWall extends LeafRenderObjectWidget {
+  const _TouchWall({this.hole});
+
+  final Rect? hole;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderTouchWall(hole);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderTouchWall renderObject) {
+    renderObject.hole = hole;
+  }
+}
+
+class _RenderTouchWall extends RenderBox {
+  _RenderTouchWall(this.hole);
+
+  Rect? hole;
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  bool hitTestSelf(Offset position) {
+    final h = hole;
+    return h == null || !h.contains(localToGlobal(position));
   }
 }
 

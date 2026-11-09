@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
@@ -11,7 +10,6 @@ import '../../models/quran.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../services/quran_pack_service.dart';
-import '../../state/language_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
@@ -22,6 +20,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'audio_player_page.dart';
 import 'quran_player_page.dart';
+import '../../widgets/whole_words_text.dart';
 
 /* The same three kinds of audiobook as the caregiver's Content Management
    slider. */
@@ -155,7 +154,7 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
+                    child: WholeWordsText(
                       context.tr('library.title'),
                       style: const TextStyle(
                           fontSize: 28, fontWeight: FontWeight.w700),
@@ -249,8 +248,9 @@ class _StoryLibraryPageState extends State<StoryLibraryPage> {
   }
 }
 
-/* The Al-Quran tab: chapters the caregiver has downloaded, ready to play.
-   Downloading and removing stay in the caregiver's Content Management. */
+/* Every chapter (surah) of the Al-Quran pack. Nothing downloads by itself:
+   a chapter that isn't on the device shows a download button, which asks
+   first (with the size) before fetching it. */
 class _QuranShelf extends StatefulWidget {
   const _QuranShelf();
 
@@ -267,6 +267,76 @@ class _QuranShelfState extends State<_QuranShelf> {
     _pack.init();
   }
 
+  Future<void> _tap(QuranChapter c) async {
+    switch (_pack.stateOf(c.number)) {
+      case QuranChapterState.installed:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => QuranPlayerPage(chapter: c)),
+        );
+      case QuranChapterState.notDownloaded:
+      case QuranChapterState.failed:
+        if (await _askDownload(c)) await _pack.download(c.number);
+      case QuranChapterState.queued:
+      case QuranChapterState.downloading:
+      case QuranChapterState.installing:
+        break;
+    }
+  }
+
+  // A short, mostly-pictures question: download this chapter (and its size)?
+  Future<bool> _askDownload(QuranChapter c) async {
+    final size = QuranPackService.formatBytes(_pack.downloadBytesFor(c));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: const CircleAvatar(
+          radius: 32,
+          backgroundColor: AppColors.softPink,
+          child: Icon(Icons.download_rounded, size: 36, color: AppColors.primaryBlueDark),
+        ),
+        title: Text(
+          ctx.tr('quran.download_chapter_confirm').replaceAll('{name}', c.nameEn),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+        ),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.sd_storage_rounded, color: AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text(size,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          IconButton.filledTonal(
+            tooltip: ctx.tr('common.cancel'),
+            iconSize: 32,
+            onPressed: () => Navigator.of(ctx).pop(false),
+            icon: const Icon(Icons.close_rounded),
+          ),
+          const SizedBox(width: 12),
+          IconButton.filled(
+            tooltip: ctx.tr('quran.download'),
+            iconSize: 32,
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.check_rounded),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -279,25 +349,16 @@ class _QuranShelfState extends State<_QuranShelf> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        final chapters = m.chapters
-            .where((c) => _pack.stateOf(c.number) == QuranChapterState.installed)
-            .toList();
-        if (chapters.isEmpty) {
-          return EmptyState(
-            icon: Icons.auto_stories_rounded,
-            title: context.tr('quran.child_empty_title'),
-            subtitle: context.tr('quran.child_empty_body'),
-            iconBackground: AppColors.softPink,
-            iconColor: AppColors.primaryBlueDark,
-          );
-        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final c in chapters) ...[
+            for (final c in m.chapters) ...[
               _QuranChapterTile(
                 chapter: c,
                 gif: _pack.gifFor(c.elementId),
+                state: _pack.stateOf(c.number),
+                progress: _pack.progressOf(c.number),
+                onTap: () => _tap(c),
               ),
               const SizedBox(height: 10),
             ],
@@ -311,23 +372,28 @@ class _QuranShelfState extends State<_QuranShelf> {
 class _QuranChapterTile extends StatelessWidget {
   final QuranChapter chapter;
   final File? gif;
-  const _QuranChapterTile({required this.chapter, required this.gif});
+  final QuranChapterState state;
+  final double progress;
+  final VoidCallback onTap;
+  const _QuranChapterTile({
+    required this.chapter,
+    required this.gif,
+    required this.state,
+    required this.progress,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final versesLabel = context
-        .tr('quran.verses')
-        .replaceAll('{n}', '${chapter.verseCount}');
+    final installed = state == QuranChapterState.installed;
     return SoftCard(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => QuranPlayerPage(chapter: chapter)),
-      ),
+      onTap: onTap,
       child: Row(
         children: [
           QuranElementThumb(
             elementId: chapter.elementId,
             gif: gif,
-            size: 52,
+            size: 56,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -338,33 +404,53 @@ class _QuranChapterTile extends StatelessWidget {
                   chapter.nameEn,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: installed ? AppColors.textPrimary : AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${chapter.meaning(context.watch<LanguageState>().code)} • $versesLabel',
+                  chapter.nameAr,
+                  textDirection: TextDirection.rtl,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13),
+                  style: const TextStyle(fontSize: 17, color: AppColors.textSecondary),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            chapter.nameAr,
-            textDirection: TextDirection.rtl,
-            style: const TextStyle(
-                fontSize: 16, color: AppColors.textSecondary),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.play_circle_outline_rounded,
-              color: AppColors.primaryBlueDark),
+          SizedBox.square(dimension: 52, child: _status()),
         ],
       ),
     );
+  }
+
+  // One big picture for where the chapter is: play, download, or progress.
+  Widget _status() {
+    switch (state) {
+      case QuranChapterState.installed:
+        return const Icon(Icons.play_circle_fill_rounded,
+            size: 52, color: AppColors.primaryBlueDark);
+      case QuranChapterState.notDownloaded:
+        return const Icon(Icons.download_for_offline_rounded,
+            size: 52, color: AppColors.success);
+      case QuranChapterState.failed:
+        return const Icon(Icons.refresh_rounded, size: 44, color: AppColors.danger);
+      case QuranChapterState.queued:
+      case QuranChapterState.downloading:
+      case QuranChapterState.installing:
+        return Padding(
+          padding: const EdgeInsets.all(8),
+          child: CircularProgressIndicator(
+            strokeWidth: 5,
+            value: state == QuranChapterState.downloading && progress > 0 ? progress : null,
+            color: AppColors.success,
+            backgroundColor: AppColors.cardBorder,
+          ),
+        );
+    }
   }
 }
 

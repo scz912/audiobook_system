@@ -25,6 +25,7 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
+import '../../widgets/whole_words_text.dart';
 
 // Interactive audiobook forms, editor cards, steppers and the guide.
 part 'upload_interactive.dart';
@@ -753,20 +754,10 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('upload.title'),
-                        style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        context.tr('upload.subtitle'),
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ],
+                  child: WholeWordsText(
+                    context.tr('upload.title'),
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -1065,11 +1056,6 @@ class _UploadContentPageState extends State<UploadContentPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                context.tr('upload.ai_intro'),
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              ),
               const SizedBox(height: 14),
               _Label(context.tr('upload.ai_topic'),
                   icon: Icons.lightbulb_rounded, color: _Tint.yellow),
@@ -1188,12 +1174,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
                 value: _aiGenerateImage,
                 activeThumbColor: AppColors.primaryBlueDark,
                 onChanged: (v) => setState(() => _aiGenerateImage = v),
+                secondary: const Icon(Icons.image_rounded, color: AppColors.primaryBlueDark),
                 title: Text(context.tr('upload.gen_cover'),
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(
-                  context.tr('upload.gen_cover_hint'),
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
               ),
             ],
           ),

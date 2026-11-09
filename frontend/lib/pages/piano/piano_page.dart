@@ -35,6 +35,8 @@ class PianoPage extends StatefulWidget {
     this.onGuideEvent,
     this.recordButtonKey,
     this.stopButtonKey,
+    this.keyboardKey,
+    this.saveButtonKey,
   });
 
   // Tells a running guide when a note is played, a recording starts or
@@ -43,6 +45,9 @@ class PianoPage extends StatefulWidget {
   // So a guide can ring the record and stop buttons.
   final GlobalKey? recordButtonKey;
   final GlobalKey? stopButtonKey;
+  // And the keys, and the save button once a recording is done.
+  final GlobalKey? keyboardKey;
+  final GlobalKey? saveButtonKey;
 
   @override
   State<PianoPage> createState() => PianoPageState();
@@ -247,14 +252,13 @@ class PianoPageState extends State<PianoPage> {
     return ok ?? false;
   }
 
-  // Asks what to call the recording. Null if cancelled; empty = a dated name.
+  /* Asks what to call the recording. Null if cancelled; empty = a dated
+     name. Shown upright, not turned like the piano: the phone's keyboard
+     always opens upright, and a turned box squeezed above it breaks. */
   Future<String?> _askName() {
     return showDialog<String>(
       context: context,
-      builder: (ctx) => const RotatedBox(
-        quarterTurns: _quarterTurns,
-        child: _NameDialog(),
-      ),
+      builder: (ctx) => const _NameDialog(),
     );
   }
 
@@ -435,11 +439,13 @@ class PianoPageState extends State<PianoPage> {
           peaks: _mix!.peaks,
           saving: _saving,
           onSave: _save,
+          saveButtonKey: widget.saveButtonKey,
         );
       case _Mode.playing:
       case _Mode.recording:
       case _Mode.paused:
         return _PianoBody(
+          key: widget.keyboardKey,
           recording: _mode == _Mode.recording,
           child: PianoKeyboard(onKeyDown: _onKey),
         );
@@ -452,7 +458,7 @@ class PianoPageState extends State<PianoPage> {
 class _PianoBody extends StatelessWidget {
   final bool recording;
   final Widget child;
-  const _PianoBody({required this.recording, required this.child});
+  const _PianoBody({super.key, required this.recording, required this.child});
 
   @override
   Widget build(BuildContext context) {

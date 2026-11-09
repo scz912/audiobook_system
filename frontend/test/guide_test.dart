@@ -19,6 +19,7 @@ GuideController _controller(List<int> opened, List<String> log) => GuideControll
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  _touchWallTests();
 
   group('GuideController', () {
     test('opens each step\'s tab and finishes after the last', () {
@@ -128,5 +129,59 @@ void main() {
     final rect = shelf.currentState!.sphereRect(1)!;
     expect(rect.center.dx, greaterThan(180));
     expect(rect.center.dy, greaterThan(600));
+  });
+}
+
+void _touchWallTests() {
+  testWidgets('guide blocks the page except the ringed spot it waits for', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final target = GlobalKey();
+    final taps = <String>[];
+    final g = GuideController(
+      openTab: (_) {},
+      onFinish: () {},
+      steps: [
+        const GuideStep('guide.ch_hi'),
+        GuideStep('guide.ch_tap_note', target: target, waitFor: GuideEvent.notePlayed),
+      ],
+    )..start();
+
+    await tester.pumpWidget(ChangeNotifierProvider(
+      create: (_) => LanguageState(),
+      child: MaterialApp(
+        home: Stack(children: [
+          Scaffold(
+            body: Column(children: [
+              const SizedBox(height: 120),
+              TextButton(onPressed: () => taps.add('other'), child: const Text('other')),
+              const SizedBox(height: 80),
+              TextButton(key: target, onPressed: () => taps.add('target'), child: const Text('target')),
+            ]),
+          ),
+          ListenableBuilder(
+            listenable: g,
+            builder: (context, _) => g.active
+                ? GuideOverlay(controller: g, tabRect: (_) => null)
+                : const SizedBox.shrink(),
+          ),
+        ]),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Paige is only talking: nothing behind can be tapped.
+    await tester.tap(find.text('other'), warnIfMissed: false);
+    await tester.tap(find.text('target'), warnIfMissed: false);
+    expect(taps, isEmpty);
+
+    await tester.tap(find.byIcon(Icons.arrow_forward_rounded));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Now she asks for the ringed button: only that one works.
+    await tester.tap(find.text('other'), warnIfMissed: false);
+    await tester.tap(find.text('target'));
+    expect(taps, ['target']);
   });
 }

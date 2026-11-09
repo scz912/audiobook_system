@@ -4,6 +4,8 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'whole_words_text.dart';
+
 /* The three shades a sphere is painted with: a light highlight where the
    light hits, the main colour, and a deep shade on the far edge. */
 class SpherePalette {
@@ -361,7 +363,7 @@ class _Sphere extends StatelessWidget {
                 SizedBox(height: size * 0.02),
                 SizedBox(
                   width: size * 0.7,
-                  child: Text(
+                  child: WholeWordsText(
                     sphere.label.replaceAll('\n', ' '),
                     textAlign: TextAlign.center,
                     // Three lines fit longer labels like the Malay ones.

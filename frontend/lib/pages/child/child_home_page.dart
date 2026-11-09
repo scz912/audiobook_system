@@ -12,6 +12,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../widgets/paige_mascot.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
+import '../../widgets/whole_words_text.dart';
 import 'audio_player_page.dart';
 
 class ChildHomePage extends StatefulWidget {
@@ -168,12 +169,15 @@ class _ChildHomePageState extends State<ChildHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('🌅 ', style: TextStyle(fontSize: 24)),
-            Text(
-              '$name!',
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            Flexible(
+              child: WholeWordsText(
+                '$name!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ],

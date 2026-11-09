@@ -12,6 +12,7 @@ import '../../widgets/soft_card.dart';
 import '../community/community_widgets.dart';
 import '../community/member_profile_page.dart';
 import '../../widgets/shelf_nav_bar.dart';
+import '../../widgets/whole_words_text.dart';
 
 enum ContactListKind { favorites, blocked }
 
@@ -103,7 +104,7 @@ class _ContactListSubpageState extends State<ContactListSubpage> {
         children: [
           BackPill(label: context.tr('common.back'), onTap: widget.onBack),
           const SizedBox(height: 14),
-          Text(
+          WholeWordsText(
             context.tr(_favorites ? 'contacts.favorites_title' : 'contacts.blocked_title'),
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
           ),

@@ -40,6 +40,8 @@ class _ChildShellState extends State<ChildShell> {
   final _paigeKey = GlobalKey();
   final _recordKey = GlobalKey();
   final _stopKey = GlobalKey();
+  final _keyboardKey = GlobalKey();
+  final _saveKey = GlobalKey();
   final _shelf = ValueNotifier(StoryShelf.linear);
 
   /* The child's guide, learned by doing: pick a mood, see the books, then
@@ -57,15 +59,15 @@ class _ChildShellState extends State<ChildShell> {
           tab: _storiesTab, onStart: () => _shelf.value = StoryShelf.interactive),
       GuideStep('guide.ch_quran', tab: _storiesTab, onStart: () => _shelf.value = StoryShelf.quran),
       const GuideStep('guide.ch_piano', tab: _pianoTab, spotlightTab: true, turned: true),
-      const GuideStep('guide.ch_tap_note',
-          tab: _pianoTab, waitFor: GuideEvent.notePlayed, turned: true),
+      GuideStep('guide.ch_tap_note',
+          tab: _pianoTab, target: _keyboardKey, waitFor: GuideEvent.notePlayed, turned: true),
       GuideStep('guide.ch_record',
           tab: _pianoTab, target: _recordKey, waitFor: GuideEvent.recordingStarted, turned: true),
       GuideStep('guide.ch_stop',
           tab: _pianoTab, target: _stopKey, waitFor: GuideEvent.recordingStopped, turned: true),
       const GuideStep('guide.ch_listen', tab: _pianoTab, turned: true),
-      const GuideStep('guide.ch_name',
-          tab: _pianoTab, waitFor: GuideEvent.recordingSaved, turned: true),
+      GuideStep('guide.ch_name',
+          tab: _pianoTab, target: _saveKey, waitFor: GuideEvent.recordingSaved, turned: true),
       const GuideStep('guide.ch_yay', tab: _pianoTab, celebrate: true, turned: true),
       GuideStep('guide.ch_always', tab: _homeTab, target: _paigeKey),
     ],
@@ -151,6 +153,8 @@ class _ChildShellState extends State<ChildShell> {
             onGuideEvent: _guide.report,
             recordButtonKey: _recordKey,
             stopButtonKey: _stopKey,
+            keyboardKey: _keyboardKey,
+            saveButtonKey: _saveKey,
           ),
         );
       default:

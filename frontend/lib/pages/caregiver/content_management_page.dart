@@ -18,6 +18,7 @@ import '../../widgets/shelf_nav_bar.dart';
 import 'edit_content_page.dart';
 import 'quran_library_section.dart';
 import 'upload_content_page.dart';
+import '../../widgets/whole_words_text.dart';
 
 /* The three kinds of audiobook the library slider switches between. The
    first two match an audiobook's book_format; Al-Quran is the separate
@@ -228,7 +229,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: WholeWordsText(
                   context.tr('content.title'),
                   style: const TextStyle(
                     fontSize: 28,

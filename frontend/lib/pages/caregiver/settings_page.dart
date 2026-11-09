@@ -15,6 +15,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import '../shared/logout_dialog.dart';
 import 'contact_list_page.dart';
+import '../../widgets/whole_words_text.dart';
 
 class SettingsPage extends StatefulWidget {
   /* Called when the header back arrow is tapped. The shell uses it to go
@@ -59,7 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListView(
       padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
       children: [
-        Text(
+        WholeWordsText(
           context.tr('settings.title'),
           style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
         ),
@@ -316,7 +317,7 @@ class _CardHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(title,
+          child: WholeWordsText(title,
               style: TextStyle(fontSize: big ? 21 : 18, fontWeight: FontWeight.w800)),
         ),
         ?trailing,

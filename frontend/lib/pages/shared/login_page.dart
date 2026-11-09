@@ -6,6 +6,7 @@ import '../../state/auth_state.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/paige_mascot.dart';
 import '../onboarding/welcome_page.dart';
+import '../../widgets/whole_words_text.dart';
 
 /* Sign in with email and PIN. New accounts are made in the welcome flow
    ("Create account" opens it at "who is using the app"), which asks
@@ -95,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       const Center(child: PaigeMascot(width: 120)),
                       const SizedBox(height: 12),
-                      Text(
+                      WholeWordsText(
                         context.tr('login.welcome_back'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(

@@ -14,6 +14,7 @@ import '../child/audio_player_page.dart';
 import '../shared/logout_dialog.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
+import '../../widgets/whole_words_text.dart';
 
 class CaregiverDashboardPage extends StatefulWidget {
   final ValueChanged<int>? onJumpToTab;
@@ -89,7 +90,7 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: WholeWordsText(
                   context.tr('caregiver.dashboard'),
                   style: const TextStyle(
                     fontSize: 28,

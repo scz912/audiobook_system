@@ -11,6 +11,7 @@ import '../child/child_shell.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
 import 'child_profile_actions.dart';
+import '../../widgets/whole_words_text.dart';
 
 class ProfilesPage extends StatelessWidget {
   const ProfilesPage({super.key});
@@ -31,7 +32,7 @@ class ProfilesPage extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
+              child: WholeWordsText(
                 context.tr('profiles.title'),
                 style: const TextStyle(
                   fontSize: 26,

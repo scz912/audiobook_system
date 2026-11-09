@@ -16,6 +16,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/scroll_more_hint.dart';
 import '../../widgets/stat_sphere_carousel.dart';
 import '../../widgets/shelf_nav_bar.dart';
+import '../../widgets/whole_words_text.dart';
 
 class InsightsPage extends StatefulWidget {
   const InsightsPage({super.key});
@@ -216,7 +217,7 @@ class _InsightsPageState extends State<InsightsPage> {
         controller: _scroll,
         padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
-          Text(
+          WholeWordsText(
             context.tr('insights.title'),
             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
           ),
@@ -1314,21 +1315,9 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.tr('insights.suggestions_title'),
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 17),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                context.tr('insights.suggestions_sub'),
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-              ),
-            ],
+          child: Text(
+            context.tr('insights.suggestions_title'),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
           ),
         ),
         if (hasItems) ...[
@@ -1473,16 +1462,6 @@ class _EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
                 fontWeight: FontWeight.w700, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              context.tr('insights.no_suggestions_body'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12),
-            ),
           ),
         ],
       ),

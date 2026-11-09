@@ -241,9 +241,10 @@ Rules:
 - For volume: a number between 0.0 and 1.0 (step 0.05).
 - For text_scale: a number between 0.7 and 2.0 (step 0.05).
 - For auto_play_next, read_along: true or false.
-- Each item's "reason" must be one short, plain sentence a caregiver can read
-  in a glance. No clinical claims, no jargon. Reference the specific stat you
-  used (e.g. "Pause rate is high (3.4 per session)…").
+- Each item's "reason" must be ONE very short sentence of at most 10 words,
+  in simple everyday words: the reader may be an autistic teenager. No
+  numbers, no clinical claims, no jargon (e.g. "You pause a lot, so slower
+  may help.").
 - Do NOT suggest changes that match the current value already.
 - At most 3 suggestions. Skip suggestions you are not confident about.
 

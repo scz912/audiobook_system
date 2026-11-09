@@ -18,6 +18,8 @@ class RecordingPlayerView extends StatefulWidget {
   final Float32List peaks;
   final bool saving;
   final VoidCallback onSave;
+  // So a guide can ring the save button.
+  final GlobalKey? saveButtonKey;
 
   const RecordingPlayerView({
     super.key,
@@ -25,6 +27,7 @@ class RecordingPlayerView extends StatefulWidget {
     required this.peaks,
     required this.saving,
     required this.onSave,
+    this.saveButtonKey,
   });
 
   @override
@@ -201,7 +204,7 @@ class _RecordingPlayerViewState extends State<RecordingPlayerView> {
                   // Shrinks rather than overflows on narrow phones.
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: _SaveButton(saving: widget.saving, onTap: widget.onSave),
+                    child: _SaveButton(key: widget.saveButtonKey, saving: widget.saving, onTap: widget.onSave),
                   ),
                 ),
               ),
@@ -341,7 +344,7 @@ class _PlayButton extends StatelessWidget {
 class _SaveButton extends StatelessWidget {
   final bool saving;
   final VoidCallback onTap;
-  const _SaveButton({required this.saving, required this.onTap});
+  const _SaveButton({super.key, required this.saving, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

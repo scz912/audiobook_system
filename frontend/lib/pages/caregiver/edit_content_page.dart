@@ -10,6 +10,7 @@ import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
+import '../../widgets/whole_words_text.dart';
 
 /* Edit screen for an audiobook. The caregiver can change the details
    (title, description, language), edit each page's text and image, and add
@@ -257,7 +258,7 @@ class _EditContentPageState extends State<EditContentPage> {
                 children: [
                   BackPill(onTap: () => Navigator.of(context).maybePop()),
                   const SizedBox(height: 16),
-                  Text(
+                  WholeWordsText(
                     context.tr('content.edit_screen_title'),
                     style: const TextStyle(
                         fontSize: 26, fontWeight: FontWeight.w700),

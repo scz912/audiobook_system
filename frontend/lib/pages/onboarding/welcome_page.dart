@@ -10,6 +10,7 @@ import '../../state/auth_state.dart';
 import '../../state/language_state.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/paige_mascot.dart';
+import '../../widgets/whole_words_text.dart';
 
 /* The first thing a new person sees: Paige says hi, they pick a language,
    see what the app is, say who is using it, and make an account. Few
@@ -344,7 +345,7 @@ class _Title extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Text(
+  Widget build(BuildContext context) => WholeWordsText(
         text,
         textAlign: TextAlign.center,
         style: const TextStyle(
