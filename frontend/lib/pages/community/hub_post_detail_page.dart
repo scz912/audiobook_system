@@ -10,10 +10,13 @@ import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/emoji_picker_button.dart';
 import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
 import 'community_widgets.dart';
+import 'hub_reactions.dart';
 import 'member_profile_page.dart';
+import 'shared_book_card.dart';
 
 // A shared post with its comments and a comment box.
 class HubPostDetailPage extends StatefulWidget {
@@ -244,28 +247,34 @@ class _PostHeader extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
+            const SizedBox(height: 8),
+            Center(
+              child: SaveToLibraryButton(
+                inMyLibrary: live.bookInMyLibrary,
+                onSave: () async {
+                  final resp = await hub.saveBook(live);
+                  if (!context.mounted) return resp.success;
+                  if (resp.success) {
+                    AppSnackbar.success(
+                        context.trRead('community.saved_to_library'),
+                        context: context);
+                  } else {
+                    AppSnackbar.error(resp.message, context: context);
+                  }
+                  return resp.success;
+                },
+              ),
+            ),
           ],
           const Divider(height: 22),
-          InkWell(
-            onTap: () => hub.toggleLike(live),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    live.likedByMe
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: live.likedByMe
-                        ? AppColors.danger
-                        : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text('${live.likeCount} ${context.tr('community.likes')}',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ],
-              ),
+          // The post page has room for every emoji people used.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ReactionBar(
+              post: live,
+              maxChips: HubPost.reactionEmoji.length,
+              onToggle: () => hub.toggleLike(live),
+              onReact: (e) => hub.react(live, e),
             ),
           ),
         ],
@@ -339,6 +348,7 @@ class _CommentBox extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            EmojiPickerButton(controller: controller),
             Expanded(
               child: TextField(
                 controller: controller,

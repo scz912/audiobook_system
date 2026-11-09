@@ -15,6 +15,9 @@ class SpherePalette {
   static const blue = SpherePalette(Color(0xFFCFE4FA), Color(0xFF5B95D6), Color(0xFF2F5F9E));
   static const green = SpherePalette(Color(0xFFCDF2E0), Color(0xFF3DB287), Color(0xFF1F7656));
   static const purple = SpherePalette(Color(0xFFEADFFA), Color(0xFF9070CF), Color(0xFF5A3E98));
+  static const teal = SpherePalette(Color(0xFFCFF3F2), Color(0xFF3BB3B8), Color(0xFF1F7479));
+  static const pink = SpherePalette(Color(0xFFFADDE8), Color(0xFFE07A9E), Color(0xFFA03F63));
+  static const peach = SpherePalette(Color(0xFFFFE6D1), Color(0xFFEE9A5C), Color(0xFFAD5E24));
 }
 
 class StatSphere {
@@ -156,12 +159,142 @@ class _StatSphereCarouselState extends State<StatSphereCarousel>
   }
 }
 
+/* Stats as glossy spheres in a grid, two to a row. They don't turn; each
+   one just bobs gently up and down in place, a little out of step with
+   its neighbours. Every value uses the same font size - the largest that
+   still fits the widest value - so the numbers read as one set. */
+class FloatingSphereGrid extends StatefulWidget {
+  final List<StatSphere> spheres;
+  const FloatingSphereGrid({super.key, required this.spheres});
+
+  @override
+  State<FloatingSphereGrid> createState() => _FloatingSphereGridState();
+}
+
+class _FloatingSphereGridState extends State<FloatingSphereGrid>
+    with SingleTickerProviderStateMixin {
+  static const _perRow = 2;
+  static const _spacing = 14.0;
+  // How far a sphere drifts above and below its resting spot.
+  static const _bob = 6.0;
+
+  late final AnimationController _float = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _float.dispose();
+    super.dispose();
+  }
+
+  // Largest font size at which every value fits the sphere's value box.
+  double _sharedFontSize(double size) {
+    const probe = 100.0;
+    var best = double.infinity;
+    for (final s in widget.spheres) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: s.value,
+          style: const TextStyle(fontSize: probe, fontWeight: FontWeight.w900, height: 1.0),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final fit = math.min(size * _Sphere.valueWidth / tp.width,
+              size * _Sphere.valueHeight / tp.height) *
+          probe;
+      best = math.min(best, fit);
+    }
+    return best.isFinite ? best : size * 0.3;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.of(context).disableAnimations;
+    return LayoutBuilder(builder: (context, box) {
+      final size = math.min((box.maxWidth - _spacing * (_perRow - 1)) / _perRow, 200.0);
+      final fontSize = _sharedFontSize(size);
+      return Wrap(
+        alignment: WrapAlignment.center,
+        spacing: _spacing,
+        runSpacing: 8,
+        children: [
+          for (var i = 0; i < widget.spheres.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: _bob),
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: AnimatedBuilder(
+                  animation: _float,
+                  builder: (context, child) {
+                    if (still) return child!;
+                    // Each sphere starts at a different point in the bob.
+                    final phase = (_float.value + i * 0.37) * 2 * math.pi;
+                    return Transform.translate(
+                      offset: Offset(0, math.sin(phase) * _bob),
+                      child: child,
+                    );
+                  },
+                  child: _Sphere(
+                    sphere: widget.spheres[i],
+                    size: size,
+                    dim: 0,
+                    valueFontSize: fontSize,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
+}
+
 class _Sphere extends StatelessWidget {
+  // The box the value is drawn in, as a share of the sphere's size.
+  static const valueWidth = 0.66;
+  static const valueHeight = 0.4;
+
   final StatSphere sphere;
   final double size;
   // How much darker to draw it, for spheres at the back.
   final double dim;
-  const _Sphere({required this.sphere, required this.size, required this.dim});
+  /* A fixed size for the value, shared by a whole set of spheres. When
+     null the value is scaled to fill its own box instead. */
+  final double? valueFontSize;
+  const _Sphere({
+    required this.sphere,
+    required this.size,
+    required this.dim,
+    this.valueFontSize,
+  });
+
+  Widget _valueText(SpherePalette p, double? fontSize) {
+    return Text(
+      sphere.value,
+      maxLines: 1,
+      softWrap: false,
+      // The shared size is already worked out to fit; system text scaling
+      // on top of it would push the widest value out of the sphere.
+      textScaler: fontSize == null ? null : TextScaler.noScaling,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w900,
+        color: Colors.white,
+        height: 1.0,
+        shadows: [
+          Shadow(
+            color: p.shade.withValues(alpha: 0.7),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -219,26 +352,11 @@ class _Sphere extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
-                  width: size * 0.66,
-                  height: size * 0.4,
-                  child: FittedBox(
-                    child: Text(
-                      sphere.value,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        height: 1.0,
-                        shadows: [
-                          Shadow(
-                            color: p.shade.withValues(alpha: 0.7),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  width: size * valueWidth,
+                  height: size * valueHeight,
+                  child: valueFontSize == null
+                      ? FittedBox(child: _valueText(p, null))
+                      : Center(child: _valueText(p, valueFontSize)),
                 ),
                 SizedBox(height: size * 0.02),
                 SizedBox(

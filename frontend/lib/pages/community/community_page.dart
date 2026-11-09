@@ -10,6 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/notification_dot.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'chat_tab.dart';
 import 'friends_tab.dart';
 import 'hub_tab.dart';
@@ -85,7 +86,19 @@ class _CommunityPageState extends State<CommunityPage> {
             indicatorColor: AppColors.primaryBlueDark,
             tabs: [
               Tab(text: context.tr('community.hub')),
-              Tab(text: context.tr('community.chat')),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.tr('community.chat')),
+                    // Unread messages, except from muted contacts.
+                    if (context.watch<ChatState>().hasUnmutedUnread) ...[
+                      const SizedBox(width: 6),
+                      const NotificationDot(),
+                    ],
+                  ],
+                ),
+              ),
               Tab(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -164,7 +177,7 @@ class _JoinGateState extends State<_JoinGate> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, shelfBottomSpace(context)),
       child: Column(
         children: [
           const SizedBox(height: 24),

@@ -19,6 +19,7 @@ class Message extends Model
         'conversation_id',
         'sender_id',
         'body',
+        'audiobook_id',
     ];
 
     public function uniqueIds(): array

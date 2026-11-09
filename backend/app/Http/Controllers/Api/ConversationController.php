@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Audiobook;
 use App\Models\Caregiver;
+use App\Models\ContactSetting;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
@@ -35,8 +37,11 @@ class ConversationController extends ApiController
             $out[] = $this->serializeConversation($conv, $part, $caregiver->caregiver_id);
         }
 
-        // Newest activity first.
-        usort($out, fn ($a, $b) => strcmp($b['last_activity'] ?? '', $a['last_activity'] ?? ''));
+        // Favorite contacts pinned on top, then newest activity first.
+        usort($out, function ($a, $b) {
+            $fav = (int) ($b['contact']['is_favorite'] ?? false) - (int) ($a['contact']['is_favorite'] ?? false);
+            return $fav !== 0 ? $fav : strcmp($b['last_activity'] ?? '', $a['last_activity'] ?? '');
+        });
         return $this->successResponse('OK', $out);
     }
 
@@ -70,19 +75,7 @@ class ConversationController extends ApiController
             return $this->errorResponse('Person not found', 'NOT_FOUND', 404);
         }
 
-        $existing = $this->findDirect($caregiver->caregiver_id, $otherId);
-        if ($existing) {
-            $part = ConversationParticipant::where('conversation_id', $existing->conversation_id)
-                ->where('caregiver_id', $caregiver->caregiver_id)->first();
-            return $this->successResponse('OK', $this->serializeConversation($existing, $part, $caregiver->caregiver_id));
-        }
-
-        $conv = Conversation::create([
-            'type'       => 'direct',
-            'created_by' => $caregiver->caregiver_id,
-        ]);
-        $this->addParticipant($conv->conversation_id, $caregiver->caregiver_id, 'admin');
-        $this->addParticipant($conv->conversation_id, $otherId, 'member');
+        $conv = Conversation::openDirect($caregiver->caregiver_id, $otherId);
 
         $part = ConversationParticipant::where('conversation_id', $conv->conversation_id)
             ->where('caregiver_id', $caregiver->caregiver_id)->first();
@@ -149,10 +142,13 @@ class ConversationController extends ApiController
         // Load each sender once so group messages can show name + avatar.
         $senders = Caregiver::whereIn('caregiver_id', $rows->pluck('sender_id')->unique())
             ->get()->keyBy('caregiver_id');
+        $books = Audiobook::whereIn('audiobook_id', $rows->pluck('audiobook_id')->filter()->unique())
+            ->get()->keyBy('audiobook_id');
         $messages = $rows->map(fn ($m) => $this->serializeMessage(
             $m,
             $caregiver->caregiver_id,
             $senders[$m->sender_id] ?? null,
+            $m->audiobook_id ? ($books[$m->audiobook_id] ?? null) : null,
         ));
 
         // Reading the thread clears the unread badge.
@@ -171,8 +167,10 @@ class ConversationController extends ApiController
             return $this->errorResponse('Conversation not found', 'NOT_FOUND', 404);
         }
 
+        // A message is text, a shared audiobook, or both.
         $validator = Validator::make($request->all(), [
-            'body' => 'required|string|max:2000',
+            'body'         => 'nullable|string|max:2000|required_without:audiobook_id',
+            'audiobook_id' => 'nullable|uuid',
         ]);
         if ($validator->fails()) {
             return $this->errorResponse(
@@ -182,17 +180,40 @@ class ConversationController extends ApiController
             );
         }
 
+        // No messages between two people when either has blocked the other.
+        $conv = Conversation::find($conversationId);
+        if ($conv?->type === 'direct') {
+            $otherId = ConversationParticipant::where('conversation_id', $conversationId)
+                ->where('caregiver_id', '!=', $caregiver->caregiver_id)
+                ->value('caregiver_id');
+            if ($otherId && ContactSetting::blockedBetween($caregiver->caregiver_id, $otherId)) {
+                return $this->errorResponse("You can't message this person.", 'BLOCKED', 403);
+            }
+        }
+
+        // Only books the sender can open themselves may be passed on.
+        $book = null;
+        if ($request->filled('audiobook_id')) {
+            $book = Audiobook::openableBy($caregiver)
+                ->where('audiobook_id', $request->input('audiobook_id'))
+                ->first();
+            if (!$book) {
+                return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
+            }
+        }
+
         $message = Message::create([
             'conversation_id' => $conversationId,
             'sender_id'       => $caregiver->caregiver_id,
-            'body'            => trim($request->input('body')),
+            'body'            => trim((string) $request->input('body', '')),
+            'audiobook_id'    => $book?->audiobook_id,
         ]);
 
         // The sender has by definition read their own message.
         $part->last_read_at = now();
         $part->save();
 
-        return $this->successResponse('Sent', $this->serializeMessage($message, $caregiver->caregiver_id, $caregiver));
+        return $this->successResponse('Sent', $this->serializeMessage($message, $caregiver->caregiver_id, $caregiver, $book));
     }
 
     // Mark a conversation as read without loading it.
@@ -224,20 +245,6 @@ class ConversationController extends ApiController
         );
     }
 
-    // Find an existing direct chat that has exactly these two people.
-    private function findDirect(string $a, string $b): ?Conversation
-    {
-        $aConvs = ConversationParticipant::where('caregiver_id', $a)->pluck('conversation_id');
-        $bConvs = ConversationParticipant::where('caregiver_id', $b)->pluck('conversation_id');
-        $shared = $aConvs->intersect($bConvs);
-        if ($shared->isEmpty()) {
-            return null;
-        }
-        return Conversation::whereIn('conversation_id', $shared)
-            ->where('type', 'direct')
-            ->first();
-    }
-
     private function serializeConversation(Conversation $conv, ?ConversationParticipant $myPart, string $meId): array
     {
         $others = ConversationParticipant::where('conversation_id', $conv->conversation_id)
@@ -253,6 +260,14 @@ class ConversationController extends ApiController
 
         $last = Message::where('conversation_id', $conv->conversation_id)
             ->orderByDesc('created_at')->first();
+        // A message that only shares a book previews as the book's title.
+        $lastBook = $last?->audiobook_id
+            ? Audiobook::where('audiobook_id', $last->audiobook_id)->value('title')
+            : null;
+        $lastBody = $last?->body;
+        if ($last && $lastBody === '' && $lastBook !== null) {
+            $lastBody = "\u{1F4D6} " . $lastBook;
+        }
 
         $unread = 0;
         if ($myPart) {
@@ -268,22 +283,28 @@ class ConversationController extends ApiController
             ? $conv->title
             : ($otherPeople[0]['name'] ?? 'Chat');
 
+        // In a one-to-one chat, my settings for the other person (favorite,
+        // blocked, muted, background) shape how the chat looks.
+        $otherId = $conv->type === 'direct' ? ($otherPeople[0]['caregiver_id'] ?? null) : null;
+        $contact = $otherId ? $this->contactSettings(ContactSetting::of($meId, $otherId)) : null;
+
         return [
             'conversation_id' => $conv->conversation_id,
             'type'            => $conv->type,
             'title'           => $title,
             'participants'    => $otherPeople,
             'last_message'    => $last ? [
-                'body'      => $last->body,
+                'body'      => $lastBody,
                 'sender_id' => $last->sender_id,
                 'sent_at'   => $last->created_at?->toIso8601String(),
             ] : null,
             'unread_count'    => $unread,
+            'contact'         => $contact,
             'last_activity'   => ($last?->created_at ?? $conv->created_at)?->toIso8601String(),
         ];
     }
 
-    private function serializeMessage(Message $m, string $meId, ?Caregiver $sender = null): array
+    private function serializeMessage(Message $m, string $meId, ?Caregiver $sender = null, ?Audiobook $book = null): array
     {
         return [
             'message_id'      => $m->message_id,
@@ -292,6 +313,7 @@ class ConversationController extends ApiController
             'body'            => $m->body,
             'is_mine'         => $m->sender_id === $meId,
             'sent_at'         => $m->created_at?->toIso8601String(),
+            'audiobook'       => $this->sharedBook($book, $meId),
             'sender'          => $sender ? [
                 'caregiver_id' => $sender->caregiver_id,
                 'name'         => $sender->name,

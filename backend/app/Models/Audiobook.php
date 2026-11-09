@@ -20,6 +20,7 @@ class Audiobook extends Model
     protected $fillable = [
         'audiobook_id',
         'caregiver_id',
+        'source_audiobook_id',
         'title',
         'author',
         'description',
@@ -91,7 +92,8 @@ class Audiobook extends Model
     }
 
     /* Books this caregiver can open in the player: their library, plus any
-       book shared in the community hub once they're a member. */
+       book shared in the community hub or in one of their chats once
+       they're a member. */
     public function scopeOpenableBy($query, ?Caregiver $caregiver)
     {
         return $query->where(function ($q) use ($caregiver) {
@@ -100,6 +102,12 @@ class Audiobook extends Model
                 $q->orWhereIn('audiobook_id', HubPost::query()
                     ->whereNotNull('audiobook_id')
                     ->select('audiobook_id'));
+                $q->orWhereIn('audiobook_id', Message::query()
+                    ->whereNotNull('audiobook_id')
+                    ->whereIn('conversation_id', ConversationParticipant::query()
+                        ->where('caregiver_id', $caregiver->caregiver_id)
+                        ->select('conversation_id'))
+                    ->select('audiobook_id'));
             }
         });
     }
@@ -107,6 +115,15 @@ class Audiobook extends Model
     public function isOwnedBy(?string $caregiverId): bool
     {
         return $this->caregiver_id !== null && $this->caregiver_id === $caregiverId;
+    }
+
+    // The caregiver made this book or has already saved a copy of it.
+    public function isInLibraryOf(string $caregiverId): bool
+    {
+        return $this->isOwnedBy($caregiverId)
+            || static::where('caregiver_id', $caregiverId)
+                ->where('source_audiobook_id', $this->audiobook_id)
+                ->exists();
     }
 
     public function musicTrack(): BelongsTo

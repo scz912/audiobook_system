@@ -12,7 +12,9 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
-import '../../widgets/stat_card.dart';
+import '../../widgets/scroll_more_hint.dart';
+import '../../widgets/stat_sphere_carousel.dart';
+import '../../widgets/shelf_nav_bar.dart';
 
 class InsightsPage extends StatefulWidget {
   const InsightsPage({super.key});
@@ -42,10 +44,21 @@ class _InsightsPageState extends State<InsightsPage> {
     'sleepy': '😴',
   };
 
+  // Drives the "more below" hint under the stat spheres.
+  final _scroll = ScrollController();
+  // Once this section is on screen, the hint has nothing left to point at.
+  final _perChildKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -53,6 +66,8 @@ class _InsightsPageState extends State<InsightsPage> {
       _loading = true;
       _error = null;
     });
+    // Right after Child Mode, let its last session finish saving first.
+    await DatabaseService.pendingSessionSaves();
     final ApiResponse resp = await DatabaseService.getInsightsOverview(
       childId: _selectedChildId,
     );
@@ -172,10 +187,24 @@ class _InsightsPageState extends State<InsightsPage> {
 
   @override
   Widget build(BuildContext context) {
+    /* The spheres fill the first screen, so a small hint says there's more.
+       After the first scroll it only returns when the page sits idle, and
+       never once the per-child summary is in view. */
+    return ScrollMoreHint(
+      controller: _scroll,
+      accent: SpherePalette.green.base,
+      bottom: MediaQuery.paddingOf(context).bottom + 2,
+      stopBefore: _perChildKey,
+      child: _buildList(context),
+    );
+  }
+
+  Widget _buildList(BuildContext context) {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        controller: _scroll,
+        padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
           Text(
             context.tr('insights.title'),
@@ -290,7 +319,8 @@ class _InsightsPageState extends State<InsightsPage> {
               ),
             ],
             const SizedBox(height: 20),
-            _SectionHeader(title: context.tr('insights.per_child')),
+            _SectionHeader(
+                key: _perChildKey, title: context.tr('insights.per_child')),
             const SizedBox(height: 10),
             for (final c in _data.children) ...[
               _ChildInsightCard(
@@ -315,57 +345,51 @@ class _InsightsPageState extends State<InsightsPage> {
   }
 
   Widget _buildOverviewGrid(BuildContext context) {
-    final cards = <_StatSpec>[
-      _StatSpec(
+    final moodEmoji = _moodEmoji[_data.topMood];
+    final spheres = [
+      StatSphere(
         icon: Icons.headphones,
-        iconBackground: AppColors.iconCircleBlue,
+        palette: SpherePalette.blue,
         value: _formatMinutes(_data.totalListeningMinutes),
         label: context.tr('insights.total_minutes'),
       ),
-      _StatSpec(
+      StatSphere(
         icon: Icons.play_circle_outline,
-        iconBackground: AppColors.iconCircleGreen,
+        palette: SpherePalette.green,
         value: '${_data.totalSessions}',
         label: context.tr('insights.total_sessions'),
       ),
-      _StatSpec(
+      StatSphere(
         icon: Icons.task_alt,
-        iconBackground: AppColors.iconCirclePeach,
+        palette: SpherePalette.teal,
         value: '${_data.completionRate}%',
         label: context.tr('insights.stories_completed'),
       ),
-      _StatSpec(
+      StatSphere(
         icon: Icons.emoji_emotions_outlined,
-        iconBackground: AppColors.iconCirclePurple,
-        value: _data.topMood != null
-            ? '${_moodEmoji[_data.topMood] ?? ''} ${_moodLabel(context, _data.topMood)}'
-            : '-',
-        label: context.tr('insights.top_mood'),
+        palette: SpherePalette.purple,
+        // The emoji sits with the label so it doesn't widen the value,
+        // which would shrink every sphere's shared font size.
+        value: _data.topMood != null ? _moodLabel(context, _data.topMood) : '-',
+        label: moodEmoji != null
+            ? '$moodEmoji ${context.tr('insights.top_mood')}'
+            : context.tr('insights.top_mood'),
       ),
-      _StatSpec(
+      StatSphere(
         icon: Icons.access_time_rounded,
-        iconBackground: AppColors.softMint,
+        palette: SpherePalette.pink,
         value: _formatAvg(_data.avgSessionMinutes),
         label: context.tr('insights.avg_session'),
       ),
-      _StatSpec(
+      StatSphere(
         icon: Icons.local_fire_department_rounded,
-        iconBackground: AppColors.softPeach,
+        palette: SpherePalette.peach,
         value:
             '${_data.streakDays}${context.tr('insights.streak_days_short')}',
         label: context.tr('insights.streak'),
       ),
     ];
-    return StatCardGroup(
-      cards: cards
-          .map((s) => StatCard(
-                icon: s.icon,
-                iconBackground: s.iconBackground,
-                value: s.value,
-                label: s.label,
-              ))
-          .toList(),
-    );
+    return FloatingSphereGrid(spheres: spheres);
   }
 
   bool get _hasMoodData => _data.moodBreakdown.values.any((v) => v > 0);
@@ -488,23 +512,10 @@ class _ScopeChip extends StatelessWidget {
   }
 }
 
-class _StatSpec {
-  final IconData icon;
-  final Color iconBackground;
-  final String value;
-  final String label;
-  const _StatSpec({
-    required this.icon,
-    required this.iconBackground,
-    required this.value,
-    required this.label,
-  });
-}
-
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
-  const _SectionHeader({required this.title, this.subtitle});
+  const _SectionHeader({super.key, required this.title, this.subtitle});
 
   @override
   Widget build(BuildContext context) {

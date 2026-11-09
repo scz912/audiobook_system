@@ -17,6 +17,7 @@ import '../models/insights_overview.dart';
 import '../models/user_settings.dart';
 import '../models/community/chat_message.dart';
 import '../models/community/community_invite.dart';
+import '../models/community/contact_settings.dart';
 import '../models/community/conversation.dart';
 import '../models/community/friend_update.dart';
 import '../models/community/hub_comment.dart';
@@ -708,6 +709,11 @@ class DatabaseService {
 
   // listening history
 
+  /* Session saves still on their way to the server. The player sends them
+     fire-and-forget, so leaving Child Mode waits on these before reloading
+     the children's listening minutes. */
+  static final Set<Future<ApiResponse>> _pendingSessionSaves = {};
+
   static Future<ApiResponse> recordListeningSession({
     required String childId,
     required String audiobookId,
@@ -718,7 +724,7 @@ class DatabaseService {
     int? pauseCount,
     int? skipCount,
   }) {
-    return _post('/listening-history/record', body: {
+    final save = _post('/listening-history/record', body: {
       'child_id': childId,
       'audiobook_id': audiobookId,
       'duration_seconds': ?durationSeconds,
@@ -728,7 +734,14 @@ class DatabaseService {
       'pause_count': ?pauseCount,
       'skip_count': ?skipCount,
     });
+    _pendingSessionSaves.add(save);
+    save.whenComplete(() => _pendingSessionSaves.remove(save));
+    return save;
   }
+
+  // Completes once every session save sent so far has finished.
+  static Future<void> pendingSessionSaves() =>
+      Future.wait(_pendingSessionSaves.toList()).then((_) {});
 
   static Future<ApiResponse> listeningHistoryFor(String childId) {
     return _post('/listening-history/child/$childId');
@@ -1042,9 +1055,100 @@ class DatabaseService {
     return _wrapList(resp, ChatMessage.fromJson);
   }
 
-  static Future<ApiResponse> sendChatMessage(String conversationId, String body) async {
-    final resp = await _post('/chat/$conversationId/send', body: {'body': body});
+  /* Send text, an audiobook, or both. The book must be one I can open
+     (my own, or one shared with me). */
+  static Future<ApiResponse> sendChatMessage(
+    String conversationId,
+    String body, {
+    String? audiobookId,
+  }) async {
+    final resp = await _post('/chat/$conversationId/send', body: {
+      if (body.isNotEmpty) 'body': body,
+      'audiobook_id': ?audiobookId,
+    });
     return _wrapOne(resp, ChatMessage.fromJson);
+  }
+
+  /* Save a book shared in a chat or hub post into my own library. Returns
+     the copy (or the one saved before) as a ContentItem. */
+  static Future<ApiResponse> saveAudiobookCopy(String audiobookId) async {
+    final resp = await _post('/content/$audiobookId/save-copy');
+    if (resp.success && resp.data is Map<String, dynamic>) {
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: ContentItem.fromJson(resp.data as Map<String, dynamic>),
+      );
+    }
+    return resp;
+  }
+
+  // contacts: my favorite / block / mute / chat background for a member
+
+  static Future<ApiResponse> contactSettings(String contactId) async {
+    final resp = await _post('/contacts/$contactId');
+    return _wrapContactSettings(resp);
+  }
+
+  /* Change any of is_favorite / is_blocked / is_muted, or the background
+     (background_type none|color|gradient + background_value). */
+  static Future<ApiResponse> updateContactSettings(
+    String contactId,
+    Map<String, dynamic> patch,
+  ) async {
+    final resp = await _post('/contacts/$contactId/update', body: patch);
+    return _wrapContactSettings(resp);
+  }
+
+  // Upload a picture as this contact's chat background.
+  static Future<ApiResponse> uploadChatBackground(
+    String contactId,
+    String imagePath,
+  ) async {
+    if (!await _hasNetworkConnection()) {
+      return ApiResponse.failure(
+        'No internet connection. Please check your network settings.',
+        error: 'NO_CONNECTIVITY',
+      );
+    }
+    try {
+      final token = await _currentToken();
+      if (token == null || token.isEmpty) {
+        return ApiResponse.failure('Not signed in', error: 'NO_SESSION');
+      }
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/contacts/$contactId/background'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+      request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+
+      final streamed = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed);
+      final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return ApiResponse.failure('Unexpected response shape', error: 'BAD_SHAPE');
+      }
+      return _wrapContactSettings(ApiResponse.fromBackend(decoded));
+    } on TimeoutException {
+      return ApiResponse.failure('Upload timed out', error: 'TIMEOUT');
+    } catch (e) {
+      return ApiResponse.failure('Upload failed: $e', error: 'UNKNOWN');
+    }
+  }
+
+  static Future<ApiResponse> favoriteContacts() async =>
+      _wrapList(await _post('/contacts/favorites'), ContactEntry.fromJson);
+
+  static Future<ApiResponse> blockedContacts() async =>
+      _wrapList(await _post('/contacts/blocked'), ContactEntry.fromJson);
+
+  static ApiResponse _wrapContactSettings(ApiResponse resp) {
+    final settings = resp.success ? ContactSettings.fromJson(resp.data) : null;
+    return settings == null
+        ? resp
+        : ApiResponse(success: true, message: resp.message, data: settings);
   }
 
   static Future<ApiResponse> markConversationRead(String conversationId) =>
@@ -1075,6 +1179,14 @@ class DatabaseService {
 
   static Future<ApiResponse> likePost(String postId) =>
       _post('/hub/$postId/like');
+
+  /* Leave my emoji reaction on a post (one per person; another emoji
+     replaces it). Separate from likes. The reply has the new totals. */
+  static Future<ApiResponse> reactToPost(String postId, String emoji) =>
+      _post('/hub/$postId/react', body: {'emoji': emoji});
+
+  static Future<ApiResponse> removePostReaction(String postId) =>
+      _post('/hub/$postId/unreact');
 
   static Future<ApiResponse> unlikePost(String postId) =>
       _post('/hub/$postId/unlike');

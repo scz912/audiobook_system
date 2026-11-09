@@ -11,6 +11,8 @@ import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
+import 'contact_list_page.dart';
 
 class SettingsPage extends StatefulWidget {
   /* Called when the header back arrow is tapped. The shell uses it to go
@@ -25,9 +27,20 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   // The child we asked SettingsState to load (stops us asking twice).
   String? _pendingLoad;
+  /* A contacts list opened from the Contacts card. It replaces the
+     settings inside this tab, so the shelf stays below it. */
+  ContactListKind? _openList;
 
   @override
   Widget build(BuildContext context) {
+    final list = _openList;
+    if (list != null) {
+      return ContactListSubpage(
+        key: ValueKey(list),
+        kind: list,
+        onBack: () => setState(() => _openList = null),
+      );
+    }
     final profiles = context.watch<ProfilesState>().profiles;
     final settings = context.watch<SettingsState>();
 
@@ -41,7 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
       children: [
         Text(
           context.tr('settings.title'),
@@ -80,6 +93,8 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
         const _LanguageCard(),
         const SizedBox(height: 14),
+        _ContactsCard(onOpen: (kind) => setState(() => _openList = kind)),
+        const SizedBox(height: 14),
         const _PinChangeCard(),
       ],
     );
@@ -91,6 +106,58 @@ class _SettingsPageState extends State<SettingsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<SettingsState>().loadForChild(childId);
     });
+  }
+}
+
+// Favorite and blocked contacts from the community.
+class _ContactsCard extends StatelessWidget {
+  final ValueChanged<ContactListKind> onOpen;
+  const _ContactsCard({required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                    color: AppColors.iconCirclePurple, shape: BoxShape.circle),
+                child: const Icon(Icons.contacts_outlined, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(context.tr('contacts.title'),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(context.tr('contacts.card_sub'),
+              style: const TextStyle(color: AppColors.textSecondary)),
+          const SizedBox(height: 6),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.star_rounded, color: Color(0xFFE0A100)),
+            title: Text(context.tr('contacts.favorites_title'),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => onOpen(ContactListKind.favorites),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.block_rounded, color: AppColors.danger),
+            title: Text(context.tr('contacts.blocked_title'),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => onOpen(ContactListKind.blocked),
+          ),
+        ],
+      ),
+    );
   }
 }
 

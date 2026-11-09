@@ -14,6 +14,7 @@ import '../../widgets/soft_card.dart';
 import '../../widgets/stat_sphere_carousel.dart';
 import '../child/audio_player_page.dart';
 import '../shared/auth_gate.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
 
 class CaregiverDashboardPage extends StatefulWidget {
@@ -35,6 +36,8 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
 
   // Engagement and the most-listened books, across all children.
   Future<void> _loadStats() async {
+    // Right after Child Mode, let its last session finish saving first.
+    await DatabaseService.pendingSessionSaves();
     final resp = await DatabaseService.getInsightsOverview();
     if (!mounted) return;
     if (resp.success && resp.data is InsightsOverview) {
@@ -83,7 +86,7 @@ class _CaregiverDashboardPageState extends State<CaregiverDashboardPage> {
     return RefreshIndicator(
       onRefresh: _loadStats,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
           Row(
             children: [

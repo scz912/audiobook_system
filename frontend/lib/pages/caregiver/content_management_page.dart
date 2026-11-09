@@ -12,8 +12,9 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_chip.dart';
-import '../../widgets/stat_card.dart';
+import '../../widgets/stat_sphere_carousel.dart';
 import '../child/audio_player_page.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'edit_content_page.dart';
 import 'quran_library_section.dart';
 import 'upload_content_page.dart';
@@ -222,7 +223,7 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
           Row(
             children: [
@@ -266,12 +267,12 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
                 const TextStyle(color: AppColors.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 18),
-          StatCardGroup(
-            cards: [
-              StatCard(icon: Icons.menu_book_outlined, iconBackground: AppColors.iconCircleBlue, value: '${_summary.totalItems}', label: context.tr('content.total_items')),
-              StatCard(icon: Icons.headphones_outlined, iconBackground: AppColors.iconCircleGreen, value: '${_summary.audioFiles}', label: context.tr('content.audio_files')),
-              StatCard(icon: Icons.description_outlined, iconBackground: AppColors.iconCirclePeach, value: '${_summary.textFiles}', label: context.tr('content.text_files')),
-              StatCard(icon: Icons.auto_awesome, iconBackground: AppColors.iconCirclePurple, value: '${_summary.aiGenerated}', label: context.tr('content.ai_generated')),
+          FloatingSphereGrid(
+            spheres: [
+              StatSphere(icon: Icons.menu_book_outlined, palette: SpherePalette.blue, value: '${_summary.totalItems}', label: context.tr('content.total_items')),
+              StatSphere(icon: Icons.headphones_outlined, palette: SpherePalette.green, value: '${_summary.audioFiles}', label: context.tr('content.audio_files')),
+              StatSphere(icon: Icons.description_outlined, palette: SpherePalette.peach, value: '${_summary.textFiles}', label: context.tr('content.text_files')),
+              StatSphere(icon: Icons.auto_awesome, palette: SpherePalette.purple, value: '${_summary.aiGenerated}', label: context.tr('content.ai_generated')),
             ],
           ),
           const SizedBox(height: 18),

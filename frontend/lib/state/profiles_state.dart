@@ -131,6 +131,10 @@ class ProfilesState extends ChangeNotifier {
     _activeProfile = null;
     _currentMood = null;
     notifyListeners();
+    /* The child's listening minutes changed while they listened, so reload
+       the profiles - after any session still being saved, or the new
+       minutes wouldn't be in the list yet. */
+    DatabaseService.pendingSessionSaves().then((_) => refresh());
   }
 
   void clear() {

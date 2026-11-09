@@ -1,4 +1,5 @@
 import '../_json_helpers.dart';
+import 'contact_settings.dart';
 import 'member.dart';
 
 // A chat thread in the list - direct or group, with its last message and unread count.
@@ -11,6 +12,8 @@ class Conversation {
   final String? lastMessageSenderId;
   final DateTime? lastActivity;
   final int unreadCount;
+  // One-to-one chats: my settings for the other person. Null for groups.
+  final ContactSettings? contact;
 
   const Conversation({
     required this.conversationId,
@@ -21,9 +24,17 @@ class Conversation {
     this.lastMessageSenderId,
     this.lastActivity,
     this.unreadCount = 0,
+    this.contact,
   });
 
   bool get isGroup => type == 'group';
+  bool get isMuted => contact?.isMuted ?? false;
+  bool get isFavorite => contact?.isFavorite ?? false;
+  bool get isBlocked => contact?.isBlocked ?? false;
+
+  // The other person in a one-to-one chat.
+  String? get otherId =>
+      !isGroup && participants.isNotEmpty ? participants.first.caregiverId : null;
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
     final last = json['last_message'];
@@ -40,6 +51,7 @@ class Conversation {
           last is Map ? safeNullableString(last['sender_id']) : null,
       lastActivity: safeDate(json['last_activity']),
       unreadCount: safeInt(json['unread_count']) ?? 0,
+      contact: ContactSettings.fromJson(json['contact']),
     );
   }
 }

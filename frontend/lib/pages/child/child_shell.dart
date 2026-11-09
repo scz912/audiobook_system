@@ -65,7 +65,7 @@ class _ChildShellState extends State<ChildShell> {
         // body, not a pushed route.
         return StoryLibraryPage(onBack: () => setState(() => _index = 0));
       case _pianoTab:
-        return PianoPage(key: _pianoKey);
+        return AboveShelf(child: PianoPage(key: _pianoKey));
       default:
         return const SizedBox.shrink();
     }

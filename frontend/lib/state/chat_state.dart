@@ -13,6 +13,20 @@ class ChatState extends ChangeNotifier {
   int get totalUnread =>
       _conversations.fold(0, (sum, c) => sum + c.unreadCount);
 
+  // Unread messages that should light the red dot: muted chats don't.
+  bool get hasUnmutedUnread =>
+      _conversations.any((c) => c.unreadCount > 0 && !c.isMuted);
+
+  /* Reload quietly for the red dot (no loading spinner). Fails silently -
+     e.g. before the caregiver joins the community. */
+  Future<void> refreshQuietly() async {
+    final resp = await DatabaseService.listConversations();
+    if (resp.success && resp.data is List<Conversation>) {
+      _conversations = resp.data as List<Conversation>;
+      notifyListeners();
+    }
+  }
+
   Future<void> refresh() async {
     _loading = true;
     notifyListeners();

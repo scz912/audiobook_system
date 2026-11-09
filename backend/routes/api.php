@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AudiobookController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildProfileController;
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ContentManagementController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\FriendshipController;
@@ -70,6 +71,7 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{audiobookId}/pages',  [ContentManagementController::class, 'addPage'])->whereUuid('audiobookId');
         Route::post('/{audiobookId}/update', [ContentManagementController::class, 'update'])->whereUuid('audiobookId');
         Route::post('/{audiobookId}/delete', [ContentManagementController::class, 'destroy'])->whereUuid('audiobookId');
+        Route::post('/{audiobookId}/save-copy', [ContentManagementController::class, 'saveCopy'])->whereUuid('audiobookId');
         Route::post('/{audiobookId}/pages/{pageId}/update', [ContentManagementController::class, 'updatePage'])->whereUuid(['audiobookId', 'pageId']);
         Route::post('/{audiobookId}/pages/{pageId}/delete', [ContentManagementController::class, 'deletePage'])->whereUuid(['audiobookId', 'pageId']);
     });
@@ -123,6 +125,15 @@ Route::middleware('session.auth')->group(function () {
     });
 
     // Chat (direct + group)
+    // My settings for other members (favorite, block, mute, chat background)
+    Route::prefix('contacts')->group(function () {
+        Route::post('/favorites', [ContactController::class, 'favorites']);
+        Route::post('/blocked',   [ContactController::class, 'blocked']);
+        Route::post('/{contactId}',            [ContactController::class, 'show'])->whereUuid('contactId');
+        Route::post('/{contactId}/update',     [ContactController::class, 'update'])->whereUuid('contactId');
+        Route::post('/{contactId}/background', [ContactController::class, 'background'])->whereUuid('contactId');
+    });
+
     Route::prefix('chat')->group(function () {
         Route::post('/',        [ConversationController::class, 'index']);
         Route::post('/direct',  [ConversationController::class, 'direct']);
@@ -139,6 +150,8 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{postId}/delete', [HubController::class, 'destroy'])->whereUuid('postId');
         Route::post('/{postId}/like',   [HubController::class, 'like'])->whereUuid('postId');
         Route::post('/{postId}/unlike', [HubController::class, 'unlike'])->whereUuid('postId');
+        Route::post('/{postId}/react',   [HubController::class, 'react'])->whereUuid('postId');
+        Route::post('/{postId}/unreact', [HubController::class, 'unreact'])->whereUuid('postId');
         Route::post('/{postId}/comments',    [HubController::class, 'comments'])->whereUuid('postId');
         Route::post('/{postId}/comments/add', [HubController::class, 'addComment'])->whereUuid('postId');
         Route::post('/{postId}/comments/{commentId}/delete', [HubController::class, 'deleteComment'])->whereUuid(['postId', 'commentId']);

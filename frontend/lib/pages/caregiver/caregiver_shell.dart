@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
+import '../../state/chat_state.dart';
 import '../../state/friends_state.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import '../community/community_page.dart';
@@ -48,8 +49,11 @@ class _CaregiverShellState extends State<CaregiverShell> {
     super.dispose();
   }
 
+  // Friend requests and unread messages (muted chats excluded) drive the dot.
   void _checkNotifications() {
-    if (mounted) context.read<FriendsState>().refreshNotifications();
+    if (!mounted) return;
+    context.read<FriendsState>().refreshNotifications();
+    context.read<ChatState>().refreshQuietly();
   }
 
   /* Taskbar tabs. Each has its own hue, spread round the colour wheel,
@@ -80,7 +84,7 @@ class _CaregiverShellState extends State<CaregiverShell> {
       case 4:
         return const CommunityPage();
       case 5:
-        return PianoPage(key: _pianoKey);
+        return AboveShelf(child: PianoPage(key: _pianoKey));
       case 6:
         return SettingsPage(onBack: backToDashboard);
       default:
@@ -107,7 +111,9 @@ class _CaregiverShellState extends State<CaregiverShell> {
             icon: _tabs[i].icon,
             label: context.tr(_tabs[i].labelKey),
             color: _tabs[i].highlight,
-            dot: i == _communityTab && context.watch<FriendsState>().hasNotification,
+            dot: i == _communityTab &&
+                (context.watch<FriendsState>().hasNotification ||
+                    context.watch<ChatState>().hasUnmutedUnread),
           ),
       ],
       currentIndex: _index,

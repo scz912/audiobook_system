@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Caregiver;
+use App\Models\ContactSetting;
+use App\Models\Conversation;
 use App\Models\Friendship;
 use App\Models\HubPost;
 use Illuminate\Http\JsonResponse;
@@ -20,8 +22,10 @@ class FriendshipController extends ApiController
         }
 
         $term = trim((string) $request->input('search', ''));
+        // People either of us blocked don't come up (unblock via Settings).
         $query = Caregiver::where('is_community_member', true)
-            ->where('caregiver_id', '!=', $caregiver->caregiver_id);
+            ->where('caregiver_id', '!=', $caregiver->caregiver_id)
+            ->whereNotIn('caregiver_id', ContactSetting::blockedIdsFor($caregiver->caregiver_id));
 
         if ($term !== '') {
             $like = '%' . $term . '%';
@@ -63,6 +67,9 @@ class FriendshipController extends ApiController
             ->first();
         if (!$target) {
             return $this->errorResponse('Person not found', 'NOT_FOUND', 404);
+        }
+        if (ContactSetting::blockedBetween($caregiver->caregiver_id, $targetId)) {
+            return $this->errorResponse("You can't send a request to this person.", 'BLOCKED', 403);
         }
 
         $existing = $this->between($caregiver->caregiver_id, $targetId);
@@ -116,6 +123,11 @@ class FriendshipController extends ApiController
         $friendship->status = $accepted ? 'accepted' : 'declined';
         $friendship->requester_seen = false;
         $friendship->save();
+
+        // New friends can message each other straight from the Chat tab.
+        if ($accepted) {
+            Conversation::openDirect($friendship->requester_id, $friendship->addressee_id);
+        }
 
         return $accepted
             ? $this->successResponse('You are now friends', ['status' => 'accepted'])

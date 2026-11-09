@@ -8,6 +8,7 @@ import '../../state/friends_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
 
@@ -60,7 +61,7 @@ class _FriendsTabState extends State<FriendsTab> {
     return RefreshIndicator(
       onRefresh: () => friends.refresh(),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, shelfBottomSpace(context)),
         children: [
           TextField(
             controller: _searchCtrl,

@@ -9,6 +9,7 @@ import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/shelf_nav_bar.dart';
 import 'audio_player_page.dart';
 
 class ChildHomePage extends StatefulWidget {
@@ -92,7 +93,7 @@ class _ChildHomePageState extends State<ChildHomePage> {
     final avatarColor = profile?.avatarColor ?? AppColors.softPink;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, shelfBottomSpace(context)),
       children: [
         const SizedBox(height: 8),
         Center(
