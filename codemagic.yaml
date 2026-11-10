@@ -1,0 +1,30 @@
+# Codemagic build: makes an UNSIGNED iOS .ipa on a Codemagic Mac.
+# The Flutter app lives in frontend/, so every step starts with `cd frontend`.
+# Sign and install the .ipa with Sideloadly (free Apple ID) before an iPhone
+# will open it.
+workflows:
+  ios-unsigned:
+    name: iOS unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: 3.41.9
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          cd frontend
+          flutter pub get
+      - name: Build iOS app (no signing)
+        script: |
+          cd frontend
+          flutter build ios --release --no-codesign
+      - name: Package into .ipa
+        script: |
+          cd frontend
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -qr app-unsigned.ipa Payload
+    artifacts:
+      - frontend/app-unsigned.ipa
