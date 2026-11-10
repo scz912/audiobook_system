@@ -5,7 +5,6 @@ import '../../i18n/i18n.dart';
 import '../../models/community/conversation.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'chat_thread_page.dart';
 import 'community_widgets.dart';
@@ -37,17 +36,15 @@ class _ChatTabState extends State<ChatTab> {
       // Lifted by the shelf height, since the page runs down behind the shelf.
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-        child: FloatingActionButton.extended(
+        child: CommunityFab(
           onPressed: () async {
             await Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const NewGroupPage()),
             );
             if (context.mounted) context.read<ChatState>().refresh();
           },
-          backgroundColor: AppColors.primaryBlueDark,
-          icon: const Icon(Icons.group_add_rounded, color: Colors.white),
-          label: Text(context.tr('community.new_group'),
-              style: const TextStyle(color: Colors.white)),
+          icon: Icons.group_add_rounded,
+          label: context.tr('community.new_group'),
         ),
       ),
       body: RefreshIndicator(
@@ -105,7 +102,7 @@ class _ChatRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: SoftCard(
+      child: BoldCard(
         padding: const EdgeInsets.all(12),
         onTap: () async {
           await Navigator.of(context).push(MaterialPageRoute(
@@ -115,7 +112,7 @@ class _ChatRow extends StatelessWidget {
         },
         child: Row(
           children: [
-            MemberAvatar(emoji: emoji, colorHex: color, size: 48),
+            MemberAvatar(emoji: emoji, colorHex: color, size: 54),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -132,7 +129,9 @@ class _ChatRow extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w700, fontSize: 15)),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 17,
+                                      color: communityInk)),
                             ),
                             if (conversation.isFavorite) ...[
                               const SizedBox(width: 4),

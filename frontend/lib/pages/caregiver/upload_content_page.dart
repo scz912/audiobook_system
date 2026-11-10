@@ -25,6 +25,7 @@ import '../../widgets/back_pill.dart';
 import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
+import '../../widgets/guide.dart';
 import '../../widgets/whole_words_text.dart';
 
 // Interactive audiobook forms, editor cards, steppers and the guide.
@@ -133,6 +134,67 @@ class _UploadContentPageState extends State<UploadContentPage> {
   static const _pageOptions = ['Auto', '4', '6', '8', '10', '12'];
   static const _interactivePageOptions = ['4', '6', '8', '10', '12'];
   static const _guideSeenKey = 'interactive_write_guide_seen';
+
+  /* Paige's guides for this page, like the app's first-time tour: one
+     short line at a time with the spotlight on what she means. One for the
+     page (first visit), one for interactive books. */
+  final _formatKey = GlobalKey();
+  final _modeKey = GlobalKey();
+  final _firstPageKey = GlobalKey();
+  GuideController? _guide;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (await GuideMemory.isDone('upload') || !mounted) return;
+      await GuideMemory.markDone('upload');
+      _startGuide([
+        const GuideStep('guide.up_hi'),
+        GuideStep('guide.up_format', target: _formatKey, onStart: () => _reveal(_formatKey)),
+        GuideStep('guide.up_mode', target: _modeKey, onStart: () => _reveal(_modeKey)),
+        const GuideStep('guide.up_done', celebrate: true),
+      ]);
+    });
+  }
+
+  void _startGuide(List<GuideStep> steps) {
+    final guide = GuideController(
+      steps: steps,
+      openTab: (_) {},
+      onFinish: () {
+        if (mounted) setState(() => _guide = null);
+      },
+    );
+    setState(() => _guide = guide);
+    guide.start();
+  }
+
+  // Scroll so what Paige points at is on screen.
+  void _reveal(GlobalKey key) {
+    final c = key.currentContext;
+    if (c != null) {
+      Scrollable.ensureVisible(c,
+          duration: const Duration(milliseconds: 300), alignment: 0.2);
+    }
+  }
+
+  /* How interactive books work. In Write mode it rings the first page
+     card; from the AI form there are no pages to point at. */
+  void _startInteractiveGuide() {
+    final onPage = _format == _BookFormat.interactive && _mode == _Mode.write;
+    GuideStep onCard(String key) => GuideStep(key,
+        target: onPage ? _firstPageKey : null,
+        onStart: onPage ? () => _reveal(_firstPageKey) : null);
+    _startGuide([
+      const GuideStep('guide.ia_hi'),
+      onCard('guide.ia_switch'),
+      onCard('guide.ia_choices'),
+      onCard('guide.ia_answer'),
+      onCard('guide.ia_split'),
+      const GuideStep('guide.ia_done', celebrate: true),
+    ]);
+  }
 
   @override
   void dispose() {
@@ -448,6 +510,8 @@ class _UploadContentPageState extends State<UploadContentPage> {
   // Show the guide automatically the first time Interactive + Write opens.
   Future<void> _maybeShowInteractiveGuide() async {
     if (_format != _BookFormat.interactive || _mode != _Mode.write) return;
+    // The page guide is still running; this one waits for another time.
+    if (_guide != null) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_guideSeenKey) ?? false) return;
@@ -455,7 +519,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     } catch (_) {
       return;
     }
-    if (mounted) await _InteractiveGuideDialog.show(context);
+    if (mounted) _startInteractiveGuide();
   }
 
   void _addInteractivePage() =>
@@ -628,7 +692,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _GuideBanner(onTap: () => _InteractiveGuideDialog.show(context)),
+        _GuideBanner(onTap: _startInteractiveGuide),
         const SizedBox(height: 14),
         ..._writeDetailsSection(),
         const SizedBox(height: 14),
@@ -654,7 +718,9 @@ class _UploadContentPageState extends State<UploadContentPage> {
             icon: Icons.menu_book_rounded, color: _Tint.lavender),
         const SizedBox(height: 8),
         for (int i = 0; i < _interactiveDrafts.length; i++) ...[
-          _InteractivePageCard(
+          KeyedSubtree(
+            key: i == 0 ? _firstPageKey : null,
+            child: _InteractivePageCard(
             key: ObjectKey(_interactiveDrafts[i]),
             draft: _interactiveDrafts[i],
             pageNumber: numbers[i],
@@ -662,6 +728,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
             onChanged: () => setState(() {}),
             pickImage: _pickImage,
             onRemove: () => _removeInteractivePage(i),
+          ),
           ),
           const SizedBox(height: 10),
         ],
@@ -719,6 +786,22 @@ class _UploadContentPageState extends State<UploadContentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final guide = _guide;
+    return Stack(
+      children: [
+        _buildPage(context),
+        if (guide != null)
+          Positioned.fill(
+            child: ListenableBuilder(
+              listenable: guide,
+              builder: (context, _) => GuideOverlay(controller: guide, tabRect: (_) => null),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: DecoratedBox(
@@ -763,21 +846,21 @@ class _UploadContentPageState extends State<UploadContentPage> {
               ],
             ),
             const SizedBox(height: 16),
-            _FormatSlider(
+            KeyedSubtree(key: _formatKey, child: _FormatSlider(
               format: _format,
               onChanged: (f) {
                 setState(() => _setFormat(f));
                 _maybeShowInteractiveGuide();
               },
-            ),
+            )),
             const SizedBox(height: 12),
-            _ModeToggle(
+            KeyedSubtree(key: _modeKey, child: _ModeToggle(
               mode: _mode,
               onChanged: (m) {
                 setState(() => _mode = m);
                 _maybeShowInteractiveGuide();
               },
-            ),
+            )),
             const SizedBox(height: 16),
             if (_format == _BookFormat.interactive && _mode == _Mode.write)
               _buildInteractiveWriteForm()
@@ -1150,7 +1233,7 @@ class _UploadContentPageState extends State<UploadContentPage> {
               if (_aiSplits > v) _aiSplits = v;
             }),
             onSplitsChanged: (v) => setState(() => _aiSplits = v),
-            onShowGuide: () => _InteractiveGuideDialog.show(context),
+            onShowGuide: _startInteractiveGuide,
           ),
         ],
         const SizedBox(height: 14),

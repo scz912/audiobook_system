@@ -34,7 +34,12 @@ class MusicTrackController extends ApiController
             'search' => $request->input('search'),
         ]);
 
-        $tracks = MusicTrack::visibleTo($this->caregiverId($request))->get();
+        /* Their own tracks first, newest at the top (a piano song saved a
+           moment ago is right there), then the built-in ones as before. */
+        $all = MusicTrack::visibleTo($this->caregiverId($request))->get();
+        $tracks = $all->whereNotNull('caregiver_id')->sortByDesc('created_at')
+            ->concat($all->whereNull('caregiver_id'))
+            ->values();
 
         // Keep only tracks that have every chosen tag.
         $filterTags = $request->input('tags', []);

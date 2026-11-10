@@ -34,7 +34,8 @@ class FriendshipController extends ApiController
             });
         }
 
-        $people = $query->orderBy('name')->limit(30)->get()
+        // An empty search lists everyone (the Friends tab shows them all).
+        $people = $query->orderBy('name')->limit($term === '' ? 200 : 30)->get()
             ->map(fn ($c) => $this->serializePerson($c, $caregiver->caregiver_id));
         return $this->successResponse('OK', $people);
     }

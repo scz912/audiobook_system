@@ -7,7 +7,6 @@ import '../../models/community/hub_post.dart';
 import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
-import '../../widgets/soft_card.dart';
 import '../child/audio_player_page.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'community_widgets.dart';
@@ -61,12 +60,10 @@ class _HubTabState extends State<HubTab> {
       // Lifted by the shelf height, since the page runs down behind the shelf.
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
-        child: FloatingActionButton.extended(
+        child: CommunityFab(
           onPressed: _openShare,
-          backgroundColor: AppColors.primaryBlueDark,
-          icon: const Icon(Icons.add_rounded, color: Colors.white),
-          label: Text(context.tr('community.share'),
-              style: const TextStyle(color: Colors.white)),
+          icon: Icons.add_rounded,
+          label: context.tr('community.share'),
         ),
       ),
       body: RefreshIndicator(
@@ -118,7 +115,7 @@ class _PostCard extends StatelessWidget {
     final hub = context.read<HubState>();
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: SoftCard(
+      child: BoldCard(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,7 +133,7 @@ class _PostCard extends StatelessWidget {
                   child: MemberAvatar(
                     emoji: post.author?.avatarEmoji ?? '🙂',
                     colorHex: post.author?.avatarColor,
-                    size: 40,
+                    size: 48,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -145,7 +142,8 @@ class _PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(post.author?.name ?? context.tr('community.family'),
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w900, fontSize: 16, color: communityInk)),
                       Text(shortAgo(post.createdAt),
                           style: const TextStyle(
                               color: AppColors.textSecondary, fontSize: 12)),
@@ -194,7 +192,7 @@ class _PostCard extends StatelessWidget {
                       ),
                     ),
                     const Icon(Icons.play_circle_fill_rounded,
-                        color: AppColors.primaryBlueDark, size: 34),
+                        color: communityInk, size: 44),
                   ],
                 ),
               ),
@@ -203,10 +201,13 @@ class _PostCard extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: AppColors.textPrimary,
+                    backgroundColor: const Color(0xFF8EC9F5),
+                    foregroundColor: communityInk,
+                    minimumSize: const Size.fromHeight(52),
+                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: communityInk, width: 2.5)),
                   ),
                   onPressed: () => _listenToPost(context, post),
                   icon: const Icon(Icons.headphones_rounded),

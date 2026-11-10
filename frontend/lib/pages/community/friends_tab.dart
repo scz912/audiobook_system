@@ -7,7 +7,6 @@ import '../../models/community/member.dart';
 import '../../state/friends_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
-import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'community_widgets.dart';
 import 'member_profile_page.dart';
@@ -114,18 +113,29 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   List<Widget> _buildFriendsAndRequests(FriendsState friends) {
+    // Everyone else in the community, so a friend can be added right here.
+    final others = friends.notFriends;
     return [
       if (friends.updates.isNotEmpty) ...[
-        _SectionLabel(context.tr('community.updates')),
+        CommunitySectionTitle(
+            icon: Icons.campaign_rounded,
+            color: const Color(0xFFFFD6A5),
+            text: context.tr('community.updates')),
         ...friends.updates.map((u) => _UpdateRow(update: u)),
         const SizedBox(height: 16),
       ],
       if (friends.pending.isNotEmpty) ...[
-        _SectionLabel(context.tr('community.requests')),
+        CommunitySectionTitle(
+            icon: Icons.mark_email_unread_rounded,
+            color: const Color(0xFFFFB4B4),
+            text: context.tr('community.requests')),
         ...friends.pending.map((m) => _RequestRow(member: m)),
         const SizedBox(height: 16),
       ],
-      _SectionLabel(context.tr('community.friends')),
+      CommunitySectionTitle(
+          icon: Icons.favorite_rounded,
+          color: const Color(0xFF9EDDB0),
+          text: context.tr('community.friends')),
       if (friends.loading && friends.friends.isEmpty)
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 30),
@@ -141,22 +151,15 @@ class _FriendsTabState extends State<FriendsTab> {
         )
       else
         ...friends.friends.map((m) => MemberRow(member: m)),
+      if (others.isNotEmpty) ...[
+        const SizedBox(height: 18),
+        CommunitySectionTitle(
+            icon: Icons.person_add_alt_1_rounded,
+            color: const Color(0xFF8EC9F5),
+            text: context.tr('community.add_friends')),
+        ...others.map((m) => MemberRow(member: m)),
+      ],
     ];
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text,
-          style: const TextStyle(
-              fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-    );
   }
 }
 
@@ -169,7 +172,7 @@ class MemberRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: SoftCard(
+      child: BoldCard(
         padding: const EdgeInsets.all(10),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => MemberProfilePage(caregiverId: member.caregiverId),
@@ -177,14 +180,15 @@ class MemberRow extends StatelessWidget {
         child: Row(
           children: [
             MemberAvatar(
-                emoji: member.avatarEmoji, colorHex: member.avatarColor, size: 44),
+                emoji: member.avatarEmoji, colorHex: member.avatarColor, size: 54),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(member.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 17, color: communityInk)),
                   if (member.bio != null && member.bio!.isNotEmpty)
                     Text(member.bio!,
                         maxLines: 1,
@@ -211,17 +215,35 @@ class _RelationAction extends StatelessWidget {
     final friends = context.read<FriendsState>();
     switch (member.relation) {
       case 'friends':
-        return const Icon(Icons.people_rounded, color: AppColors.primaryBlueDark);
+        return const Padding(
+          padding: EdgeInsets.all(8),
+          child: Icon(Icons.favorite_rounded, size: 30, color: AppColors.success),
+        );
       case 'request_sent':
-        return Text(context.tr('community.requested'),
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12));
+        // Waiting for them to answer.
+        return Tooltip(
+          message: context.tr('community.requested'),
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(Icons.hourglass_top_rounded, size: 30, color: AppColors.textMuted),
+          ),
+        );
       case 'request_received':
-        return const Icon(Icons.mark_email_unread_rounded,
-            color: AppColors.warning);
+        return const Padding(
+          padding: EdgeInsets.all(8),
+          child: Icon(Icons.mark_email_unread_rounded, size: 30, color: AppColors.warning),
+        );
       default:
-        return IconButton(
-          icon: const Icon(Icons.person_add_alt_1_rounded,
-              color: AppColors.primaryBlueDark),
+        return IconButton.filled(
+          tooltip: context.tr('community.add_friend'),
+          iconSize: 28,
+          style: IconButton.styleFrom(
+            backgroundColor: communitySun,
+            foregroundColor: communityInk,
+            minimumSize: const Size(52, 52),
+            side: const BorderSide(color: communityInk, width: 2.5),
+          ),
+          icon: const Icon(Icons.person_add_alt_1_rounded),
           onPressed: () async {
             final ok = await friends.sendRequest(member.caregiverId);
             if (context.mounted && ok) {
@@ -247,12 +269,12 @@ class _UpdateRow extends StatelessWidget {
         .replaceAll('{name}', person.name);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: SoftCard(
+      child: BoldCard(
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
             MemberAvatar(
-                emoji: person.avatarEmoji, colorHex: person.avatarColor, size: 44),
+                emoji: person.avatarEmoji, colorHex: person.avatarColor, size: 54),
             const SizedBox(width: 12),
             Expanded(
               child: Text(text,
@@ -279,12 +301,12 @@ class _RequestRow extends StatelessWidget {
     final friends = context.read<FriendsState>();
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: SoftCard(
+      child: BoldCard(
         padding: const EdgeInsets.all(10),
         child: Row(
           children: [
             MemberAvatar(
-                emoji: member.avatarEmoji, colorHex: member.avatarColor, size: 44),
+                emoji: member.avatarEmoji, colorHex: member.avatarColor, size: 54),
             const SizedBox(width: 12),
             Expanded(
               child: Text('${member.name} ${context.tr('community.wants_connect')}',

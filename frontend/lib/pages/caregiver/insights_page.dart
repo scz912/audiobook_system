@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/ai_suggestion.dart';
@@ -7,6 +8,7 @@ import '../../models/insights_overview.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../state/auth_state.dart';
+import '../../state/language_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
@@ -37,6 +39,8 @@ class _InsightsPageState extends State<InsightsPage> {
   // when one child is selected.
   AiSuggestion? _suggestions;
   bool _suggestionsLoading = false;
+  // Children whose old English-only tips were already re-asked this visit.
+  final Set<String> _reaskedForMalay = {};
   bool _analyzing = false;
 
   static const _moodEmoji = {
@@ -55,6 +59,27 @@ class _InsightsPageState extends State<InsightsPage> {
   void initState() {
     super.initState();
     _load();
+    _loadTipsHidden();
+  }
+
+  // The AI tips card can be folded away; remembered on this device.
+  static const _tipsHiddenKey = 'insights.tips_hidden';
+  bool _tipsHidden = false;
+
+  Future<void> _loadTipsHidden() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hidden = prefs.getBool(_tipsHiddenKey) ?? false;
+      if (mounted && hidden != _tipsHidden) setState(() => _tipsHidden = hidden);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleTips() async {
+    setState(() => _tipsHidden = !_tipsHidden);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_tipsHiddenKey, _tipsHidden);
+    } catch (_) {}
   }
 
   @override
@@ -111,6 +136,15 @@ class _InsightsPageState extends State<InsightsPage> {
           : null;
       _suggestionsLoading = false;
     });
+    /* Tips saved before reasons came in Malay too: ask again once so a
+       Malay reader doesn't see English reasons. */
+    final s = _suggestions;
+    if (s != null &&
+        context.read<LanguageState>().code == 'ms' &&
+        _reaskedForMalay.add(childId) &&
+        s.items.any((i) => i.isPending && (i.reasonMs ?? '').isEmpty)) {
+      await _runAnalysis(childId);
+    }
   }
 
   Future<void> _runAnalysis(String childId) async {
@@ -238,6 +272,8 @@ class _InsightsPageState extends State<InsightsPage> {
           const SizedBox(height: 16),
           if (_selectedChildId != null) ...[
             _SuggestionsCard(
+              hidden: _tipsHidden,
+              onToggleHidden: _toggleTips,
               suggestion: _suggestions,
               loading: _suggestionsLoading,
               analyzing: _analyzing,
@@ -1190,8 +1226,12 @@ class _SuggestionsCard extends StatelessWidget {
   final void Function(AiSuggestionItem item) onAccept;
   final void Function(AiSuggestionItem item, dynamic value) onEditAccept;
   final void Function(AiSuggestionItem item) onDismiss;
+  final bool hidden;
+  final VoidCallback onToggleHidden;
 
   const _SuggestionsCard({
+    required this.hidden,
+    required this.onToggleHidden,
     required this.suggestion,
     required this.loading,
     required this.analyzing,
@@ -1215,15 +1255,21 @@ class _SuggestionsCard extends StatelessWidget {
           _Header(
             pendingCount: pendingCount,
             hasItems: s != null && s.items.isNotEmpty,
+            hidden: hidden,
+            onToggleHidden: onToggleHidden,
           ),
-          const SizedBox(height: 16),
-          if (loading)
+          if (hidden)
+            const SizedBox.shrink()
+          else if (loading) ...[
+            const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 28),
               child: Center(child: CircularProgressIndicator()),
-            )
-          else
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
             _buildBody(context),
+          ],
         ],
       ),
     );
@@ -1285,7 +1331,14 @@ class _SuggestionsCard extends StatelessWidget {
 class _Header extends StatelessWidget {
   final int pendingCount;
   final bool hasItems;
-  const _Header({required this.pendingCount, required this.hasItems});
+  final bool hidden;
+  final VoidCallback onToggleHidden;
+  const _Header({
+    required this.pendingCount,
+    required this.hasItems,
+    required this.hidden,
+    required this.onToggleHidden,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1324,6 +1377,13 @@ class _Header extends StatelessWidget {
           const SizedBox(width: 8),
           _PendingChip(count: pendingCount),
         ],
+        // Fold the tips away, or open them again.
+        IconButton(
+          tooltip: context.tr(hidden ? 'insights.tips_show' : 'insights.tips_hide'),
+          onPressed: onToggleHidden,
+          iconSize: 30,
+          icon: Icon(hidden ? Icons.expand_more_rounded : Icons.expand_less_rounded),
+        ),
       ],
     );
   }
@@ -1578,7 +1638,7 @@ class _SuggestionTile extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             // Reason - soft callout with a lightbulb.
-            _ReasonCallout(text: item.reason),
+            _ReasonCallout(text: item.reasonFor(context.watch<LanguageState>().code)),
             if (item.isPending) ...[
               const SizedBox(height: 12),
               _ActionBar(

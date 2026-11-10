@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../audio/piano_synth.dart';
 import '../../i18n/i18n.dart';
+import '../../services/database_service.dart';
 import '../../services/piano_export_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
@@ -211,6 +212,7 @@ class PianoPageState extends State<PianoPage> {
       if (!mounted) return;
       _saved = true;
       widget.onGuideEvent?.call(GuideEvent.recordingSaved);
+      _addToMusicList(file, (mix.pcm.length / PianoSynth.sampleRate).ceil());
       AppSnackbar.success(
         context
             .trRead(PianoExportService.savesToFilesApp
@@ -223,6 +225,28 @@ class PianoPageState extends State<PianoPage> {
       if (mounted) AppSnackbar.error(context.trRead('piano.save_failed'), context: _snackContext);
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /* Also puts the song in the background-music list (as this account's
+     own track), so it can be picked for a story straight away instead of
+     hunting for the MP3. Runs in the background; the MP3 is already saved. */
+  Future<void> _addToMusicList(File file, int seconds) async {
+    final fileName = file.uri.pathSegments.last;
+    final title = fileName.toLowerCase().endsWith('.mp3')
+        ? fileName.substring(0, fileName.length - 4)
+        : fileName;
+    final resp = await DatabaseService.uploadMusicTrack(
+      filePath: file.path,
+      title: title,
+      composer: 'Piano',
+      durationSecs: seconds < 1 ? 1 : seconds,
+    );
+    if (!mounted) return;
+    if (resp.success) {
+      AppSnackbar.success(context.trRead('piano.added_to_music'), context: _snackContext);
+    } else {
+      AppSnackbar.warning(context.trRead('piano.music_add_failed'), context: _snackContext);
     }
   }
 

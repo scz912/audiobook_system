@@ -96,3 +96,124 @@ String exactTime(DateTime? when) {
   if (sameDay) return time;
   return '${local.day}/${local.month} $time';
 }
+
+/* The community's bold look, matching the welcome pages: dark ink outlines,
+   a solid drop shadow and strong colours, so cards stand out clearly
+   instead of fading into the background. */
+const communityInk = Color(0xFF26215C);
+const communitySun = Color(0xFFFFC83D);
+
+// A white card with an ink outline. Same shape as SoftCard.
+class BoldCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+  final Color color;
+
+  const BoldCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+    this.onTap,
+    this.color = Colors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(20);
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: radius,
+        border: Border.all(color: communityInk, width: 2.5),
+        boxShadow: [
+          BoxShadow(color: communityInk.withValues(alpha: 0.22), offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+// A section heading: an icon in a coloured circle and a bold word or two.
+class CommunitySectionTitle extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  final Widget? trailing;
+
+  const CommunitySectionTitle({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.text,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: communityInk, width: 2),
+            ),
+            child: Icon(icon, size: 22, color: communityInk),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: communityInk,
+              ),
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+}
+
+// The big yellow "share" / "new group" button, outlined like the cards.
+class CommunityFab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const CommunityFab({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.extended(
+      onPressed: onPressed,
+      backgroundColor: communitySun,
+      foregroundColor: communityInk,
+      elevation: 0,
+      shape: const StadiumBorder(side: BorderSide(color: communityInk, width: 2.5)),
+      icon: Icon(icon, size: 28),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+    );
+  }
+}

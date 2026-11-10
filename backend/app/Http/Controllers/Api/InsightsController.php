@@ -274,6 +274,7 @@ class InsightsController extends ApiController
                 'current_value'   => $current,
                 'suggested_value' => $value,
                 'reason'          => $raw['reason'],
+                'reason_ms'       => $raw['reason_ms'] ?? $raw['reason'],
                 'status'          => 'pending',
             ];
         }

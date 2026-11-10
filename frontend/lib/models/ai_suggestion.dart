@@ -19,6 +19,12 @@ class AiSuggestionItem {
   final dynamic appliedValue;
 
   final String reason;
+  // The same reason in Malay. Tips made before Malay was added have none.
+  final String? reasonMs;
+
+  // The reason in the app's language ('en' or 'ms').
+  String reasonFor(String languageCode) =>
+      languageCode == 'ms' && (reasonMs ?? '').isNotEmpty ? reasonMs! : reason;
 
   // pending | accepted | edited | dismissed
   final String status;
@@ -29,6 +35,7 @@ class AiSuggestionItem {
     required this.suggestedValue,
     required this.reason,
     required this.status,
+    this.reasonMs,
     this.currentValue,
     this.appliedValue,
   });
@@ -41,6 +48,7 @@ class AiSuggestionItem {
       suggestedValue: json['suggested_value'],
       appliedValue: json['applied_value'],
       reason: safeString(json['reason']),
+      reasonMs: json['reason_ms'] is String ? json['reason_ms'] as String : null,
       status: safeString(json['status'], 'pending'),
     );
   }

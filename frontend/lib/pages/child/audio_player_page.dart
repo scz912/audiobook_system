@@ -1076,24 +1076,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               const SizedBox(height: 18),
               _buildControlBar(),
               const SizedBox(height: 16),
-              /* Children get no settings panel or helper text: too much to
-                 read. Their voice, speed and text size come from the
-                 caregiver's settings for that child. */
+              /* No settings panel or helper text: too much to read. Voice,
+                 speed and text size are icon buttons; a caregiver's preview
+                 adds a small "preview" tag above them. */
               if (widget.previewMode) ...[
-                const _PreviewNotice(),
+                const Center(child: _PreviewNotice()),
                 const SizedBox(height: 12),
-                _buildSettingsPanel(),
-                const SizedBox(height: 8),
-                Text(
-                  context.tr('player.preview_helper'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
               ],
+              _buildQuickControls(),
             ],
           ],
         ),
@@ -1261,148 +1251,95 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     );
   }
 
-  Widget _buildSettingsPanel() {
+  /* Voice, speed and text size as big icon buttons, with no words: two
+     voice faces, walk/run for slower/faster, and small/large A for text.
+     Changes only last for this book (the saved settings stay as they are).
+     A preview also gets the music volume. */
+  Widget _buildQuickControls() {
     final settings = _watchSettings();
     final speed = settings.readingSpeed;
     final textScale = settings.textScale;
-    final currentVoice = settings.narratorVoice;
-    // _loadAudiobook sets _useTts based on whether the book has a recording.
-    // There's no manual toggle - most books have only one way to play.
-    return SoftCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_useTts) ...[
-            _SettingSectionLabel(
-              icon: Icons.record_voice_over_rounded,
-              label: context.tr('settings.narrator_voice'),
+    final voice = settings.narratorVoice;
+
+    Future<void> setSpeed(double value) async {
+      final v = (value * 10).round() / 10;
+      _applySettingsChange((s) => s.copyWith(readingSpeed: v));
+      // Speed is pitch-corrected and read-along follows media time, so
+      // both stay in sync when it changes mid-page.
+      if (_naturalPlaying || (!_useTts && _audioReady)) {
+        await _engine.setSpeed(v);
+      }
+    }
+
+    void setText(double value) {
+      final v = (value * 10).round() / 10;
+      _applySettingsChange((s) => s.copyWith(textScale: v));
+    }
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        if (_useTts)
+          _ControlGroup(children: [
+            _ControlIcon(
+              icon: Icons.female_rounded,
+              label: context.tr('voice.calm_female'),
+              selected: voice == NarratorVoice.calmFemale,
+              onTap: () => _setVoice(NarratorVoice.calmFemale),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: NarratorVoice.values.map((voice) {
-                return _VoicePill(
-                  voice: voice,
-                  label: context.tr('voice.${voice.apiValue}'),
-                  selected: voice == currentVoice,
-                  onTap: () => _setVoice(voice),
-                );
-              }).toList(),
+            _ControlIcon(
+              icon: Icons.male_rounded,
+              label: context.tr('voice.warm_male'),
+              selected: voice == NarratorVoice.warmMale,
+              onTap: () => _setVoice(NarratorVoice.warmMale),
             ),
-          ],
-          const SizedBox(height: 18),
-          _SettingSectionLabel(
-            icon: Icons.speed_rounded,
-            label: context.tr('settings.reading_speed'),
-            trailing: _ValuePill(
-              value: '${speed.toStringAsFixed(1)}x',
-              subtitle: context.tr(_speedDescriptorKey(speed)),
-            ),
+          ]),
+        _ControlGroup(children: [
+          _ControlIcon(
+            icon: Icons.directions_walk_rounded,
+            label: context.tr('settings.slower'),
+            onTap: speed > 0.55 ? () => setSpeed(speed - 0.1) : null,
           ),
-          const SizedBox(height: 4),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.primaryBlueDark,
-              thumbColor: AppColors.primaryBlueDark,
-              overlayColor: AppColors.primaryBlue.withValues(alpha: 0.2),
-              inactiveTrackColor: AppColors.cardBorder,
-            ),
-            child: Slider(
-              value: speed.clamp(0.5, 2.0),
-              min: 0.5,
-              max: 2.0,
-              divisions: 15,
-              label: '${speed.toStringAsFixed(1)}x',
-              onChanged: (value) async {
-                _applySettingsChange((s) => s.copyWith(readingSpeed: value));
-                // Both voice and audio play through the engine. Speed is
-                // pitch-corrected and read-along uses media time, so they
-                // stay in sync when the speed changes.
-                if (_naturalPlaying || (!_useTts && _audioReady)) {
-                  await _engine.setSpeed(value);
-                }
-              },
-            ),
+          _ControlIcon(
+            icon: Icons.directions_run_rounded,
+            label: context.tr('settings.faster'),
+            onTap: speed < 1.95 ? () => setSpeed(speed + 0.1) : null,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(context.tr('settings.slower'),
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 11)),
-                Text(context.tr('settings.faster'),
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 11)),
-              ],
-            ),
+        ]),
+        _ControlGroup(children: [
+          _ControlIcon(
+            icon: Icons.text_decrease_rounded,
+            label: context.tr('player.text_smaller'),
+            onTap: textScale > 0.75 ? () => setText(textScale - 0.1) : null,
           ),
-          if (_audiobook?.trackId != null) ...[
-            const SizedBox(height: 18),
-            _SettingSectionLabel(
-              icon: Icons.library_music_rounded,
-              label: context.tr('player.bgm_volume'),
-              trailing: _ValuePill(value: '$_bgmVolume%'),
-            ),
-            const SizedBox(height: 4),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppColors.primaryBlueDark,
-                thumbColor: AppColors.primaryBlueDark,
-                overlayColor: AppColors.primaryBlue.withValues(alpha: 0.2),
-                inactiveTrackColor: AppColors.cardBorder,
-              ),
-              child: Slider(
-                value: _bgmVolume.toDouble(),
-                min: 0,
-                max: 100,
-                divisions: 20,
-                label: '$_bgmVolume%',
-                onChanged: (value) async {
-                  setState(() => _bgmVolume = value.round());
-                  await _bgmPlayer.setVolume(_bgmVolume / 100.0);
-                },
-              ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          _SettingSectionLabel(
-            icon: Icons.format_size_rounded,
-            label: context.tr('settings.text_size'),
-            trailing: _ValuePill(
-              value: '${(textScale * 100).round()}%',
-            ),
+          _ControlIcon(
+            icon: Icons.text_increase_rounded,
+            label: context.tr('player.text_larger'),
+            onTap: textScale < 1.95 ? () => setText(textScale + 0.1) : null,
           ),
-          const SizedBox(height: 4),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.primaryBlueDark,
-              thumbColor: AppColors.primaryBlueDark,
-              overlayColor: AppColors.primaryBlue.withValues(alpha: 0.2),
-              inactiveTrackColor: AppColors.cardBorder,
+        ]),
+        if (widget.previewMode && _audiobook?.trackId != null)
+          _ControlGroup(children: [
+            _ControlIcon(
+              icon: _bgmVolume == 0 ? Icons.music_off_rounded : Icons.volume_down_rounded,
+              label: context.tr('player.music_quieter'),
+              onTap: _bgmVolume > 0 ? () => _setBgmVolume(_bgmVolume - 10) : null,
             ),
-            child: Slider(
-              value: textScale.clamp(0.7, 2.0),
-              min: 0.7,
-              max: 2.0,
-              divisions: 13,
-              label: '${(textScale * 100).round()}%',
-              onChanged: (value) =>
-                  _applySettingsChange((s) => s.copyWith(textScale: value)),
+            _ControlIcon(
+              icon: Icons.volume_up_rounded,
+              label: context.tr('player.music_louder'),
+              onTap: _bgmVolume < 100 ? () => _setBgmVolume(_bgmVolume + 10) : null,
             ),
-          ),
-        ],
-      ),
+          ]),
+      ],
     );
   }
 
-  // Pick the speed label ("Slow" / "Normal" / "Fast") for the slider value.
-  String _speedDescriptorKey(double speed) {
-    if (speed <= 0.85) return 'player.speed_slow';
-    if (speed >= 1.15) return 'player.speed_fast';
-    return 'player.speed_normal';
+  Future<void> _setBgmVolume(int value) async {
+    setState(() => _bgmVolume = value.clamp(0, 100));
+    await _bgmPlayer.setVolume(_bgmVolume / 100.0);
   }
 
   Future<void> _setVoice(NarratorVoice voice) async {
@@ -2029,25 +1966,26 @@ class _HighlightedTextState extends State<_HighlightedText> {
 
 /* Small banner shown in caregiver preview - reminds them that voice/speed/
    text-size changes only affect this preview. */
+// One word and an eye: this is a preview, nothing is recorded.
 class _PreviewNotice extends StatelessWidget {
   const _PreviewNotice();
 
   @override
   Widget build(BuildContext context) {
-    return SoftCard(
-      color: AppColors.softLavender.withValues(alpha: 0.4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.softLavender,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.visibility_outlined,
-              color: AppColors.primaryBlueDark),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.tr('player.preview_banner'),
-              style: const TextStyle(
-                  color: AppColors.textPrimary, height: 1.4),
-            ),
+          const Icon(Icons.visibility_rounded, size: 22, color: AppColors.textPrimary),
+          const SizedBox(width: 8),
+          Text(
+            context.tr('player.preview_short'),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           ),
         ],
       ),
@@ -2055,74 +1993,26 @@ class _PreviewNotice extends StatelessWidget {
   }
 }
 
-/* Settings-panel section header: icon + bold label, with an optional value
-   pill on the right (e.g. "0.7x · Slow"). */
-class _SettingSectionLabel extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Widget? trailing;
-  const _SettingSectionLabel({
-    required this.icon,
-    required this.label,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.primaryBlueDark),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-              fontWeight: FontWeight.w700, fontSize: 14),
-        ),
-        const Spacer(),
-        ?trailing,
-      ],
-    );
-  }
-}
-
-/* Rounded pill showing a value, with an optional subtitle after a thin
-   divider (e.g. "0.7x · Slow"). */
-class _ValuePill extends StatelessWidget {
-  final String value;
-  final String? subtitle;
-  const _ValuePill({required this.value, this.subtitle});
+// A pair of icon buttons in one rounded box (voice, speed, text, music).
+class _ControlGroup extends StatelessWidget {
+  final List<Widget> children;
+  const _ControlGroup({required this.children});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: AppColors.softPeach.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.cardBorder, width: 2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 13),
-          ),
-          if (subtitle != null) ...[
-            Container(
-              width: 1,
-              height: 12,
-              margin: const EdgeInsets.symmetric(horizontal: 8),
-              color: AppColors.textSecondary.withValues(alpha: 0.35),
-            ),
-            Text(
-              subtitle!,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 11,
-                color: AppColors.textSecondary,
-              ),
-            ),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            children[i],
           ],
         ],
       ),
@@ -2130,80 +2020,39 @@ class _ValuePill extends StatelessWidget {
   }
 }
 
-/* Narrator-voice chip with an icon and soft tint. When selected, it turns
-   blue with a checkmark so the active voice is obvious. */
-class _VoicePill extends StatelessWidget {
-  final NarratorVoice voice;
+/* One big icon button. [label] is only for screen readers and a long
+   press; nothing is written on screen. Null [onTap] greys it out (at the
+   slowest speed or smallest text). */
+class _ControlIcon extends StatelessWidget {
+  final IconData icon;
   final String label;
+  final VoidCallback? onTap;
   final bool selected;
-  final VoidCallback onTap;
-  const _VoicePill({
-    required this.voice,
+
+  const _ControlIcon({
+    required this.icon,
     required this.label,
-    required this.selected,
     required this.onTap,
+    this.selected = false,
   });
-
-  static const _icons = <NarratorVoice, IconData>{
-    NarratorVoice.calmFemale: Icons.female_rounded,
-    NarratorVoice.warmMale: Icons.male_rounded,
-  };
-
-  // A soft tint per voice so unselected chips look distinct but still calm.
-  static const _tints = <NarratorVoice, Color>{
-    NarratorVoice.calmFemale: AppColors.softPink,
-    NarratorVoice.warmMale: AppColors.softMint,
-  };
 
   @override
   Widget build(BuildContext context) {
-    final tint = _tints[voice] ?? AppColors.surface;
-    final iconData = _icons[voice] ?? Icons.person_outline_rounded;
-    final fg = selected ? Colors.white : AppColors.textPrimary;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.primaryBlueDark
-                : tint.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? AppColors.primaryBlueDark
-                  : AppColors.cardBorder,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selected) ...[
-                const Icon(Icons.check_rounded,
-                    size: 16, color: Colors.white),
-                const SizedBox(width: 4),
-              ],
-              Icon(iconData, size: 16, color: fg),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return IconButton(
+      tooltip: label,
+      onPressed: onTap,
+      iconSize: 30,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(54, 54),
+        backgroundColor: selected ? AppColors.primaryBlue : AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        disabledForegroundColor: AppColors.textMuted.withValues(alpha: 0.5),
+        side: selected
+            ? const BorderSide(color: AppColors.primaryBlueDark, width: 2.5)
+            : BorderSide.none,
       ),
+      isSelected: selected,
+      icon: Icon(icon),
     );
   }
 }
-

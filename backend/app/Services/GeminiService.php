@@ -242,9 +242,11 @@ Rules:
 - For text_scale: a number between 0.7 and 2.0 (step 0.05).
 - For auto_play_next, read_along: true or false.
 - Each item's "reason" must be ONE very short sentence of at most 10 words,
-  in simple everyday words: the reader may be an autistic teenager. No
+  in simple everyday English: the reader may be an autistic teenager. No
   numbers, no clinical claims, no jargon (e.g. "You pause a lot, so slower
   may help.").
+- Each item's "reason_ms" is the same sentence in simple Bahasa Melayu
+  (e.g. "Anda kerap berhenti, jadi lebih perlahan mungkin membantu.").
 - Do NOT suggest changes that match the current value already.
 - At most 3 suggestions. Skip suggestions you are not confident about.
 
@@ -274,8 +276,9 @@ PROMPT;
                                                booleans, or enums. We convert later. */
                                             'suggested_value' => ['type' => 'STRING'],
                                             'reason'          => ['type' => 'STRING'],
+                                            'reason_ms'       => ['type' => 'STRING'],
                                         ],
-                                        'required' => ['setting_key', 'suggested_value', 'reason'],
+                                        'required' => ['setting_key', 'suggested_value', 'reason', 'reason_ms'],
                                     ],
                                 ],
                             ],
@@ -313,10 +316,13 @@ PROMPT;
                 if ($key === '' || $raw === null || $reason === '') {
                     continue;
                 }
+                $reasonMs = trim((string) ($item['reason_ms'] ?? ''));
                 $clean[] = [
                     'setting_key'     => $key,
                     'suggested_value' => $raw,
                     'reason'          => $reason,
+                    // Malay, so the tip reads in the app's language.
+                    'reason_ms'       => $reasonMs !== '' ? $reasonMs : $reason,
                 ];
             }
             Log::info('[Gemini] analyseListening success', [

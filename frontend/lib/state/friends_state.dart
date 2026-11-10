@@ -15,6 +15,8 @@ class FriendsState extends ChangeNotifier {
   List<FriendUpdate> _unseenUpdates = const [];
   List<FriendUpdate> _seenUpdates = const [];
   List<Member> _searchResults = const [];
+  // Every other member, for the "add friends" list.
+  List<Member> _everyone = const [];
   bool _loading = false;
   bool _searching = false;
   String? _lastError;
@@ -22,6 +24,9 @@ class FriendsState extends ChangeNotifier {
   List<Member> get friends => List.unmodifiable(_friends);
   List<Member> get pending => List.unmodifiable(_pending);
   List<Member> get searchResults => List.unmodifiable(_searchResults);
+  // Members who aren't friends yet, to send a request to.
+  List<Member> get notFriends =>
+      _everyone.where((m) => m.relation != 'friends').toList();
   bool get loading => _loading;
   bool get searching => _searching;
   String? get lastError => _lastError;
@@ -37,6 +42,7 @@ class FriendsState extends ChangeNotifier {
     if (friendsResp.success && friendsResp.data is List<Member>) {
       _friends = friendsResp.data as List<Member>;
     }
+    await _loadEveryone();
     await _loadNotifications();
     _loading = false;
     notifyListeners();
@@ -72,6 +78,13 @@ class FriendsState extends ChangeNotifier {
     await DatabaseService.markFriendUpdatesSeen();
   }
 
+  Future<void> _loadEveryone() async {
+    final resp = await DatabaseService.searchMembers('');
+    if (resp.success && resp.data is List<Member>) {
+      _everyone = resp.data as List<Member>;
+    }
+  }
+
   Future<void> search(String term) async {
     _searching = true;
     notifyListeners();
@@ -91,6 +104,8 @@ class FriendsState extends ChangeNotifier {
     final resp = await DatabaseService.sendFriendRequest(caregiverId);
     if (resp.success) {
       await search(''); // refresh relation labels in the current results
+      await _loadEveryone();
+      notifyListeners();
       return true;
     }
     _lastError = resp.message;
@@ -126,6 +141,7 @@ class FriendsState extends ChangeNotifier {
     _unseenUpdates = const [];
     _seenUpdates = const [];
     _searchResults = const [];
+    _everyone = const [];
     _lastError = null;
     notifyListeners();
   }

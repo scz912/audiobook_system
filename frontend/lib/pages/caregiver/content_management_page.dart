@@ -41,6 +41,9 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
   bool _loading = false;
   String _filter = 'all';
   String _langFilter = 'all'; // 'all' | 'en' | 'ms'
+  // Filters stay folded away behind the filter button until asked for.
+  bool _showFilters = false;
+  bool get _filtering => _filter != 'all' || _langFilter != 'all';
   _Library _library = _Library.linear;
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -301,21 +304,9 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
     );
   }
 
-  // Search, filters and the books of the selected format (linear or
-  // interactive). Filtered here: every item already carries its format.
-  List<Widget> _buildAudiobookList() {
-    final format = _library.name;
-    final visible = _items.where((i) => i.bookFormat == format).toList();
+  // The type and language filter chips, shown under the search box.
+  List<Widget> _filterChips() {
     return [
-      TextField(
-        controller: _searchCtrl,
-        onSubmitted: (_) => _refresh(),
-        decoration: InputDecoration(
-          hintText: context.tr('content.search_hint'),
-          prefixIcon:
-              const Icon(Icons.search, color: AppColors.textMuted),
-        ),
-      ),
       const SizedBox(height: 14),
       Row(
         children: [
@@ -382,6 +373,49 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
           ),
         ],
       ),
+    ];
+  }
+
+  // Search, filters and the books of the selected format (linear or
+  // interactive). Filtered here: every item already carries its format.
+  List<Widget> _buildAudiobookList() {
+    final format = _library.name;
+    final visible = _items.where((i) => i.bookFormat == format).toList();
+    return [
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onSubmitted: (_) => _refresh(),
+              decoration: InputDecoration(
+                hintText: context.tr('content.search_hint'),
+                prefixIcon:
+                    const Icon(Icons.search, color: AppColors.textMuted),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Shows or hides the filters. A dot means a filter is on.
+          Badge(
+            isLabelVisible: _filtering && !_showFilters,
+            smallSize: 12,
+            backgroundColor: AppColors.danger,
+            child: IconButton.filledTonal(
+              tooltip: context.tr(_showFilters ? 'content.filters_hide' : 'content.filters_show'),
+              iconSize: 28,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(54, 54),
+                backgroundColor: _showFilters ? AppColors.primaryBlue : AppColors.surface,
+                foregroundColor: AppColors.textPrimary,
+              ),
+              onPressed: () => setState(() => _showFilters = !_showFilters),
+              icon: Icon(_showFilters ? Icons.filter_alt_off_rounded : Icons.filter_alt_rounded),
+            ),
+          ),
+        ],
+      ),
+      if (_showFilters) ..._filterChips(),
       const SizedBox(height: 18),
       if (_loading)
         const Padding(

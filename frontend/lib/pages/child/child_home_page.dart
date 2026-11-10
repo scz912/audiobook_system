@@ -291,19 +291,29 @@ class _ChildHomePageState extends State<ChildHomePage> {
                           alignment: Alignment.center,
                           child: Stack(
                             children: [
-                              Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(m.emoji,
-                                        style:
-                                            const TextStyle(fontSize: 36)),
-                                    const SizedBox(height: 4),
-                                    Text(context.tr(m.labelKey),
-                                        style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700)),
-                                  ],
+                              /* Shrinks to fit rather than spilling out of
+                                 the card with big phone fonts or long
+                                 Malay words. */
+                              Positioned.fill(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(m.emoji,
+                                            style:
+                                                const TextStyle(fontSize: 36)),
+                                        const SizedBox(height: 4),
+                                        Text(context.tr(m.labelKey),
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700)),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                               if (selected)
