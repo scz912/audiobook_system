@@ -26,6 +26,7 @@ import '../../widgets/bgm_picker_sheet.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/soft_chip.dart';
 import '../../widgets/guide.dart';
+import '../../widgets/paige_mascot.dart';
 import '../../widgets/whole_words_text.dart';
 
 // Interactive audiobook forms, editor cards, steppers and the guide.
@@ -149,13 +150,26 @@ class _UploadContentPageState extends State<UploadContentPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (await GuideMemory.isDone('upload') || !mounted) return;
       await GuideMemory.markDone('upload');
-      _startGuide([
+      _startPageGuide();
+    });
+  }
+
+  void _startPageGuide() => _startGuide([
         const GuideStep('guide.up_hi'),
         GuideStep('guide.up_format', target: _formatKey, onStart: () => _reveal(_formatKey)),
         GuideStep('guide.up_mode', target: _modeKey, onStart: () => _reveal(_modeKey)),
         const GuideStep('guide.up_done', celebrate: true),
       ]);
-    });
+
+  /* Paige in the header replays the guide: how interactive books work
+     when making one, otherwise the tour of this page. */
+  void _replayGuide() {
+    if (_guide != null) return;
+    if (_format == _BookFormat.interactive) {
+      _startInteractiveGuide();
+    } else {
+      _startPageGuide();
+    }
   }
 
   void _startGuide(List<GuideStep> steps) {
@@ -841,6 +855,20 @@ class _UploadContentPageState extends State<UploadContentPage> {
                     context.tr('upload.title'),
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Tap Paige to see the guide again.
+                Semantics(
+                  button: true,
+                  label: context.tr('guide.replay'),
+                  child: Tooltip(
+                    message: context.tr('guide.replay'),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _replayGuide,
+                      child: const ExcludeSemantics(child: PaigeMascot(width: 64)),
+                    ),
                   ),
                 ),
               ],

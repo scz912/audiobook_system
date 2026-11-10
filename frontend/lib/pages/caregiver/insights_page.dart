@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/ai_suggestion.dart';
@@ -59,28 +58,12 @@ class _InsightsPageState extends State<InsightsPage> {
   void initState() {
     super.initState();
     _load();
-    _loadTipsHidden();
   }
 
-  // The AI tips card can be folded away; remembered on this device.
-  static const _tipsHiddenKey = 'insights.tips_hidden';
-  bool _tipsHidden = false;
+  // The AI tips card always starts folded; the arrow opens it.
+  bool _tipsHidden = true;
 
-  Future<void> _loadTipsHidden() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final hidden = prefs.getBool(_tipsHiddenKey) ?? false;
-      if (mounted && hidden != _tipsHidden) setState(() => _tipsHidden = hidden);
-    } catch (_) {}
-  }
-
-  Future<void> _toggleTips() async {
-    setState(() => _tipsHidden = !_tipsHidden);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_tipsHiddenKey, _tipsHidden);
-    } catch (_) {}
-  }
+  void _toggleTips() => setState(() => _tipsHidden = !_tipsHidden);
 
   @override
   void dispose() {

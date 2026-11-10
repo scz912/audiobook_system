@@ -1251,10 +1251,12 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     );
   }
 
-  /* Voice, speed and text size as big icon buttons, with no words: two
-     voice faces, walk/run for slower/faster, and small/large A for text.
-     Changes only last for this book (the saved settings stay as they are).
-     A preview also gets the music volume. */
+  /* Voice, speed and text size, with no words. Each is its own coloured
+     row with a picture of what it changes on the left, and big buttons
+     that look like what they do: a woman / man for the voice, a turtle /
+     rabbit for slow / fast, a small / big "A" for the text. Changes only
+     last for this book (the saved settings stay as they are). A preview
+     also gets the music volume. */
   Widget _buildQuickControls() {
     final settings = _watchSettings();
     final speed = settings.readingSpeed;
@@ -1276,63 +1278,98 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       _applySettingsChange((s) => s.copyWith(textScale: v));
     }
 
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 12,
-      runSpacing: 12,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_useTts)
-          _ControlGroup(children: [
-            _ControlIcon(
-              icon: Icons.female_rounded,
-              label: context.tr('voice.calm_female'),
-              selected: voice == NarratorVoice.calmFemale,
-              onTap: () => _setVoice(NarratorVoice.calmFemale),
-            ),
-            _ControlIcon(
-              icon: Icons.male_rounded,
-              label: context.tr('voice.warm_male'),
-              selected: voice == NarratorVoice.warmMale,
-              onTap: () => _setVoice(NarratorVoice.warmMale),
-            ),
-          ]),
-        _ControlGroup(children: [
-          _ControlIcon(
-            icon: Icons.directions_walk_rounded,
-            label: context.tr('settings.slower'),
-            onTap: speed > 0.55 ? () => setSpeed(speed - 0.1) : null,
+        if (_useTts) ...[
+          _ControlRow(
+            icon: Icons.record_voice_over_rounded,
+            color: const Color(0xFFFFD9E6),
+            accent: const Color(0xFFD94A82),
+            label: context.tr('player.voice'),
+            children: [
+              _ControlButton(
+                label: context.tr('voice.calm_female'),
+                selected: voice == NarratorVoice.calmFemale,
+                accent: const Color(0xFFD94A82),
+                onTap: () => _setVoice(NarratorVoice.calmFemale),
+                child: const _Emoji('\u{1F469}'),
+              ),
+              _ControlButton(
+                label: context.tr('voice.warm_male'),
+                selected: voice == NarratorVoice.warmMale,
+                accent: const Color(0xFFD94A82),
+                onTap: () => _setVoice(NarratorVoice.warmMale),
+                child: const _Emoji('\u{1F468}'),
+              ),
+            ],
           ),
-          _ControlIcon(
-            icon: Icons.directions_run_rounded,
-            label: context.tr('settings.faster'),
-            onTap: speed < 1.95 ? () => setSpeed(speed + 0.1) : null,
-          ),
-        ]),
-        _ControlGroup(children: [
-          _ControlIcon(
-            icon: Icons.text_decrease_rounded,
-            label: context.tr('player.text_smaller'),
-            onTap: textScale > 0.75 ? () => setText(textScale - 0.1) : null,
-          ),
-          _ControlIcon(
-            icon: Icons.text_increase_rounded,
-            label: context.tr('player.text_larger'),
-            onTap: textScale < 1.95 ? () => setText(textScale + 0.1) : null,
-          ),
-        ]),
-        if (widget.previewMode && _audiobook?.trackId != null)
-          _ControlGroup(children: [
-            _ControlIcon(
-              icon: _bgmVolume == 0 ? Icons.music_off_rounded : Icons.volume_down_rounded,
-              label: context.tr('player.music_quieter'),
-              onTap: _bgmVolume > 0 ? () => _setBgmVolume(_bgmVolume - 10) : null,
+          const SizedBox(height: 10),
+        ],
+        _ControlRow(
+          icon: Icons.speed_rounded,
+          color: const Color(0xFFD6EBFF),
+          accent: const Color(0xFF2F7BD6),
+          label: context.tr('player.speed'),
+          children: [
+            _ControlButton(
+              label: context.tr('settings.slower'),
+              accent: const Color(0xFF2F7BD6),
+              onTap: speed > 0.55 ? () => setSpeed(speed - 0.1) : null,
+              child: const _Emoji('\u{1F422}'),
             ),
-            _ControlIcon(
-              icon: Icons.volume_up_rounded,
-              label: context.tr('player.music_louder'),
-              onTap: _bgmVolume < 100 ? () => _setBgmVolume(_bgmVolume + 10) : null,
+            _ControlButton(
+              label: context.tr('settings.faster'),
+              accent: const Color(0xFF2F7BD6),
+              onTap: speed < 1.95 ? () => setSpeed(speed + 0.1) : null,
+              child: const _Emoji('\u{1F407}'),
             ),
-          ]),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _ControlRow(
+          icon: Icons.format_size_rounded,
+          color: const Color(0xFFD8F3DF),
+          accent: const Color(0xFF2E9455),
+          label: context.tr('player.text'),
+          children: [
+            _ControlButton(
+              label: context.tr('player.text_smaller'),
+              accent: const Color(0xFF2E9455),
+              onTap: textScale > 0.75 ? () => setText(textScale - 0.1) : null,
+              child: const _SizeA(small: true),
+            ),
+            _ControlButton(
+              label: context.tr('player.text_larger'),
+              accent: const Color(0xFF2E9455),
+              onTap: textScale < 1.95 ? () => setText(textScale + 0.1) : null,
+              child: const _SizeA(small: false),
+            ),
+          ],
+        ),
+        if (widget.previewMode && _audiobook?.trackId != null) ...[
+          const SizedBox(height: 10),
+          _ControlRow(
+            icon: Icons.music_note_rounded,
+            color: const Color(0xFFEDE1FF),
+            accent: const Color(0xFF7457F5),
+            label: context.tr('player.music'),
+            children: [
+              _ControlButton(
+                label: context.tr('player.music_quieter'),
+                accent: const Color(0xFF7457F5),
+                onTap: _bgmVolume > 0 ? () => _setBgmVolume(_bgmVolume - 10) : null,
+                child: const _Emoji('\u{1F509}'),
+              ),
+              _ControlButton(
+                label: context.tr('player.music_louder'),
+                accent: const Color(0xFF7457F5),
+                onTap: _bgmVolume < 100 ? () => _setBgmVolume(_bgmVolume + 10) : null,
+                child: const _Emoji('\u{1F50A}'),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1993,66 +2030,151 @@ class _PreviewNotice extends StatelessWidget {
   }
 }
 
-// A pair of icon buttons in one rounded box (voice, speed, text, music).
-class _ControlGroup extends StatelessWidget {
+/* One control: a coloured row with a picture of what it changes (voice,
+   speed, text, music) on the left and its two big buttons on the right.
+   [label] names it for screen readers only. */
+class _ControlRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Color accent;
+  final String label;
   final List<Widget> children;
-  const _ControlGroup({required this.children});
+
+  const _ControlRow({
+    required this.icon,
+    required this.color,
+    required this.accent,
+    required this.label,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.cardBorder, width: 2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const SizedBox(width: 6),
-            children[i],
+    return Semantics(
+      container: true,
+      label: label,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: accent.withValues(alpha: 0.45), width: 2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+              child: Icon(icon, size: 32, color: Colors.white),
+            ),
+            const SizedBox(width: 8),
+            for (final child in children) ...[
+              const SizedBox(width: 8),
+              Expanded(child: child),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/* One big icon button. [label] is only for screen readers and a long
-   press; nothing is written on screen. Null [onTap] greys it out (at the
-   slowest speed or smallest text). */
-class _ControlIcon extends StatelessWidget {
-  final IconData icon;
+/* A big white button showing a picture (an emoji or a sized "A"). The
+   chosen voice gets a thick coloured border and a tick. Null [onTap]
+   fades it (at the slowest speed or smallest text). */
+class _ControlButton extends StatelessWidget {
+  final Widget child;
   final String label;
+  final Color accent;
   final VoidCallback? onTap;
   final bool selected;
 
-  const _ControlIcon({
-    required this.icon,
+  const _ControlButton({
+    required this.child,
     required this.label,
+    required this.accent,
     required this.onTap,
     this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: label,
-      onPressed: onTap,
-      iconSize: 30,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(54, 54),
-        backgroundColor: selected ? AppColors.primaryBlue : AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        disabledForegroundColor: AppColors.textMuted.withValues(alpha: 0.5),
-        side: selected
-            ? const BorderSide(color: AppColors.primaryBlueDark, width: 2.5)
-            : BorderSide.none,
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.35,
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? accent : Colors.transparent,
+                    width: 3.5,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Center(child: ExcludeSemantics(child: child)),
+                    if (selected)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                          child: const Icon(Icons.check_rounded, size: 15, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
-      isSelected: selected,
-      icon: Icon(icon),
+    );
+  }
+}
+
+class _Emoji extends StatelessWidget {
+  final String emoji;
+  const _Emoji(this.emoji);
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(emoji, style: const TextStyle(fontSize: 32, height: 1.1));
+}
+
+// A small or a big letter A, for smaller / bigger text.
+class _SizeA extends StatelessWidget {
+  final bool small;
+  const _SizeA({required this.small});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'A',
+      style: TextStyle(
+        fontSize: small ? 18 : 34,
+        fontWeight: FontWeight.w900,
+        color: AppColors.textPrimary,
+        height: 1,
+      ),
     );
   }
 }

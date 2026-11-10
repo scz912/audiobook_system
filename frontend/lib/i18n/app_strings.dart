@@ -827,6 +827,11 @@ class AppStrings {
     'guide.ia_answer': 'The next page says the answer they picked.',
     'guide.ia_split': 'Or split it: a different next page for each answer.',
     'guide.ia_done': 'You\'re ready!',
+    // Player controls (screen-reader names)
+    'player.voice': 'Voice',
+    'player.speed': 'Speed',
+    'player.text': 'Text size',
+    'player.music': 'Music',
   };
 
   // Bahasa Malaysia strings
@@ -1638,5 +1643,10 @@ class AppStrings {
     'guide.ia_answer': 'Halaman seterusnya menyebut jawapan yang dipilih.',
     'guide.ia_split': 'Atau pecahkan: halaman berbeza untuk setiap jawapan.',
     'guide.ia_done': 'Anda sudah sedia!',
+    // Player controls (screen-reader names)
+    'player.voice': 'Suara',
+    'player.speed': 'Kelajuan',
+    'player.text': 'Saiz teks',
+    'player.music': 'Muzik',
   };
 }
