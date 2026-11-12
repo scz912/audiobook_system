@@ -20,9 +20,13 @@ import '../../widgets/scroll_more_hint.dart';
 import '../../widgets/stat_sphere_carousel.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import '../../widgets/whole_words_text.dart';
+import 'insights_music_taste.dart';
 
 class InsightsPage extends StatefulWidget {
-  const InsightsPage({super.key});
+  /* The personal account's own sections, after Top stories: its top
+     music genres from YouTube, and audiobooks matched to them. */
+  final bool showMusicTaste;
+  const InsightsPage({super.key, this.showMusicTaste = false});
 
   @override
   State<InsightsPage> createState() => _InsightsPageState();
@@ -284,15 +288,17 @@ class _InsightsPageState extends State<InsightsPage> {
               iconBackground: AppColors.softPeach,
               iconColor: AppColors.warning,
             )
-          else if (_data.totalSessions == 0)
+          else if (_data.totalSessions == 0) ...[
             EmptyState(
               icon: Icons.insights_rounded,
               title: context.tr('insights.empty_title'),
               subtitle: context.tr('insights.empty_body'),
               iconBackground: AppColors.iconCircleGreen,
               iconColor: AppColors.success,
-            )
-          else ...[
+            ),
+            // Music taste doesn't depend on stories listened to.
+            if (widget.showMusicTaste) const MusicTasteSections(),
+          ] else ...[
             _buildOverviewGrid(context),
             const SizedBox(height: 20),
             _SectionHeader(
@@ -332,6 +338,7 @@ class _InsightsPageState extends State<InsightsPage> {
                 ),
               ),
             ],
+            if (widget.showMusicTaste) const MusicTasteSections(),
             if (_data.recentSessions.isNotEmpty) ...[
               const SizedBox(height: 20),
               _SectionHeader(

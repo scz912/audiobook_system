@@ -98,13 +98,15 @@ class EvaluateMusicTagging extends Command
                     'emotions' => $analysis['tags'] ?? [],
                     'tempo'    => $analysis['tempo'] ?? null,
                     'summary'  => $analysis['summary'] ?? null,
-                    'failed'   => $analysis === null,
+                    // Not heard by the AI (labels came from the rhythm instead).
+                    'failed'   => ($analysis['source'] ?? 'ai') !== 'ai',
                     'rhythm'   => $measured,
                 ];
             }
             $main = $answers[0];
             // The listens disagreed, so no genre was given (not counted as wrong).
-            $unsure = !$main['failed'] && $main['genre'] === null && count(array_filter($main['votes'])) > 0;
+            $unsure = !$main['failed'] && in_array($main['genre'], [null, GeminiService::OTHER_GENRE], true)
+                && count(array_filter($main['votes'])) > 0;
             $row = $t + [
                 'answers'       => $answers,
                 'genre_unsure'  => $t['genre'] !== null && $unsure,
@@ -127,7 +129,7 @@ class EvaluateMusicTagging extends Command
                 Str::limit($t['file'], 32),
                 $t['genre'] ?? '-',
                 $main['failed'] ? '(AI failed)'
-                    : ($main['genre'] ?? ('unsure: ' . implode('/', array_map(fn ($v) => $v ?? '-', $main['votes'])))),
+                    : ($unsure ? 'unsure: ' . implode('/', array_map(fn ($v) => $v ?? '-', $main['votes'])) : $main['genre']),
                 $rhythm,
                 implode(', ', $main['emotions']),
             ));

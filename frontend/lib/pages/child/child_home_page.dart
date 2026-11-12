@@ -10,6 +10,7 @@ import '../../services/reading_progress.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/difficulty_badge.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/marquee_text.dart';
 import '../../widgets/paige_mascot.dart';
@@ -616,8 +617,19 @@ class _StartStoryCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _StartStoryCover(url: story.coverImage),
-                  const SizedBox(width: 14),
+                  // The difficulty tag in front of the cover's top-right corner.
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _StartStoryCover(url: story.coverImage),
+                      Positioned(
+                        top: -8,
+                        right: -14,
+                        child: DifficultyBadge(difficulty: story.difficulty),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: MarqueeText(
                       story.title,

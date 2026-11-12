@@ -801,6 +801,8 @@ class ContentManagementController extends ApiController
                 'composer'      => $track->composer,
                 'file_url'      => $this->mediaUrl($track->file_path),
                 'tags'          => $track->tagsArray(),
+                'genre'         => $track->genre,
+                'tempo'         => $track->tempo,
                 'duration_secs' => $track->duration_secs,
             ] : null,
             'pages'            => $this->serializePages($item),

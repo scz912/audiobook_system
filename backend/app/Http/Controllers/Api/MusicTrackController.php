@@ -214,21 +214,24 @@ class MusicTrackController extends ApiController
             'status'        => 'active',
         ]);
 
+        // Tagged either way; without the AI the tags come from the rhythm,
+        // and the next re-listen (music:analyse at start-up) replaces them.
+        $aiTagged = $analysis['source'] === 'ai';
         $this->logEvent('MusicTrack', 'upload saved', [
             'track_id'  => $track->track_id,
             'converted' => !$isMp3,
-            'ai_tagged' => $analysis !== null,
+            'source'    => $analysis['source'],
             'measured'  => $measured !== null,
         ]);
 
         return $this->successResponse(
-            $analysis !== null
+            $aiTagged
                 ? 'Music added and tagged'
-                : 'Music added, but the AI could not tag it right now',
+                : 'Music added and tagged from its rhythm; the AI will listen to it later',
             [
                 'track'     => $this->serialize($track),
                 'converted' => !$isMp3,
-                'ai_tagged' => $analysis !== null,
+                'ai_tagged' => $aiTagged,
             ],
             201
         );
@@ -262,7 +265,7 @@ class MusicTrackController extends ApiController
     private function genresInUse(?string $caregiverId)
     {
         $used = MusicTrack::visibleTo($caregiverId)->whereNotNull('genre')->pluck('genre')->all();
-        return collect(GeminiService::MUSIC_GENRES)
+        return collect(GeminiService::ALL_GENRES)
             ->filter(fn ($g) => in_array($g, $used, true))
             ->values();
     }

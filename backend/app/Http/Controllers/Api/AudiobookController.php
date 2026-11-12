@@ -94,6 +94,7 @@ class AudiobookController extends ApiController
                     'composer'     => $audiobook->musicTrack->composer,
                     'file_url'     => $this->mediaUrl($audiobook->musicTrack->file_path),
                     'tags'         => $audiobook->musicTrack->tagsArray(),
+                    'genre'        => $audiobook->musicTrack->genre,
                     'tempo'        => $audiobook->musicTrack->tempo,
                     'duration_secs'=> $audiobook->musicTrack->duration_secs,
                 ] : null,

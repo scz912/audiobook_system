@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-/* Gives tracks already in the library a genre and a measured rhythm (new
-   uploads get them as they arrive). By default it only fills what's
-   missing: the built-in tracks keep their hand-picked emotion tags, and
-   so do uploads. --retag also replaces the emotion tags, tempo, summary
-   and sensory notes with fresh AI ones.
+/* Has the AI listen to tracks it hasn't heard yet: tracks with no genre,
+   and tracks only tagged from their rhythm because the AI couldn't listen
+   at upload (no ai_summary). Every track ends with a genre (Others when it
+   can't be settled). By default a track keeps its emotion tags; --retag
+   replaces them, with the tempo, summary and sensory notes, by the AI's.
+   The server runs `music:analyse --retag` in the background at start-up,
+   so the whole library is re-listened to once and stays tagged.
 
-     php artisan music:analyse            tracks with no genre yet
+     php artisan music:analyse            tracks the AI hasn't heard yet
      php artisan music:analyse --all      every track again
      php artisan music:analyse --retag    ...and redo their emotion tags too */
 class AnalyseMusicTracks extends Command
@@ -34,11 +36,13 @@ class AnalyseMusicTracks extends Command
         }
 
         $tracks = MusicTrack::query()
-            ->when(!$this->option('all'), fn ($q) => $q->whereNull('genre'))
+            ->when(!$this->option('all'), fn ($q) => $q->where(
+                fn ($w) => $w->whereNull('genre')->orWhereNull('ai_summary'),
+            ))
             ->orderBy('created_at')
             ->get();
         if ($tracks->isEmpty()) {
-            $this->info('Every track already has a genre. Use --all to analyse them again.');
+            $this->info('The AI has heard every track. Use --all to analyse them again.');
             return self::SUCCESS;
         }
 
@@ -56,20 +60,25 @@ class AnalyseMusicTracks extends Command
                 MusicTrack::emotionVocabulary($track->caregiver_id)->all(),
                 $hasFfmpeg,
             );
-            if ($measured === null && $analysis === null) {
-                $this->warn("Skipped \"{$track->title}\": couldn't measure or listen to it.");
+            $fromAi = $analysis['source'] === 'ai';
+            if (!$fromAi && $track->genre !== null) {
+                // The AI still can't listen; keep the labels it has and try
+                // again on the next run.
+                $this->warn("\"{$track->title}\": the AI couldn't listen; kept its labels for now.");
                 continue;
             }
 
-            $retag = $this->option('retag') && $analysis !== null && $analysis['tags'];
+            // Fresh emotions when asked, or when the track has none yet.
+            $retag = $this->option('retag') || !$track->tagsArray();
             $track->fill(array_filter([
-                'genre'         => $analysis['genre'] ?? null,
+                'genre'         => $analysis['genre'],
                 'bpm'           => $measured['bpm'] ?? null,
                 'beat'          => $measured['beat'] ?? null,
-                'tags'          => $retag ? implode(',', $analysis['tags']) : null,
-                'tempo'         => ($retag || !$track->tempo) ? ($analysis['tempo'] ?? null) : null,
-                'ai_summary'    => ($retag || !$track->ai_summary) ? (($analysis['summary'] ?? '') ?: null) : null,
-                'sensory_notes' => $retag ? (($analysis['sensory_notes'] ?? '') ?: null) : null,
+                'tags'          => $retag && $analysis['tags'] ? implode(',', $analysis['tags']) : null,
+                'tempo'         => ($retag || !$track->tempo) ? $analysis['tempo'] : null,
+                // Left empty when the AI didn't listen, so the next run retries.
+                'ai_summary'    => $fromAi && ($retag || !$track->ai_summary) ? ($analysis['summary'] ?: null) : null,
+                'sensory_notes' => ($retag || !$track->sensory_notes) ? ($analysis['sensory_notes'] ?: null) : null,
             ], fn ($v) => $v !== null));
             if ($measured !== null && $measured['bpm'] === null) {
                 // No pulse to follow: clear any old tempo number.

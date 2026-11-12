@@ -177,7 +177,7 @@ class _IndependentShellState extends State<IndependentShell> {
       case 2:
         return ContentManagementPage(onBack: backHome);
       case 3:
-        return const InsightsPage();
+        return const InsightsPage(showMusicTaste: true);
       case _communityTab:
         return const CommunityPage();
       case _pianoTab:

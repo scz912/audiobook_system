@@ -15,7 +15,8 @@ nixPkgs = ["...", "ffmpeg"]
 cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev"]
 
 [start]
-# music:analyse gives any track without a genre one (and measures its rhythm),
-# in the background so the server starts at once. Once every track has a
-# genre it finds nothing to do.
-cmd = "php artisan migrate --force && (php artisan storage:link || true) && (php artisan queue:work --sleep=1 --tries=1 --timeout=1800 &) && ((php artisan music:analyse > storage/logs/music-analyse.log 2>&1 || true) &) && php artisan serve --host 0.0.0.0 --port $PORT"
+# music:analyse --retag has the AI listen to every track it hasn't heard yet
+# (the whole library on the first start, then only uploads it missed) and
+# replaces their genre and emotion tags. In the background, so the server
+# starts at once; about 2 Gemini calls per track, once.
+cmd = "php artisan migrate --force && (php artisan storage:link || true) && (php artisan queue:work --sleep=1 --tries=1 --timeout=1800 &) && ((php artisan music:analyse --retag > storage/logs/music-analyse.log 2>&1 || true) &) && php artisan serve --host 0.0.0.0 --port $PORT"

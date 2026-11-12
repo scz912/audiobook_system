@@ -145,6 +145,42 @@ class AudioRhythmAnalyzer
         ];
     }
 
+    /* Emotion tags worked out from the rhythm alone, for when the AI can't
+       listen (no key, quota used up, a failed call), so an upload is never
+       left without emotions. Rough by design - a busy steady pulse reads as
+       lively, little or no pulse as calm, a dark or swelling sound as
+       mysterious - and replaced by the AI's tags on the next re-listen. */
+    public static function fallbackEmotions(array $f): array
+    {
+        $busy = (float) ($f['onsets_per_sec'] ?? 0);
+        $bpm = (int) ($f['bpm'] ?? 0);
+        $beat = $f['beat'] ?? 'none';
+        if ($beat === 'none' || $busy < 2) {
+            return ['Calm', 'Peaceful', 'Gentle'];
+        }
+        if ($beat === 'steady' && $bpm >= 110 && $busy >= 3.5) {
+            return ['Energetic', 'Upbeat', 'Playful'];
+        }
+        if (($f['brightness_hz'] ?? 1000) < 500 || ($f['loudness_range_db'] ?? 0) >= 15) {
+            return ['Mysterious', 'Curious', 'Imaginative'];
+        }
+        return ['Gentle', 'Playful', 'Calm'];
+    }
+
+    // A sensory note from the measured loud jumps alone, or '' if none.
+    public static function fallbackSensoryNote(array $f): string
+    {
+        $jumps = $f['loud_jumps'] ?? [];
+        if (!$jumps) {
+            return '';
+        }
+        $times = implode(', ', array_map(
+            fn ($s) => sprintf('%d:%02d', intdiv($s, 60), $s % 60),
+            $jumps,
+        ));
+        return "Has sudden loud moments around {$times}.";
+    }
+
     /* The measurements as plain lines for the AI prompt. */
     public static function describe(array $f): string
     {

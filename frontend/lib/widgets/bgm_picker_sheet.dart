@@ -996,6 +996,12 @@ class _UploadResultDialog extends StatelessWidget {
                 context.tr('bgm.untagged'),
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
+            // The AI couldn't listen yet: tags came from the rhythm.
+            if (tagged && track.aiSummary == null) ...[
+              const SizedBox(height: 14),
+              Text(context.tr('bgm.rhythm_only'),
+                  style: const TextStyle(color: AppColors.textSecondary)),
+            ],
             if (track.aiSummary != null) ...[
               const SizedBox(height: 14),
               Text(track.aiSummary!),

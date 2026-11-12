@@ -346,6 +346,13 @@ PROMPT;
         'Acoustic', 'Electronic', 'Folk & World',
     ];
 
+    /* Given when the genre can't be settled (the two listens disagree, or
+       the AI couldn't listen at all). Never offered to the AI itself. */
+    public const OTHER_GENRE = 'Others';
+
+    // Every genre a track can carry: the AI's genres, then Others.
+    public const ALL_GENRES = [...self::MUSIC_GENRES, self::OTHER_GENRE];
+
     // Single or older genre names, mapped to the genre that now covers them.
     public const GENRE_ALIASES = [
         'classical' => 'Classical & Cinematic',
@@ -360,7 +367,7 @@ PROMPT;
     public static function canonicalGenre(?string $name): ?string
     {
         $name = trim((string) $name);
-        foreach (self::MUSIC_GENRES as $g) {
+        foreach (self::ALL_GENRES as $g) {
             if (strcasecmp($g, $name) === 0) {
                 return $g;
             }
@@ -400,8 +407,8 @@ PROMPT;
     /* Like analyseMusic, but Gemini listens twice (at the same time, so it
        takes no longer) and the genre is kept only when both listens agree.
        Tested on 32 labelled clips, a genre it gave differently between two
-       listens was nearly always a wrong one, so an unsure genre is left
-       blank (null) instead of shown. Emotions both listens gave come first.
+       listens was nearly always a wrong one, so an unsure genre becomes
+       Others instead of a guess. Emotions both listens gave come first.
        Adds 'genre_votes' => [first, second] to the result. */
     public function analyseMusicTwice(string $audioBytes, string $mimeType, string $title, array $vocabulary, ?array $rhythm = null): ?array
     {
@@ -451,7 +458,7 @@ PROMPT;
         $a = $answers[0];
         $b = $answers[1] ?? null;
         if ($b === null) {
-            return $a + ['genre_votes' => [$a['genre']]];
+            return ['genre' => $a['genre'] ?? self::OTHER_GENRE] + $a + ['genre_votes' => [$a['genre']]];
         }
 
         // Emotions both listens heard first, then topped up to at least 3.
@@ -467,7 +474,8 @@ PROMPT;
         }
 
         return [
-            'genre'         => $a['genre'] !== null && $a['genre'] === $b['genre'] ? $a['genre'] : null,
+            // Disagreement -> Others: every track still gets a genre.
+            'genre'         => $a['genre'] !== null && $a['genre'] === $b['genre'] ? $a['genre'] : self::OTHER_GENRE,
             'tags'          => array_slice($tags, 0, 6),
             'tempo'         => $a['tempo'] ?? $b['tempo'],
             'summary'       => $a['summary'] !== '' ? $a['summary'] : $b['summary'],

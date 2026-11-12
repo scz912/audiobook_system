@@ -111,6 +111,28 @@ class AudioRhythmAnalyzerTest extends TestCase
         $this->assertNull((new AudioRhythmAnalyzer())->analysePcm(str_repeat("\0\0", 2 * self::RATE)));
     }
 
+    public function test_fallback_labels_from_rhythm_alone(): void
+    {
+        // Lively: a quick steady beat with an offbeat tick.
+        $lively = $this->analyse($this->beats(128, 30, offbeat: true));
+        $this->assertSame(['Energetic', 'Upbeat', 'Playful'], AudioRhythmAnalyzer::fallbackEmotions($lively));
+
+        // Calm: no pulse at all.
+        mt_srand(3);
+        $s = [];
+        for ($i = 0; $i < 30 * self::RATE; $i++) {
+            $s[] = 0.2 * (mt_rand() / mt_getrandmax() * 2 - 1);
+        }
+        $calm = $this->analyse($this->pcm($s));
+        $this->assertSame(['Calm', 'Peaceful', 'Gentle'], AudioRhythmAnalyzer::fallbackEmotions($calm));
+        $this->assertSame('', AudioRhythmAnalyzer::fallbackSensoryNote($calm));
+
+        $this->assertSame(
+            'Has sudden loud moments around 0:20, 1:32.',
+            AudioRhythmAnalyzer::fallbackSensoryNote(['loud_jumps' => [20, 92]]),
+        );
+    }
+
     public function test_description_reads_plainly(): void
     {
         $f = $this->analyse($this->beats(100, 20));

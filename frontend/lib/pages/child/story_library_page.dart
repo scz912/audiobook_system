@@ -12,6 +12,7 @@ import '../../services/database_service.dart';
 import '../../services/quran_pack_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/difficulty_badge.dart';
 import '../../widgets/marquee_text.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/empty_state.dart';
@@ -462,8 +463,12 @@ class _StoryGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Just the cover and the title: no age or type labels to read.
-    return Material(
+    // The cover and the title, with the difficulty tag over the cover's
+    // top-right corner.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(child: Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -497,6 +502,14 @@ class _StoryGridTile extends StatelessWidget {
           ),
         ),
       ),
+    )),
+        // In front of the cover, over its top-right corner; taps go to the card.
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IgnorePointer(child: DifficultyBadge(difficulty: story.difficulty)),
+        ),
+      ],
     );
   }
 }

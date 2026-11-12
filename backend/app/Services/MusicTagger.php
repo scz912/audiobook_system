@@ -23,10 +23,13 @@ class MusicTagger
         private AudioRhythmAnalyzer $rhythm,
     ) {}
 
-    /* ['measured' => rhythm numbers or null, 'analysis' => Gemini's genre,
-       tags, tempo, summary and sensory notes, or null]. Either can be null
-       (no ffmpeg, no Gemini key, a failed call); the caller keeps the track
-       either way. [vocabulary] is the emotion tags already in use. */
+    /* ['measured' => rhythm numbers or null, 'analysis' => genre, emotion
+       tags, tempo, summary and sensory notes]. 'analysis.source' says where
+       they came from: 'ai' (Gemini listened), 'rhythm' (the AI couldn't, so
+       the genre is Others and the emotions come from the rhythm), or
+       'none' (nothing could be measured or heard: Others, no emotions).
+       So every track always gets a genre. [vocabulary] is the emotion tags
+       already in use. */
     public function tag(string $mp3Path, string $title, array $vocabulary, bool $hasFfmpeg): array
     {
         $measured = $hasFfmpeg ? $this->rhythm->analyseFile($mp3Path) : null;
@@ -41,6 +44,24 @@ class MusicTagger
             if ($cleanup) {
                 @unlink($cleanup);
             }
+        }
+
+        if ($analysis !== null) {
+            $analysis['source'] = 'ai';
+        } elseif ($measured !== null) {
+            $analysis = [
+                'genre'         => GeminiService::OTHER_GENRE,
+                'tags'          => AudioRhythmAnalyzer::fallbackEmotions($measured),
+                'tempo'         => null,
+                'summary'       => '',
+                'sensory_notes' => AudioRhythmAnalyzer::fallbackSensoryNote($measured),
+                'source'        => 'rhythm',
+            ];
+        } else {
+            $analysis = [
+                'genre' => GeminiService::OTHER_GENRE, 'tags' => [], 'tempo' => null,
+                'summary' => '', 'sensory_notes' => '', 'source' => 'none',
+            ];
         }
 
         return ['measured' => $measured, 'analysis' => $analysis];

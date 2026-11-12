@@ -105,7 +105,7 @@ class MusicGenreTaggingTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    public function test_two_listens_that_disagree_leave_the_genre_blank(): void
+    public function test_two_listens_that_disagree_give_others(): void
     {
         $this->fakeTwoListens(
             $this->answer('Pop', ['Happy', 'Upbeat']),
@@ -114,7 +114,7 @@ class MusicGenreTaggingTest extends TestCase
 
         $result = (new GeminiService())->analyseMusicTwice('bytes', 'audio/mp3', 'Song', ['Happy', 'Upbeat', 'Energetic']);
 
-        $this->assertNull($result['genre']);
+        $this->assertSame('Others', $result['genre']);
         $this->assertSame(['Pop', 'Electronic'], $result['genre_votes']);
         // Shared emotion first, then topped up to three.
         $this->assertSame(['Happy', 'Upbeat', 'Energetic'], $result['tags']);
