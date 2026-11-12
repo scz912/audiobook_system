@@ -165,6 +165,7 @@ class _IndependentShellState extends State<IndependentShell> {
           paigeKey: _paigeKey,
           onPaigeTap: _guide.start,
           showTopBooks: true,
+          recommendFromMusic: true,
         );
       case _storiesTab:
         return StoryLibraryPage(

@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
 import '../../models/insights_overview.dart';
+import '../../services/audiobook_recommender.dart';
 import '../../services/database_service.dart';
+import '../../services/music_taste_service.dart';
 import '../../services/reading_progress.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
@@ -27,6 +29,7 @@ class ChildHomePage extends StatefulWidget {
     this.paigeKey,
     this.onPaigeTap,
     this.showTopBooks = false,
+    this.recommendFromMusic = false,
   });
 
   // So a guide can ring the mood card and Paige.
@@ -36,6 +39,9 @@ class ChildHomePage extends StatefulWidget {
   final VoidCallback? onPaigeTap;
   // The personal account's own most-listened books ("Top 3 Books").
   final bool showTopBooks;
+  /* Personal account: with YouTube access allowed, today's pick is the
+     top "Recommended for you" book from Insights. */
+  final bool recommendFromMusic;
 
   @override
   State<ChildHomePage> createState() => _ChildHomePageState();
@@ -47,6 +53,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
   // (child_id, date) so the lock survives restarts and clears at midnight.
   bool _moodLockedForToday = false;
   ContentItem? _featured;
+  // Finished books, the ones today's pick is chosen from.
+  List<ContentItem> _readyBooks = const [];
   // The book this child left part-way through, if any.
   ReadingProgress? _progress;
   // Most-listened books, when [ChildHomePage.showTopBooks]; null = loading.
@@ -130,9 +138,34 @@ class _ChildHomePageState extends State<ChildHomePage> {
     if (resp.success && resp.data is List<ContentItem>) {
       final items = resp.data as List<ContentItem>;
       // Only feature a finished book (skip ones still making pictures).
-      final ready = items.where((i) => i.status != 'processing').toList();
-      setState(() => _featured = ready.isNotEmpty ? ready.first : null);
+      _readyBooks = items.where((i) => i.status != 'processing').toList();
+      setState(() => _featured = _readyBooks.isNotEmpty ? _readyBooks.first : null);
+      await _pickRecommended();
     }
+  }
+
+  /* With YouTube access allowed on a personal account, today's pick is the
+     top "Recommended for you" book from Insights: the one whose background
+     music best suits the genres they listen to (genre tags) and today's
+     mood (emotion tags). Without access, or when nothing fits, the pick
+     above stays. Runs again when a mood is chosen. */
+  Future<void> _pickRecommended() async {
+    if (!widget.recommendFromMusic || _readyBooks.isEmpty) return;
+    final profiles = context.read<ProfilesState>();
+    final childId = profiles.activeProfile?.childId;
+
+    final status = await MusicTasteService.status();
+    if (!status.supported || !status.granted) return;
+    await MusicTasteService.sync();
+    final top = AudiobookRecommender.topGenres(await MusicTasteService.genreCounts());
+    if (top.isEmpty) return;
+
+    var mood = profiles.currentMood;
+    if (mood == null && childId != null) {
+      mood = (await SharedPreferences.getInstance()).getString(_todayMoodKey(childId));
+    }
+    final recs = AudiobookRecommender.recommend(_readyBooks, top, mood, limit: 1);
+    if (recs.isNotEmpty && mounted) setState(() => _featured = recs.first.book);
   }
 
   /* The storage key for [childId]'s mood today. Uses the local date, so a
@@ -293,6 +326,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
                       });
                       context.read<ProfilesState>().setMood(m.id);
                       if (childId != null) _saveMoodForToday(childId, m.id);
+                      // The mood can change which book fits best today.
+                      _pickRecommended();
                       AppSnackbar.success(
                         context.trRead('child.mood_saved').replaceAll(
                             '{mood}', context.trRead(m.labelKey)),
