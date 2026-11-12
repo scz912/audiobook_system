@@ -14,11 +14,20 @@ class MusicTasteStatus {
   // False on phones where it can't work (iPhone: no app may see others).
   final bool supported;
   final bool granted;
+  /* Android is running the listener. False with [granted] true means the
+     phone stopped it (battery savers): nothing is seen until it's back. */
+  final bool listening;
+  /* Android 13+ app installed from an APK file: the access switch may be
+     greyed out ("Restricted setting") until "Allow restricted settings"
+     is tapped in App info. */
+  final bool mayBeRestricted;
   final bool youtubeInstalled;
   final bool youtubeMusicInstalled;
   const MusicTasteStatus({
     required this.supported,
     required this.granted,
+    this.listening = false,
+    this.mayBeRestricted = false,
     this.youtubeInstalled = false,
     this.youtubeMusicInstalled = false,
   });
@@ -50,10 +59,18 @@ class MusicTasteService {
   static Future<MusicTasteStatus> status() async {
     if (!supported) return const MusicTasteStatus(supported: false, granted: false);
     try {
-      final s = await _channel.invokeMapMethod<String, dynamic>('status') ?? {};
+      var s = await _channel.invokeMapMethod<String, dynamic>('status') ?? {};
+      if (s['granted'] == true && s['listening'] != true) {
+        // Just after the app starts, Android may still be starting the
+        // listener (the status call also asked it to): look once more.
+        await Future.delayed(const Duration(seconds: 2));
+        s = await _channel.invokeMapMethod<String, dynamic>('status') ?? s;
+      }
       return MusicTasteStatus(
         supported: true,
         granted: s['granted'] == true,
+        listening: s['listening'] == true,
+        mayBeRestricted: s['mayBeRestricted'] == true,
         youtubeInstalled: s['youtubeInstalled'] == true,
         youtubeMusicInstalled: s['youtubeMusicInstalled'] == true,
       );
@@ -65,6 +82,11 @@ class MusicTasteService {
   // Android's notification-access page, at this app's switch.
   static Future<void> openSettings() async {
     if (supported) await _channel.invokeMethod('openSettings');
+  }
+
+  // This app's App info page (restricted settings, battery, autostart).
+  static Future<void> openAppInfo() async {
+    if (supported) await _channel.invokeMethod('openAppInfo');
   }
 
   static Future<void>? _syncing;

@@ -6,6 +6,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.NotificationListenerService
@@ -16,6 +17,24 @@ import android.service.notification.NotificationListenerService
    of them is playing, it notes the title and artist in MusicPlayLog. It
    reads no notifications' contents and nothing from any other app. */
 class MediaListenerService : NotificationListenerService() {
+    companion object {
+        /* True while Android has this listener running. Kept in memory, not
+           saved: if the app's process is killed, Android drops the listener
+           too, and this starts false again until Android binds it back. So
+           "access on but not listening" means the phone stopped it (battery
+           savers on Xiaomi, Oppo, Vivo, Huawei... do this). */
+        @Volatile
+        var connected = false
+            private set
+
+        // Ask Android to start the listener again after it was stopped.
+        fun rebind(context: android.content.Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                requestRebind(ComponentName(context, MediaListenerService::class.java))
+            }
+        }
+    }
+
     private val main = Handler(Looper.getMainLooper())
     private var sessions: MediaSessionManager? = null
     private val watched = mutableMapOf<MediaSession.Token, Pair<MediaController, MediaController.Callback>>()
@@ -26,6 +45,7 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        connected = true
         val manager = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
         sessions = manager
         val me = ComponentName(this, MediaListenerService::class.java)
@@ -41,7 +61,11 @@ class MediaListenerService : NotificationListenerService() {
         sessions?.removeOnActiveSessionsChangedListener(onSessionsChanged)
         for ((controller, callback) in watched.values) controller.unregisterCallback(callback)
         watched.clear()
+        connected = false
         super.onListenerDisconnected()
+        // Disconnected while access is still on (the phone stopped us): ask
+        // to come back, or YouTube goes unseen until the phone restarts.
+        rebind(this)
     }
 
     // Watch the YouTube players that are open now; stop watching closed ones.

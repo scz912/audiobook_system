@@ -99,14 +99,29 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
   }
 
   Future<void> _askForAccess() async {
+    // Android 13+ with an APK install: the switch may be locked until
+    // "Allow restricted settings" is tapped in App info, so say how.
+    final restricted = _status?.mayBeRestricted == true;
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(ctx.tr('music.allow_title')),
-        content: SingleChildScrollView(child: Text(ctx.tr('music.allow_explain'))),
+        content: SingleChildScrollView(
+          child: Text(restricted
+              ? '${ctx.tr('music.allow_explain')}\n\n${ctx.tr('music.restricted_hint')}'
+              : ctx.tr('music.allow_explain')),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ctx.tr('music.not_now'))),
+          if (restricted)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx, false);
+                MusicTasteService.openAppInfo();
+              },
+              child: Text(ctx.tr('music.open_app_info')),
+            ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.primaryBlueDark),
             onPressed: () => Navigator.pop(ctx, true),
@@ -152,10 +167,23 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
   Widget _genres(BuildContext context) {
     final gate = _gate(context);
     if (gate != null) return gate;
-    if (_top.isEmpty) return _Notice(icon: Icons.music_note_rounded, text: context.tr('music.no_plays'));
+    // Access is on but the phone stopped the listener: say so, or the
+    // card would just wait for plays that never get seen.
+    final paused = !_status!.listening
+        ? _Notice(
+            icon: Icons.battery_alert_rounded,
+            text: context.tr('music.paused'),
+            action: TextButton(
+              onPressed: MusicTasteService.openAppInfo,
+              child: Text(context.tr('music.open_app_info')),
+            ),
+          )
+        : null;
+    if (_top.isEmpty) return paused ?? _Notice(icon: Icons.music_note_rounded, text: context.tr('music.no_plays'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (paused != null) ...[paused, const Divider(height: 24)],
         for (var i = 0; i < _top.length; i++) ...[
           if (i > 0) const SizedBox(height: 14),
           _GenreRow(
@@ -244,7 +272,8 @@ class _AllowPrompt extends StatelessWidget {
 class _Notice extends StatelessWidget {
   final IconData icon;
   final String text;
-  const _Notice({required this.icon, required this.text});
+  final Widget? action;
+  const _Notice({required this.icon, required this.text, this.action});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -254,6 +283,7 @@ class _Notice extends StatelessWidget {
             Icon(icon, size: 36, color: AppColors.textMuted),
             const SizedBox(height: 8),
             Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+            if (action != null) ...[const SizedBox(height: 6), action!],
           ],
         ),
       );
