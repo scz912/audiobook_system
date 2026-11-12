@@ -6,6 +6,7 @@ import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
 import '../../services/audiobook_recommender.dart';
 import '../../services/database_service.dart';
+import '../../services/music_genres.dart';
 import '../../services/music_taste_service.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
@@ -32,7 +33,10 @@ class MusicTasteSections extends StatefulWidget {
 
 class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBindingObserver {
   MusicTasteStatus? _status;
+  // The card's rows: the top genres, then Others (songs of unknown genre).
   List<GenreShare> _top = const [];
+  // The top genres alone, which the recommendations go by.
+  List<GenreShare> _tasteTop = const [];
   Map<String, int> _counts = const {};
   List<Recommendation> _recs = const [];
   String? _mood;
@@ -69,10 +73,11 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
     }
     await MusicTasteService.sync();
     final counts = await MusicTasteService.genreCounts();
-    final top = AudiobookRecommender.topGenres(counts);
+    final top = AudiobookRecommender.topGenres(counts, withOthers: true);
+    final tasteTop = AudiobookRecommender.topGenres(counts);
     final mood = await _todaysMood();
     var books = <ContentItem>[];
-    if (top.isNotEmpty) {
+    if (tasteTop.isNotEmpty) {
       final resp = await DatabaseService.getContentList();
       if (resp.success && resp.data is List<ContentItem>) books = resp.data as List<ContentItem>;
     }
@@ -81,8 +86,9 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
       _status = status;
       _counts = counts;
       _top = top;
+      _tasteTop = tasteTop;
       _mood = mood;
-      _recs = AudiobookRecommender.recommend(books, top, mood);
+      _recs = AudiobookRecommender.recommend(books, tasteTop, mood);
       _loading = false;
     });
   }
@@ -98,30 +104,22 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
     return (await SharedPreferences.getInstance()).getString('mood_${childId}_$ymd');
   }
 
+  /* Set once the person has been sent to Android's access page. If they
+     come back still without access on an Android 13+ APK install, the
+     switch was most likely locked ("Restricted setting"), so the card
+     then shows how to unlock it. Not before: Android only offers "Allow
+     restricted settings" in App info after the locked switch was tapped. */
+  bool _triedSettings = false;
+
   Future<void> _askForAccess() async {
-    // Android 13+ with an APK install: the switch may be locked until
-    // "Allow restricted settings" is tapped in App info, so say how.
-    final restricted = _status?.mayBeRestricted == true;
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(ctx.tr('music.allow_title')),
-        content: SingleChildScrollView(
-          child: Text(restricted
-              ? '${ctx.tr('music.allow_explain')}\n\n${ctx.tr('music.restricted_hint')}'
-              : ctx.tr('music.allow_explain')),
-        ),
+        content: SingleChildScrollView(child: Text(ctx.tr('music.allow_explain'))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ctx.tr('music.not_now'))),
-          if (restricted)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx, false);
-                MusicTasteService.openAppInfo();
-              },
-              child: Text(ctx.tr('music.open_app_info')),
-            ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.primaryBlueDark),
             onPressed: () => Navigator.pop(ctx, true),
@@ -130,7 +128,10 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
         ],
       ),
     );
-    if (go == true) await MusicTasteService.openSettings();
+    if (go == true) {
+      _triedSettings = true;
+      await MusicTasteService.openSettings();
+    }
   }
 
   @override
@@ -160,7 +161,9 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
     }
     final status = _status!;
     if (!status.supported) return _Notice(icon: Icons.phone_android_rounded, text: context.tr('music.not_supported'));
-    if (!status.granted) return _AllowPrompt(onAllow: _askForAccess);
+    if (!status.granted) {
+      return _AllowPrompt(onAllow: _askForAccess, showUnlock: _triedSettings && status.mayBeRestricted);
+    }
     return null;
   }
 
@@ -187,7 +190,8 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
         for (var i = 0; i < _top.length; i++) ...[
           if (i > 0) const SizedBox(height: 14),
           _GenreRow(
-            rank: i + 1,
+            // Others isn't ranked: it's not a taste.
+            rank: _top[i].genre == otherGenre ? 0 : i + 1,
             label: context.tr('music.genre.${_top[i].genre}'),
             plays: _counts[_top[i].genre] ?? 0,
             share: _top[i].share,
@@ -208,7 +212,7 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
   Widget _recommendations(BuildContext context) {
     final gate = _gate(context);
     if (gate != null) return gate;
-    if (_top.isEmpty) return _Notice(icon: Icons.auto_stories_rounded, text: context.tr('music.recs_need_plays'));
+    if (_tasteTop.isEmpty) return _Notice(icon: Icons.auto_stories_rounded, text: context.tr('music.recs_need_plays'));
     if (_recs.isEmpty) return _Notice(icon: Icons.auto_stories_rounded, text: context.tr('music.recs_none'));
     return Column(
       children: [
@@ -240,7 +244,9 @@ class _Header extends StatelessWidget {
 // The empty box with the way in.
 class _AllowPrompt extends StatelessWidget {
   final VoidCallback onAllow;
-  const _AllowPrompt({required this.onAllow});
+  // Show how to unlock a "Restricted setting" switch (see _triedSettings).
+  final bool showUnlock;
+  const _AllowPrompt({required this.onAllow, this.showUnlock = false});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -264,6 +270,19 @@ class _AllowPrompt extends StatelessWidget {
               icon: const Icon(Icons.lock_open_rounded, size: 18),
               label: Text(context.tr('music.allow')),
             ),
+            if (showUnlock) ...[
+              const SizedBox(height: 16),
+              Text(
+                context.tr('music.restricted_hint'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: MusicTasteService.openAppInfo,
+                child: Text(context.tr('music.open_app_info')),
+              ),
+            ],
           ],
         ),
       );
@@ -309,7 +328,7 @@ class _GenreRow extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: Text(
-            '$rank',
+            rank == 0 ? '?' : '$rank',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               color: rank == 1 ? Colors.white : AppColors.primaryBlueDark,

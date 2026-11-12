@@ -86,10 +86,15 @@ class AudiobookRecommender {
 
   /// Top listening genres from per-genre play counts: the [limit] most
   /// played, each with its share of those.
-  static List<GenreShare> topGenres(Map<String, int> counts, {int limit = 3}) {
-    final sorted = counts.entries.where((e) => e.value > 0).toList()
+  /* The [limit] most played genres, as shares of their plays together.
+     Others (songs of unknown genre) never takes a place: it says nothing
+     about taste. [withOthers] adds it after them, for showing on the card. */
+  static List<GenreShare> topGenres(Map<String, int> counts, {int limit = 3, bool withOthers = false}) {
+    final sorted = counts.entries.where((e) => e.value > 0 && e.key != otherGenre).toList()
       ..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : a.key.compareTo(b.key));
     final top = sorted.take(limit).toList();
+    final others = counts[otherGenre] ?? 0;
+    if (withOthers && others > 0) top.add(MapEntry(otherGenre, others));
     final total = top.fold<int>(0, (s, e) => s + e.value);
     return [for (final e in top) (genre: e.key, share: e.value / total)];
   }

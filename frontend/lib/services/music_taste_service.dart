@@ -48,11 +48,15 @@ class MusicTasteService {
   static const _channel = MethodChannel('autism_audiobook/music_taste');
   static const _genresKey = 'music_taste_genres';
   static const _pendingKey = 'music_taste_pending';
-  static const _cacheKey = 'music_taste_cache';
+  // Versioned: when title reading improves, songs not found before get another look.
+  static const _cacheKey = 'music_taste_cache_v4';
   static const _keepDays = 35;
-  // Apple asks for about 20 searches a minute at most; the rest wait for
-  // the next visit.
-  static const _lookupsPerSync = 20;
+  static const _retryMissDays = 3;
+  // Apple asks for about 20 searches a minute at most, and a song can take
+  // two; the rest wait for the next visit.
+  static const _lookupsPerSync = 10;
+
+  static int _today() => DateTime.now().millisecondsSinceEpoch ~/ Duration.millisecondsPerDay;
 
   static bool get supported => !kIsWeb && Platform.isAndroid;
 
@@ -102,7 +106,7 @@ class MusicTasteService {
     try {
       final plays = await _channel.invokeListMethod<Map>('takePlays') ?? [];
       for (final p in plays) {
-        pending.add({'title': '${p['title']}', 'artist': '${p['artist']}', 'at': p['at']});
+        pending.add({'title': '${p['title']}', 'artist': '${p['artist']}', 'app': '${p['app']}', 'at': p['at']});
       }
     } on MissingPluginException {
       return;
@@ -118,20 +122,30 @@ class MusicTasteService {
         final song = songFromPlay('${p['title']}', '${p['artist']}');
         final key = '${song.artist}|${song.title}'.toLowerCase();
         String? genre = cache[key];
+        // A song not found is looked for again after a few days (Apple
+        // may have been briefly unhelpful, or the app reads titles better).
+        if (genre != null && genre.startsWith('~')) {
+          final day = int.tryParse(genre.substring(1)) ?? 0;
+          genre = _today() - day < _retryMissDays ? '' : null;
+        }
         if (genre == null) {
           if (lookups >= _lookupsPerSync) {
             waiting.add(p);
             continue;
           }
           lookups++;
-          final found = await _lookUp(web, song);
+          final found = await _lookUp(web, song, '${p['title']} ${p['artist']}');
           if (found == null) {
             // The catalogue couldn't be reached: try again next time.
             waiting.add(p);
             continue;
           }
           genre = found;
-          cache[key] = genre;
+          cache[key] = genre.isEmpty ? '~${_today()}' : genre;
+        }
+        // Not found: a song still counts, under Others; other videos don't.
+        if (genre.isEmpty && looksLikeSong('${p['title']}', '${p['artist']}', '${p['app'] ?? ''}')) {
+          genre = otherGenre;
         }
         if (genre.isNotEmpty) genres.add({'genre': genre, 'at': p['at']});
       }
@@ -147,29 +161,40 @@ class MusicTasteService {
   }
 
   /* The listening genre of a song: '' when it isn't a song the catalogue
-     knows (or not music at all), null when the catalogue can't be reached. */
-  static Future<String?> _lookUp(http.Client web, ({String artist, String title}) song) async {
-    if (song.title.isEmpty) return '';
+     knows (or not music at all), null when the catalogue can't be reached.
+     A video that isn't one song (a compilation) gets the genre its own
+     words name, if any ([played] is its raw title and channel). */
+  static Future<String?> _lookUp(http.Client web, ({String artist, String title}) song, String played) async {
+    final named = genreFromWords(played) ?? '';
+    if (song.title.isEmpty) return named;
+    final country = catalogueCountryFor('${song.artist} ${song.title}');
+    // Artist and title together first; if that finds nothing, the title
+    // alone (extra names such as a cover singer make Apple return nothing).
+    final both = await _search(web, '${song.artist} ${song.title}', country);
+    if (both == null) return null;
+    final found = catalogueGenre(song, both, played: played);
+    if (found != null) return found;
+    if (song.artist.isEmpty) return named;
+    final alone = await _search(web, song.title, country);
+    if (alone == null) return null;
+    return titleOnlyGenre(song, alone) ?? named;
+  }
+
+  // One catalogue search: its results, or null when it can't be reached.
+  static Future<List<Map>?> _search(http.Client web, String term, String country) async {
     final uri = Uri.https('itunes.apple.com', '/search', {
-      'term': '${song.artist} ${song.title}'.trim(),
+      'term': term.replaceAll('/', ' ').trim(),
       'media': 'music',
       'entity': 'song',
-      'limit': '5',
+      'limit': '8',
+      'country': country,
+      // Genre names in English everywhere ("Mandopop", not "華語流行樂").
+      'lang': 'en_us',
     });
     try {
       final res = await web.get(uri).timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
-      final results = (jsonDecode(res.body)['results'] as List?) ?? const [];
-      var best = 0.0;
-      String? genre;
-      for (final r in results.whereType<Map>()) {
-        final m = songMatch(song, '${r['artistName'] ?? ''}', '${r['trackName'] ?? ''}');
-        if (m > best) {
-          best = m;
-          genre = listeningGenreFor('${r['primaryGenreName'] ?? ''}');
-        }
-      }
-      return best >= songMatchBar ? (genre ?? '') : '';
+      return ((jsonDecode(res.body)['results'] as List?) ?? const []).whereType<Map>().toList();
     } catch (_) {
       return null;
     }

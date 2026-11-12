@@ -12,6 +12,13 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    // Each time the app opens: if access is on but the phone stopped the
+    // listener (battery savers, "clean up" tools), ask for it back.
+    override fun onResume() {
+        super.onResume()
+        if (!MediaListenerService.connected && accessGranted()) MediaListenerService.rebind(this)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // The personal account's "Top Music Genre" (see MediaListenerService).

@@ -19,16 +19,38 @@ object MusicPlayLog {
     private const val KEEP_MS = 35L * 24 * 60 * 60 * 1000
     // The same song again within this time is the same listen (a pause, a seek).
     private const val SAME_LISTEN_MS = 10L * 60 * 1000
+    // A video's title can change this soon after it starts (see record).
+    private const val SETTLE_MS = 5_000L
 
     @Synchronized
     fun record(context: Context, app: String, title: String, artist: String) {
         val now = System.currentTimeMillis()
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val plays = read(context)
+        // Players often send the title first and the artist a moment later,
+        // so the same title soon after is the same listen: fill in the
+        // artist if it was missing, but don't count it again.
         val last = (plays.length() - 1 downTo 0).map { plays.getJSONObject(it) }.firstOrNull {
-            it.optString("title") == title && it.optString("artist") == artist
+            it.optString("title") == title
         }
         if (last != null && now - last.optLong("at") < SAME_LISTEN_MS) {
+            if (last.optString("artist").isEmpty() && artist.isNotEmpty()) {
+                last.put("artist", artist)
+                prefs.edit().putString(KEY_PLAYS, plays.toString()).apply()
+            }
+            return
+        }
+        // YouTube also renames a video moments after it starts: first the
+        // uploader's title ("ヨルシカ - 花に亡霊"), then the one translated for
+        // this phone ("Yorushika - Hana ni Bourei"). A new title from the
+        // same app within a few seconds is that same video, so it replaces
+        // the entry instead of counting again. (Nobody listens to a song
+        // for under 5 seconds anyway.)
+        val newest = if (plays.length() > 0) plays.getJSONObject(plays.length() - 1) else null
+        if (newest != null && newest.optString("app") == app && now - newest.optLong("at") < SETTLE_MS) {
+            newest.put("title", title)
+            if (artist.isNotEmpty()) newest.put("artist", artist)
+            prefs.edit().putString(KEY_PLAYS, plays.toString()).apply()
             return
         }
         val kept = JSONArray()
