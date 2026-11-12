@@ -93,11 +93,15 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
     duration: const Duration(seconds: 2),
   )..repeat();
 
-  // 0 = shelf, 1 = cups on sticks.
+  /* 0 = shelf, 1 = cups on sticks. The cups need more room under the
+     spheres than the shelf does, so the whole bar rebuilds through the
+     morph and grows smoothly with them. */
   late final AnimationController _morph = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 650),
-  );
+  )..addListener(() {
+      if (mounted) setState(() {});
+    });
   bool? _holders;
 
   /* The vertical bar's name pill floats over the page, so it only shows
@@ -181,16 +185,25 @@ class _ShelfNavBarState extends State<ShelfNavBar> with TickerProviderStateMixin
         final big = d * _focusScale;
         // Shelf top at its ends: room above for an enlarged, bobbing sphere.
         final shelfTopEnd = big * (0.5 + _perch) + _bobAmplitude + 4;
-        // The shelf runs to the edge of the screen, under the gesture bar
-        // (or, standing on the right, under any inset there) too.
-        // Standing on the right there is usually no inset, so give the
-        // shelf at least a gesture bar's worth, or it is only a sliver.
-        final edgeInset = widget.vertical ? math.max(padding.right, 24.0) : padding.bottom;
-        // Room below a closed sphere, down to the screen's edge: kept to
-        // 60% of what the label and gesture bar would take, so the spheres
-        // sit low (the label may run into the gesture bar's space).
-        final belowSphere =
-            0.6 * ((big - d) * (0.5 - _perch) + labelHeight + 4 + edgeInset);
+        /* The shelf runs to the edge of the screen, under the system's
+           navigation bar (or, standing on the right, under any inset
+           there) too. That bar can be a thin gesture line or a tall,
+           solid strip of back/home buttons, and either one covers what is
+           drawn under it, so the spheres - and in cup mode their cups -
+           always sit wholly above it. Standing on the right there is
+           usually no inset, so keep a little shelf there all the same, or
+           it is only a sliver. */
+        final edgeInset = widget.vertical ? math.max(padding.right, 14.0) : padding.bottom;
+        // How far a cup reaches below its (closed) sphere.
+        final cupBelow = _BowlPainter.depthBelowCenter(d / 2, _bowlGap) - d / 2;
+        // Room below a closed sphere, above the system bar: for the open
+        // tab's bigger sphere and its label (60% - the label may tuck in a
+        // little), or for the cups as they grow in.
+        final aboveInset = math.max(
+          0.6 * ((big - d) * (0.5 - _perch) + labelHeight + 4),
+          cupBelow * Curves.easeInOut.transform(_morph.value),
+        );
+        final belowSphere = aboveInset + edgeInset + 2;
         final height = shelfTopEnd + _sag + d * (0.5 - _perch) + belowSphere;
 
         // Shelf top at x: a gentle curve, lowest in the middle.

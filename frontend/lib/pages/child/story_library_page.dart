@@ -12,6 +12,7 @@ import '../../services/database_service.dart';
 import '../../services/quran_pack_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/quran_element_thumb.dart';
@@ -484,10 +485,9 @@ class _StoryGridTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Text(
+              MarqueeText(
                 story.title,
                 maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,

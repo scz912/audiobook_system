@@ -8,6 +8,7 @@ import '../i18n/i18n.dart';
 import '../models/music_track.dart';
 import '../services/database_service.dart';
 import '../theme/app_colors.dart';
+import 'adaptive_row.dart';
 
 /* Bottom sheet to browse and pick a background-music track. Returns the
    chosen [MusicTrack], or null if closed without picking. */
@@ -46,6 +47,8 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   Timer? _debounce;
 
   List<String> _allTags = [];
+  // Which of [_allTags] are genres (the rest are emotions).
+  Set<String> _genres = {};
   List<String> _compatibleTags = [];
   List<String> _selectedTags = [];
   List<MusicTrack> _tracks = [];
@@ -107,9 +110,12 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   Future<void> _loadTags() async {
     final resp = await DatabaseService.getMusicTrackTags();
     if (!mounted) return;
-    if (resp.success && resp.data is List) {
+    if (resp.success &&
+        resp.data is ({List<String> tags, Set<String> genres})) {
+      final data = resp.data as ({List<String> tags, Set<String> genres});
       setState(() {
-        _allTags = (resp.data as List).map((t) => t.toString()).toList();
+        _allTags = data.tags;
+        _genres = data.genres;
         _compatibleTags = List.from(_allTags);
         _loadingTags = false;
       });
@@ -384,6 +390,7 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
           if (!_loadingTags && _allTags.isNotEmpty)
             _TagFilterWrap(
               allTags: _allTags,
+              genres: _genres,
               compatibleTags:
                   _selectedTags.isEmpty ? _allTags : _compatibleTags,
               selectedTags: _selectedTags,
@@ -459,69 +466,140 @@ class _BgmPickerSheetState extends State<BgmPickerSheet> {
   }
 }
 
-/* Chip row that hides tags which wouldn't match the current selection. */
-class _TagFilterWrap extends StatelessWidget {
+/* Chip rows that hide tags which wouldn't match the current selection.
+
+   The tag list grows with every upload the AI tags, and each chip grows
+   with the phone's text size, so the chips can need any number of rows.
+   The box shows at most [_visibleRows] rows - measured in chips at the
+   current text size, not in fixed pixels - and scrolls for the rest. The
+   last row it shows is cut in half and the scrollbar stays visible, so it
+   is plain there are more tags below. */
+class _TagFilterWrap extends StatefulWidget {
   final List<String> allTags;
+  // Genre chips come first and carry a music note, so they read apart
+  // from the emotion chips.
+  final Set<String> genres;
   final List<String> compatibleTags;
   final List<String> selectedTags;
   final Future<void> Function(String) onToggle;
 
   const _TagFilterWrap({
     required this.allTags,
+    required this.genres,
     required this.compatibleTags,
     required this.selectedTags,
     required this.onToggle,
   });
 
   @override
+  State<_TagFilterWrap> createState() => _TagFilterWrapState();
+}
+
+class _TagFilterWrapState extends State<_TagFilterWrap> {
+  static const _fontSize = 13.0;
+  static const _padV = 7.0;
+  static const _runSpacing = 6.0;
+  static const _visibleRows = 2.5;
+
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // One chip's height at the current text size: a line of its text, its
+  // padding and its 1px border.
+  double _chipHeight(BuildContext context) {
+    final probe = TextPainter(
+      text: TextSpan(
+        text: 'Hg',
+        style: DefaultTextStyle.of(context).style.merge(
+            const TextStyle(fontSize: _fontSize, fontWeight: FontWeight.w600)),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final height = probe.height + _padV * 2 + 2;
+    probe.dispose();
+    return height;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selectedTags = widget.selectedTags;
     // Keep the picked tags shown even if the server omits them - they're
     // what's doing the filtering.
-    final visible = allTags
-        .where((t) => selectedTags.contains(t) || compatibleTags.contains(t))
+    final visible = widget.allTags
+        .where((t) =>
+            selectedTags.contains(t) || widget.compatibleTags.contains(t))
         .toList();
+    final maxHeight = _chipHeight(context) * _visibleRows +
+        _runSpacing * _visibleRows.floor();
 
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 102),
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: visible.map((tag) {
-              final selected = selectedTags.contains(tag);
-              return GestureDetector(
-                onTap: () => onToggle(tag),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.primaryBlueDark
-                        : AppColors.background,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Scrollbar(
+        controller: _scroll,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scroll,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: _runSpacing,
+              children: visible.map((tag) {
+                final selected = selectedTags.contains(tag);
+                final genre = widget.genres.contains(tag);
+                return GestureDetector(
+                  onTap: () => widget.onToggle(tag),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: _padV),
+                    decoration: BoxDecoration(
                       color: selected
                           ? AppColors.primaryBlueDark
-                          : AppColors.cardBorder,
+                          : genre
+                          ? AppColors.softLavender
+                          : AppColors.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.primaryBlueDark
+                            : AppColors.cardBorder,
+                      ),
+                    ),
+                    child: Text.rich(
+                      TextSpan(children: [
+                        if (genre)
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.music_note_rounded,
+                                  size: _fontSize + 1,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppColors.primaryBlueDark),
+                            ),
+                          ),
+                        TextSpan(text: tag),
+                      ]),
+                      style: TextStyle(
+                        fontSize: _fontSize,
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
       ),
@@ -559,131 +637,139 @@ class _TrackTile extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: selected
-                    ? AppColors.primaryBlueDark
-                    : AppColors.iconCircleBlue,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                selected
-                    ? Icons.music_note_rounded
-                    : Icons.music_note_outlined,
-                size: 22,
-                color:
-                    selected ? Colors.white : AppColors.primaryBlueDark,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? AppColors.primaryBlueDark
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                  if (track.composer != null &&
-                      track.composer!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      track.composer!,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary),
-                    ),
-                  ],
-                  if (track.tags.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      track.tags.take(3).join(' · '),
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textMuted),
-                    ),
-                  ],
-                  if (track.isUserUploaded || track.sensoryNotes != null) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        if (track.isUserUploaded) ...[
-                          const Icon(Icons.person_outline_rounded,
-                              size: 13, color: AppColors.textSecondary),
-                          const SizedBox(width: 3),
-                          Text(
-                            context.tr('bgm.your_upload'),
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        // AI flagged a sensory risk; tap to read it.
-                        if (track.sensoryNotes != null)
-                          Tooltip(
-                            message: track.sensoryNotes!,
-                            triggerMode: TooltipTriggerMode.tap,
-                            child: const Icon(Icons.warning_amber_rounded,
-                                size: 15, color: AppColors.warning),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (track.durationSecs != null)
-              Text(
-                _fmt(track.durationSecs),
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary),
-              ),
-            const SizedBox(width: 4),
-            // Preview play/pause - does not pick the track.
-            GestureDetector(
-              onTap: onPlayTap,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: isPreviewLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primaryBlueDark),
-                      )
-                    : Icon(
-                        isPlaying
-                            ? Icons.pause_circle_rounded
-                            : Icons.play_circle_rounded,
-                        size: 32,
-                        color: isPlaying
-                            ? AppColors.primaryBlueDark
-                            : AppColors.textMuted,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              selected
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
+        // On a narrow screen the play and pick buttons drop under the
+        // track's details.
+        child: AdaptiveRow(
+          gap: 12,
+          trailingGap: 4,
+          runGap: 2,
+          minBodyWidth: 120,
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
               color: selected
                   ? AppColors.primaryBlueDark
-                  : AppColors.cardBorder,
-              size: 22,
+                  : AppColors.iconCircleBlue,
+              shape: BoxShape.circle,
             ),
-          ],
+            child: Icon(
+              selected
+                  ? Icons.music_note_rounded
+                  : Icons.music_note_outlined,
+              size: 22,
+              color:
+                  selected ? Colors.white : AppColors.primaryBlueDark,
+            ),
+          ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                track.title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? AppColors.primaryBlueDark
+                      : AppColors.textPrimary,
+                ),
+              ),
+              if (track.composer != null &&
+                  track.composer!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  track.composer!,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary),
+                ),
+              ],
+              if (track.genre != null || track.tags.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  [?track.genre, ...track.tags.take(3)].join(' · '),
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
+              if (track.isUserUploaded || track.sensoryNotes != null) ...[
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    if (track.isUserUploaded) ...[
+                      const Icon(Icons.person_outline_rounded,
+                          size: 13, color: AppColors.textSecondary),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          context.tr('bgm.your_upload'),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    // AI flagged a sensory risk; tap to read it.
+                    if (track.sensoryNotes != null)
+                      Tooltip(
+                        message: track.sensoryNotes!,
+                        triggerMode: TooltipTriggerMode.tap,
+                        child: const Icon(Icons.warning_amber_rounded,
+                            size: 15, color: AppColors.warning),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (track.durationSecs != null)
+                Text(
+                  _fmt(track.durationSecs),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              const SizedBox(width: 4),
+              // Preview play/pause - does not pick the track.
+              GestureDetector(
+                onTap: onPlayTap,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: isPreviewLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primaryBlueDark),
+                        )
+                      : Icon(
+                          isPlaying
+                              ? Icons.pause_circle_rounded
+                              : Icons.play_circle_rounded,
+                          size: 32,
+                          color: isPlaying
+                              ? AppColors.primaryBlueDark
+                              : AppColors.textMuted,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected
+                    ? AppColors.primaryBlueDark
+                    : AppColors.cardBorder,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -811,7 +897,18 @@ class _UploadResultDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tagged = track.tags.isNotEmpty;
+    final tagged = track.tags.isNotEmpty || track.genre != null;
+    const heading = TextStyle(fontWeight: FontWeight.w700);
+    // What was measured from the audio, in words.
+    final String? rhythm = switch (track.beat) {
+      'none' => context.tr('bgm.rhythm_free'),
+      'steady' || 'loose' when track.bpm != null => context
+          .tr('bgm.rhythm_bpm')
+          .replaceAll('{bpm}', '${track.bpm}')
+          .replaceAll('{pulse}',
+              context.tr(track.beat == 'steady' ? 'bgm.pulse_steady' : 'bgm.pulse_loose')),
+      _ => null,
+    };
     return AlertDialog(
       title: Text(context.tr('bgm.added').replaceAll('{title}', track.title)),
       content: SingleChildScrollView(
@@ -819,9 +916,47 @@ class _UploadResultDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (tagged) ...[
-              Text(context.tr('bgm.ai_tags'),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            if (track.genre != null) ...[
+              Text(context.tr('bgm.genre'), style: heading),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.softLavender,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.music_note_rounded,
+                        size: 14, color: AppColors.primaryBlueDark),
+                    const SizedBox(width: 4),
+                    Text(track.genre!,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryBlueDark)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            if (rhythm != null) ...[
+              Text(context.tr('bgm.rhythm'), style: heading),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.graphic_eq_rounded,
+                      size: 18, color: AppColors.primaryBlueDark),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(rhythm)),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
+            if (track.tags.isNotEmpty) ...[
+              Text(context.tr('bgm.ai_tags'), style: heading),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -855,7 +990,8 @@ class _UploadResultDialog extends StatelessWidget {
                     ),
                 ],
               ),
-            ] else
+            ],
+            if (!tagged)
               Text(
                 context.tr('bgm.untagged'),
                 style: const TextStyle(color: AppColors.textSecondary),

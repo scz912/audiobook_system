@@ -13,7 +13,9 @@
       "Bash(php -l database/migrations/2025_05_16_000005_add_video_to_audiobooks_table.php)",
       "Bash(php -l app/Models/Audiobook.php)",
       "Bash(powershell -Command \"\\(Get-Content .env\\) -replace 'GEMINI_TEXT_MODEL=gemini-2.0-flash', 'GEMINI_TEXT_MODEL=gemini-2.5-flash' | Set-Content .env -Encoding utf8\")",
-      "Bash(curl -s -o k__TRACKED_VAR__.jpg -w 'req__TRACKED_VAR__: HTTP %{http_code} type=%{content_type} bytes=%{size_download} time=%{time_total}s\\\\n' -H 'Authorization: Bearer sk_eLTz1ytqwhAGyFn1lm8uKsRo5oIyVvHl' 'https://image.pollinations.ai/prompt/a%20gentle%20pastel%20storybook%20illustration%20of%20a%20friendly%20animal%20scene%20number%20__TRACKED_VAR__?width=768&height=512&seed=__TRACKED_VAR__')"
+      "Bash(curl -s -o k__TRACKED_VAR__.jpg -w 'req__TRACKED_VAR__: HTTP %{http_code} type=%{content_type} bytes=%{size_download} time=%{time_total}s\\\\n' -H 'Authorization: Bearer sk_eLTz1ytqwhAGyFn1lm8uKsRo5oIyVvHl' 'https://image.pollinations.ai/prompt/a%20gentle%20pastel%20storybook%20illustration%20of%20a%20friendly%20animal%20scene%20number%20__TRACKED_VAR__?width=768&height=512&seed=__TRACKED_VAR__')",
+      "$defaults",
+      "Unzipping and running the ffmpeg build Claude downloaded into its scratchpad folder (gyan.dev, checksum-verified), and running php artisan music:evaluate / music:analyse with FFMPEG_PATH pointing at it"
     ]
   }
 }

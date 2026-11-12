@@ -793,32 +793,31 @@ class _InteractionSettingsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: AppColors.iconCirclePurple,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.touch_app_rounded,
-                    size: 18, color: AppColors.primaryBlueDark),
+          // On a narrow screen the guide button drops under the title.
+          AdaptiveRow(
+            gap: 10,
+            runGap: 4,
+            minBodyWidth: 120,
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: AppColors.iconCirclePurple,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(context.tr('upload.interactions'),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
-              ),
-              TextButton.icon(
-                onPressed: onShowGuide,
-                style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primaryBlueDark),
-                icon: const Icon(Icons.help_outline_rounded, size: 18),
-                label: Text(context.tr('upload.guide')),
-              ),
-            ],
+              child: const Icon(Icons.touch_app_rounded,
+                  size: 18, color: AppColors.primaryBlueDark),
+            ),
+            body: Text(context.tr('upload.interactions'),
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700)),
+            trailing: TextButton.icon(
+              onPressed: onShowGuide,
+              style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryBlueDark),
+              icon: const Icon(Icons.help_outline_rounded, size: 18),
+              label: Text(context.tr('upload.guide')),
+            ),
           ),
           const SizedBox(height: 12),
           _Label(context.tr('upload.interaction_frequency'),

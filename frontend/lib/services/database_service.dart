@@ -841,13 +841,20 @@ class DatabaseService {
     return resp;
   }
 
-  // Return all distinct tags across active tracks (sorted).
+  /* All the filter tags across active tracks: genres first, then emotion
+     tags A-Z. `data` is ({List<String> tags, Set<String> genres}), where
+     [genres] says which of the tags are genres. */
   static Future<ApiResponse> getMusicTrackTags() async {
     final resp = await _post('/music-tracks/tags');
     if (resp.success && resp.data is Map<String, dynamic>) {
-      final raw = (resp.data as Map<String, dynamic>)['tags'];
-      final list = raw is List ? raw.map((t) => t.toString()).toList() : <String>[];
-      return ApiResponse(success: true, message: resp.message, data: list);
+      final map = resp.data as Map<String, dynamic>;
+      List<String> words(Object? raw) =>
+          raw is List ? raw.map((t) => t.toString()).toList() : <String>[];
+      return ApiResponse(
+        success: true,
+        message: resp.message,
+        data: (tags: words(map['tags']), genres: words(map['genres']).toSet()),
+      );
     }
     return resp;
   }

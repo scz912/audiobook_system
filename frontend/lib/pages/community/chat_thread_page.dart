@@ -11,6 +11,7 @@ import '../../models/community/conversation.dart';
 import '../../models/content_item.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/adaptive_row.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/chat_background.dart';
@@ -293,22 +294,20 @@ class _BlockedBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            const Icon(Icons.block_rounded, color: AppColors.danger, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                context.tr('contacts.you_blocked').replaceAll('{name}', name),
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: onUnblock,
-              child: Text(context.tr('contacts.unblock'),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ],
+        // On a narrow screen the button drops under the message.
+        child: AdaptiveRow(
+          gap: 10,
+          runGap: 2,
+          leading: const Icon(Icons.block_rounded, color: AppColors.danger, size: 20),
+          body: Text(
+            context.tr('contacts.you_blocked').replaceAll('{name}', name),
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          trailing: TextButton(
+            onPressed: onUnblock,
+            child: Text(context.tr('contacts.unblock'),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
         ),
       ),
     );

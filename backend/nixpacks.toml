@@ -15,4 +15,7 @@ nixPkgs = ["...", "ffmpeg"]
 cmds = ["composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev"]
 
 [start]
-cmd = "php artisan migrate --force && (php artisan storage:link || true) && (php artisan queue:work --sleep=1 --tries=1 --timeout=1800 &) && php artisan serve --host 0.0.0.0 --port $PORT"
+# music:analyse gives any track without a genre one (and measures its rhythm),
+# in the background so the server starts at once. Once every track has a
+# genre it finds nothing to do.
+cmd = "php artisan migrate --force && (php artisan storage:link || true) && (php artisan queue:work --sleep=1 --tries=1 --timeout=1800 &) && ((php artisan music:analyse > storage/logs/music-analyse.log 2>&1 || true) &) && php artisan serve --host 0.0.0.0 --port $PORT"

@@ -6,6 +6,7 @@ import '../../models/community/contact_settings.dart';
 import '../../services/database_service.dart';
 import '../../state/chat_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/adaptive_row.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/soft_card.dart';
@@ -150,41 +151,37 @@ class _ContactListSubpageState extends State<ContactListSubpage> {
                 child: SoftCard(
                   padding: const EdgeInsets.all(12),
                   onTap: () => _openProfile(p),
-                  child: Row(
-                    children: [
-                      MemberAvatar(
-                        emoji: p.member.avatarEmoji,
-                        colorHex: p.member.avatarColor,
-                        size: 46,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(p.member.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 16)),
-                      ),
-                      if (_busy.contains(p.member.caregiverId))
-                        const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else if (_favorites)
-                        IconButton(
-                          tooltip: context.tr('contacts.remove_favorite'),
-                          onPressed: () => _remove(p),
-                          icon: const Icon(Icons.star_rounded,
-                              color: Color(0xFFE0A100)),
-                        )
-                      else
-                        TextButton(
-                          onPressed: () => _remove(p),
-                          child: Text(context.tr('contacts.unblock'),
-                              style: const TextStyle(fontWeight: FontWeight.w700)),
-                        ),
-                    ],
+                  // On a narrow screen the button drops under the name.
+                  child: AdaptiveRow(
+                    gap: 12,
+                    leading: MemberAvatar(
+                      emoji: p.member.avatarEmoji,
+                      colorHex: p.member.avatarColor,
+                      size: 46,
+                    ),
+                    body: Text(p.member.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+                    trailing: _busy.contains(p.member.caregiverId)
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : _favorites
+                        ? IconButton(
+                            tooltip: context.tr('contacts.remove_favorite'),
+                            onPressed: () => _remove(p),
+                            icon: const Icon(Icons.star_rounded,
+                                color: Color(0xFFE0A100)),
+                          )
+                        : TextButton(
+                            onPressed: () => _remove(p),
+                            child: Text(context.tr('contacts.unblock'),
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
+                          ),
                   ),
                 ),
               ),

@@ -6,6 +6,7 @@ import '../../models/content_item.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/emoji_picker_button.dart';
 import '../../widgets/soft_card.dart';
@@ -190,9 +191,8 @@ class _ShareToHubPageState extends State<ShareToHubPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(book.title,
+              child: MarqueeText(book.title,
                   maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             if (selected)

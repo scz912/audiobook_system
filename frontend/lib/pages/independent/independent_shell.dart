@@ -164,6 +164,7 @@ class _IndependentShellState extends State<IndependentShell> {
           moodCardKey: _moodKey,
           paigeKey: _paigeKey,
           onPaigeTap: _guide.start,
+          showTopBooks: true,
         );
       case _storiesTab:
         return StoryLibraryPage(

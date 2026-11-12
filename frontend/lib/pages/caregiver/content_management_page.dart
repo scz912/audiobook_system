@@ -9,6 +9,8 @@ import '../../models/content_summary.dart';
 import '../../services/api_service.dart';
 import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/adaptive_row.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/segmented_slider.dart';
 import '../../widgets/soft_chip.dart';
@@ -229,40 +231,36 @@ class _ContentManagementPageState extends State<ContentManagementPage> {
       child: ListView(
         padding: EdgeInsets.fromLTRB(20, 16, 20, shelfBottomSpace(context)),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: WholeWordsText(
-                  context.tr('content.title'),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    height: 1.15,
-                    color: AppColors.textPrimary,
-                  ),
+          AdaptiveRow(
+            body: WholeWordsText(
+              context.tr('content.title'),
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                height: 1.15,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            trailing: FilledButton.icon(
+              onPressed: () async {
+                // After the upload page closes, refresh so the new book
+                // shows up right away.
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const UploadContentPage()),
+                );
+                if (mounted) await _refresh();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: AppColors.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              FilledButton.icon(
-                onPressed: () async {
-                  // After the upload page closes, refresh so the new book
-                  // shows up right away.
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const UploadContentPage()),
-                  );
-                  if (mounted) await _refresh();
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: AppColors.textPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: const Icon(Icons.upload, size: 18),
-                label: Text(context.tr('common.upload')),
-              ),
-            ],
+              icon: const Icon(Icons.upload, size: 18),
+              label: Text(context.tr('common.upload')),
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -505,59 +503,59 @@ class _ContentTile extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
                     18, 18, (showMenu || showCancel) ? 4 : 18, 18),
-                child: Row(
-                  children: [
-                    _Thumbnail(
-                      imageUrl: item.coverImage,
-                      meta: meta,
-                      processing: processing,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.title,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w700)),
-                          if (item.topic != null || item.difficulty != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                [item.topic, item.difficulty]
-                                    .whereType<String>()
-                                    .join(' • '),
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 13),
-                              ),
-                            ),
-                          if (!processing)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.play_circle_outline,
-                                      size: 15,
-                                      color: AppColors.primaryBlueDark),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    tapToPreviewLabel,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.primaryBlueDark,
-                                    ),
+                // On a narrow screen the badge drops under the details.
+                child: AdaptiveRow(
+                  leading: _Thumbnail(
+                    imageUrl: item.coverImage,
+                    meta: meta,
+                    processing: processing,
+                  ),
+                  body: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Two lines; a longer title scrolls up through them.
+                      MarqueeText(item.title,
+                          maxLines: 2,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      if (item.topic != null || item.difficulty != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            [item.topic, item.difficulty]
+                                .whereType<String>()
+                                .join(' • '),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13),
+                          ),
+                        ),
+                      if (!processing)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.play_circle_outline,
+                                  size: 15,
+                                  color: AppColors.primaryBlueDark),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  tapToPreviewLabel,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryBlueDark,
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    processing ? _generatingBadge(context) : _typeBadge(context, meta),
-                  ],
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  trailing: processing ? _generatingBadge(context) : _typeBadge(context, meta),
                 ),
               ),
             ),

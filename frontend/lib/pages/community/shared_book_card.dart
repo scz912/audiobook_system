@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../i18n/i18n.dart';
 import '../../models/community/shared_book.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/marquee_text.dart';
 import '../child/audio_player_page.dart';
 
 /* Save a shared book into my library, or show that it's already there.
@@ -123,9 +124,8 @@ class SharedBookCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(book.title,
+                      MarqueeText(book.title,
                           maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 14)),
                       const SizedBox(height: 2),

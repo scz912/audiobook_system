@@ -7,6 +7,7 @@ import '../../models/community/hub_post.dart';
 import '../../state/hub_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/marquee_text.dart';
 import '../child/audio_player_page.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'community_widgets.dart';
@@ -176,9 +177,8 @@ class _PostCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(post.bookTitle ?? context.tr('community.book_linear'),
+                          MarqueeText(post.bookTitle ?? context.tr('community.book_linear'),
                               maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700, fontSize: 15)),
                           if (post.bookAuthor != null && post.bookAuthor!.isNotEmpty)

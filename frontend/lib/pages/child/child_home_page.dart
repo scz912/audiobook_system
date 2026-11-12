@@ -4,14 +4,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../i18n/i18n.dart';
 import '../../models/content_item.dart';
+import '../../models/insights_overview.dart';
 import '../../services/database_service.dart';
 import '../../services/reading_progress.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/paige_mascot.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/shelf_nav_bar.dart';
+import '../../widgets/top_book_tile.dart';
 import '../../widgets/whole_words_text.dart';
 import 'audio_player_page.dart';
 
@@ -21,6 +25,7 @@ class ChildHomePage extends StatefulWidget {
     this.moodCardKey,
     this.paigeKey,
     this.onPaigeTap,
+    this.showTopBooks = false,
   });
 
   // So a guide can ring the mood card and Paige.
@@ -28,6 +33,8 @@ class ChildHomePage extends StatefulWidget {
   final GlobalKey? paigeKey;
   // Paige in the corner replays the guide ("I'm always here").
   final VoidCallback? onPaigeTap;
+  // The personal account's own most-listened books ("Top 3 Books").
+  final bool showTopBooks;
 
   @override
   State<ChildHomePage> createState() => _ChildHomePageState();
@@ -41,6 +48,8 @@ class _ChildHomePageState extends State<ChildHomePage> {
   ContentItem? _featured;
   // The book this child left part-way through, if any.
   ReadingProgress? _progress;
+  // Most-listened books, when [ChildHomePage.showTopBooks]; null = loading.
+  List<TopStory>? _topBooks;
 
   // Mood `labelKey` is a translation key, resolved with context.tr().
   static const List<_Mood> _moods = [
@@ -57,12 +66,44 @@ class _ChildHomePageState extends State<ChildHomePage> {
     _loadTodayMood();
     _loadProgress();
     ReadingProgress.changed.addListener(_loadProgress);
+    if (widget.showTopBooks) {
+      _loadTopBooks();
+      // Listening moves the ranking, so look again after each book.
+      ReadingProgress.changed.addListener(_loadTopBooks);
+    }
   }
 
   @override
   void dispose() {
     ReadingProgress.changed.removeListener(_loadProgress);
+    ReadingProgress.changed.removeListener(_loadTopBooks);
     super.dispose();
+  }
+
+  // The listener's own top 3, like the caregiver dashboard's.
+  Future<void> _loadTopBooks() async {
+    // Let the session just listened to finish saving first.
+    await DatabaseService.pendingSessionSaves();
+    if (!mounted) return;
+    final childId = context.read<ProfilesState>().activeProfile?.childId;
+    final resp = await DatabaseService.getInsightsOverview(childId: childId);
+    if (!mounted) return;
+    if (resp.success && resp.data is InsightsOverview) {
+      setState(() => _topBooks =
+          (resp.data as InsightsOverview).topStories.take(3).toList());
+    } else if (_topBooks == null) {
+      setState(() => _topBooks = const []);
+    }
+  }
+
+  Future<void> _openTopBook(TopStory story) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AudioPlayerPage(
+        title: story.title,
+        audiobookId: story.audiobookId,
+      ),
+    ));
+    if (mounted) _loadTopBooks();
   }
 
   Future<void> _loadProgress() async {
@@ -356,6 +397,41 @@ class _ChildHomePageState extends State<ChildHomePage> {
             )),
           ),
         ],
+
+        if (widget.showTopBooks) ...[
+          const SizedBox(height: 24),
+          Text(
+            context.tr('caregiver.section_top_books'),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_topBooks == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_topBooks!.isEmpty)
+            EmptyState(
+              icon: Icons.headphones_rounded,
+              title: context.tr('caregiver.no_listening_title'),
+              subtitle: context.tr('independent.no_listening_body'),
+              iconBackground: AppColors.iconCircleGreen,
+              iconColor: AppColors.primaryBlueDark,
+            )
+          else
+            for (var i = 0; i < _topBooks!.length; i++) ...[
+              TopBookTile(
+                rank: i + 1,
+                story: _topBooks![i],
+                onTap: () => _openTopBook(_topBooks![i]),
+              ),
+              const SizedBox(height: 12),
+            ],
+        ],
       ],
     );
   }
@@ -431,10 +507,9 @@ class _ContinueCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          MarqueeText(
                             progress.title,
                             maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: _ink,
                               fontWeight: FontWeight.w900,
@@ -544,10 +619,9 @@ class _StartStoryCard extends StatelessWidget {
                   _StartStoryCover(url: story.coverImage),
                   const SizedBox(width: 14),
                   Expanded(
-                    child: Text(
+                    child: MarqueeText(
                       story.title,
                       maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,

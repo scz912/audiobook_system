@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\MusicTrack;
 use App\Services\GeminiService;
+use App\Services\MusicTagger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -20,13 +21,9 @@ class MusicTrackController extends ApiController
     // Mime types (sniffed from the file bytes, not the name) that count as real mp3.
     private const MP3_MIMES = ['audio/mpeg', 'audio/mp3', 'audio/mpga', 'audio/x-mpeg'];
 
-    /* Gemini takes at most ~20 MB per request and base64 adds a third, so
-       send files up to this size whole. Bigger ones need ffmpeg to make a
-       smaller listening copy. */
-    private const MAX_INLINE_AI_BYTES = 14 * 1024 * 1024;
-
     /* List active music tracks. Can filter by tags and search by title.
-       A track must have all the chosen tags to show. */
+       A track must have all the chosen tags to show; a genre counts as one
+       of its tags here ("Jazz" + "Calm" = calm jazz). */
     public function list(Request $request): JsonResponse
     {
         $this->logEvent('MusicTrack', 'list called', [
@@ -45,7 +42,7 @@ class MusicTrackController extends ApiController
         $filterTags = $request->input('tags', []);
         if (is_array($filterTags) && count($filterTags) > 0) {
             $tracks = $tracks->filter(function (MusicTrack $t) use ($filterTags) {
-                $trackTags = array_map('strtolower', $t->tagsArray());
+                $trackTags = array_map('strtolower', $t->filterTags());
                 foreach ($filterTags as $ft) {
                     if (!in_array(strtolower(trim($ft)), $trackTags, true)) {
                         return false;
@@ -70,13 +67,19 @@ class MusicTrackController extends ApiController
         ]);
     }
 
-    /* All the tags used on active tracks, sorted. Fills the filter chips
-       in the picker. */
+    /* All the tags used on active tracks, for the picker's filter chips:
+       the genres first (in the usual genre order), then the emotion tags
+       A-Z. 'genres' says which of the chips are genres. */
     public function allTags(Request $request): JsonResponse
     {
         $this->logEvent('MusicTrack', 'allTags called');
 
-        return $this->successResponse('OK', ['tags' => $this->tagVocabulary($this->caregiverId($request))]);
+        $caregiverId = $this->caregiverId($request);
+        $genres = $this->genresInUse($caregiverId);
+        return $this->successResponse('OK', [
+            'tags'   => $genres->concat($this->tagVocabulary($caregiverId))->unique()->values(),
+            'genres' => $genres,
+        ]);
     }
 
     /* Given the tags already picked, return the other tags that can still
@@ -90,7 +93,7 @@ class MusicTrackController extends ApiController
 
         // Tracks that match what's picked so far.
         $matching = $active->filter(function (MusicTrack $t) use ($selected) {
-            $tt = array_map('strtolower', $t->tagsArray());
+            $tt = array_map('strtolower', $t->filterTags());
             foreach ($selected as $s) {
                 if (!in_array(strtolower(trim($s)), $tt, true)) {
                     return false;
@@ -103,7 +106,7 @@ class MusicTrackController extends ApiController
         $selectedLower = array_map('strtolower', array_map('trim', $selected));
 
         $compatible = $matching
-            ->flatMap(fn ($t) => $t->tagsArray())
+            ->flatMap(fn ($t) => $t->filterTags())
             ->map(fn ($t) => trim($t))
             ->filter(fn ($t) => !in_array(strtolower($t), $selectedLower, true))
             ->unique()
@@ -115,11 +118,13 @@ class MusicTrackController extends ApiController
 
     /* Caregiver uploads their own music. mp3 is kept as-is; other formats
        (mp4, m4a, wav...) are converted to mp3 with ffmpeg. If ffmpeg isn't
-       available the caregiver is asked to upload an mp3 instead. Gemini then
-       listens to the track and gives it mood tags, a tempo, a one-line
-       summary, and any sensory cautions. The track is private to this
-       caregiver. */
-    public function upload(Request $request, GeminiService $gemini): JsonResponse
+       available the caregiver is asked to upload an mp3 instead. The
+       track's rhythm is measured from the audio (tempo, how steady the
+       pulse is, how busy and loud it is, sudden loud jumps), then Gemini
+       listens to it, with those measurements in hand, and gives it a
+       genre, emotion tags, a tempo, a one-line summary, and any sensory
+       cautions. The track is private to this caregiver. */
+    public function upload(Request $request, MusicTagger $tagger): JsonResponse
     {
         $file = $request->file('music_file');
         $this->logEvent('MusicTrack', 'upload called', [
@@ -187,17 +192,11 @@ class MusicTrackController extends ApiController
         $duration = $hasFfmpeg ? $this->probeDuration($absPath) : null;
         $duration ??= $request->filled('duration_secs') ? (int) $request->input('duration_secs') : null;
 
-        // Let the AI listen and tag it. Failure here never loses the upload.
-        $analysis = null;
-        if ($gemini->isConfigured()) {
-            [$bytes, $cleanup] = $this->audioForAnalysis($absPath, $hasFfmpeg);
-            if ($bytes !== null) {
-                $analysis = $gemini->analyseMusic($bytes, 'audio/mp3', $title, $this->tagVocabulary($caregiverId)->all());
-            }
-            if ($cleanup) {
-                @unlink($cleanup);
-            }
-        }
+        // Measure the rhythm (needs ffmpeg to decode), then let the AI
+        // listen and tag it. Failure here never loses the upload.
+        ['measured' => $measured, 'analysis' => $analysis] = $tagger->tag(
+            $absPath, $title, $this->tagVocabulary($caregiverId)->all(), $hasFfmpeg,
+        );
 
         $track = MusicTrack::create([
             'caregiver_id'  => $caregiverId,
@@ -205,7 +204,10 @@ class MusicTrackController extends ApiController
             'composer'      => $request->input('composer') ?: null,
             'file_path'     => 'storage/' . $storedPath,
             'tags'          => implode(',', $analysis['tags'] ?? []),
+            'genre'         => $analysis['genre'] ?? null,
             'tempo'         => $analysis['tempo'] ?? null,
+            'bpm'           => $measured['bpm'] ?? null,
+            'beat'          => $measured['beat'] ?? null,
             'duration_secs' => $duration,
             'ai_summary'    => ($analysis['summary'] ?? '') ?: null,
             'sensory_notes' => ($analysis['sensory_notes'] ?? '') ?: null,
@@ -216,6 +218,7 @@ class MusicTrackController extends ApiController
             'track_id'  => $track->track_id,
             'converted' => !$isMp3,
             'ai_tagged' => $analysis !== null,
+            'measured'  => $measured !== null,
         ]);
 
         return $this->successResponse(
@@ -239,7 +242,10 @@ class MusicTrackController extends ApiController
             'composer'         => $t->composer,
             'file_url'         => $this->mediaUrl($t->file_path),
             'tags'             => $t->tagsArray(),
+            'genre'            => $t->genre,
             'tempo'            => $t->tempo,
+            'bpm'              => $t->bpm,
+            'beat'             => $t->beat,
             'duration_secs'    => $t->duration_secs,
             'is_user_uploaded' => $t->caregiver_id !== null,
             'ai_summary'       => $t->ai_summary,
@@ -252,16 +258,19 @@ class MusicTrackController extends ApiController
         return $request->get('auth_caregiver')?->caregiver_id;
     }
 
-    // Every tag on the tracks this caregiver can see, sorted.
+    // The genres on the tracks this caregiver can see, in the usual order.
+    private function genresInUse(?string $caregiverId)
+    {
+        $used = MusicTrack::visibleTo($caregiverId)->whereNotNull('genre')->pluck('genre')->all();
+        return collect(GeminiService::MUSIC_GENRES)
+            ->filter(fn ($g) => in_array($g, $used, true))
+            ->values();
+    }
+
+    // Every emotion tag on the tracks this caregiver can see, sorted.
     private function tagVocabulary(?string $caregiverId)
     {
-        return MusicTrack::visibleTo($caregiverId)
-            ->pluck('tags')
-            ->flatMap(fn ($t) => array_map('trim', explode(',', $t)))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
+        return MusicTrack::emotionVocabulary($caregiverId);
     }
 
     private function ffmpegAvailable(): bool
@@ -311,39 +320,6 @@ class MusicTrackController extends ApiController
         } catch (\Throwable $e) {
             return null;
         }
-    }
-
-    /* Bytes to send to Gemini, plus a temp file to delete afterwards. With
-       ffmpeg we send a small mono copy of the first 6 minutes (plenty to
-       judge the mood and flow, and well under Gemini's size limit). Without
-       it we send the mp3 whole if it's small enough, else skip the AI. */
-    private function audioForAnalysis(string $mp3Path, bool $hasFfmpeg): array
-    {
-        if ($hasFfmpeg) {
-            $clip = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'bgm-' . Str::uuid() . '.mp3';
-            try {
-                $result = Process::timeout(120)->run([
-                    config('services.ffmpeg.path'), '-y', '-i', $mp3Path,
-                    '-t', '360', '-ac', '1', '-ar', '22050',
-                    '-codec:a', 'libmp3lame', '-b:a', '64k',
-                    $clip,
-                ]);
-                if ($result->successful() && is_file($clip) && filesize($clip) > 0) {
-                    return [file_get_contents($clip), $clip];
-                }
-            } catch (\Throwable $e) {
-                $this->logWarn('MusicTrack', 'analysis clip failed', ['error' => $e->getMessage()]);
-            }
-            @unlink($clip);
-        }
-
-        if (filesize($mp3Path) <= self::MAX_INLINE_AI_BYTES) {
-            return [file_get_contents($mp3Path), null];
-        }
-        $this->logWarn('MusicTrack', 'file too large to analyse without ffmpeg', [
-            'bytes' => filesize($mp3Path),
-        ]);
-        return [null, null];
     }
 
     // "happy-kids_music.mp3" → "Happy Kids Music"

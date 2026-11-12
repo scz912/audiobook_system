@@ -20,6 +20,7 @@ import '../../services/database_service.dart';
 import '../../state/language_state.dart';
 import '../../theme/app_colors.dart';
 import '../../models/music_track.dart';
+import '../../widgets/adaptive_row.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
 import '../../widgets/bgm_picker_sheet.dart';
@@ -1965,43 +1966,48 @@ class _AudioPickerRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.iconCircleBlue,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.audiotrack_rounded, size: 18),
+      // On a narrow screen the buttons drop under the file name.
+      child: AdaptiveRow(
+        gap: 10,
+        trailingGap: 0,
+        runGap: 4,
+        minBodyWidth: 120,
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: AppColors.iconCircleBlue,
+            shape: BoxShape.circle,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+          child: const Icon(Icons.audiotrack_rounded, size: 18),
+        ),
+        body: Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: onPick,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryBlueDark,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(replaceLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
-          ),
-          TextButton(
-            onPressed: onPick,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryBlueDark,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-            child: Text(replaceLabel,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          if (onClear != null)
-            IconButton(
-              onPressed: onClear,
-              tooltip: clearLabel,
-              icon: const Icon(Icons.close_rounded,
-                  size: 18, color: AppColors.textSecondary),
-            ),
-        ],
+            if (onClear != null)
+              IconButton(
+                onPressed: onClear,
+                tooltip: clearLabel,
+                icon: const Icon(Icons.close_rounded,
+                    size: 18, color: AppColors.textSecondary),
+              ),
+          ],
+        ),
       ),
     );
   }

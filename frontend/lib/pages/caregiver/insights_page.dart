@@ -11,8 +11,10 @@ import '../../state/language_state.dart';
 import '../../state/profiles_state.dart';
 import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/adaptive_row.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/soft_card.dart';
 import '../../widgets/scroll_more_hint.dart';
 import '../../widgets/stat_sphere_carousel.dart';
@@ -759,10 +761,9 @@ class _TopStoriesList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    // A long title glides by instead of being cut off.
+                    MarqueeText(
                       s.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 14),
                     ),
@@ -860,10 +861,9 @@ class _RecentTile extends StatelessWidget {
                     fontWeight: FontWeight.w700, fontSize: 14),
               ),
               const SizedBox(height: 1),
-              Text(
+              // A long title glides by instead of being cut off.
+              MarqueeText(
                 session.audiobookTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                     color: AppColors.textPrimary, fontSize: 13),
               ),
@@ -1015,40 +1015,37 @@ class _ChildInsightCard extends StatelessWidget {
     return SoftCard(
       child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration:
-                    BoxDecoration(color: child.avatarColor, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Text(child.avatarEmoji,
-                    style: const TextStyle(fontSize: 22)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(child.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$minutesLabel • ${child.sessions} session${child.sessions == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                  ],
+          // On a narrow screen the mood badge drops under the details.
+          AdaptiveRow(
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration:
+                  BoxDecoration(color: child.avatarColor, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Text(child.avatarEmoji,
+                  style: const TextStyle(fontSize: 22)),
+            ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(child.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 16)),
+                const SizedBox(height: 2),
+                Text(
+                  '$minutesLabel • ${child.sessions} session${child.sessions == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13),
                 ),
-              ),
-              if (child.topMood != null)
-                _Badge(
-                  label: '${moodEmoji ?? ''} $moodLabel',
-                  color: AppColors.iconCirclePurple,
-                ),
-            ],
+              ],
+            ),
+            trailing: child.topMood == null
+                ? null
+                : _Badge(
+                    label: '${moodEmoji ?? ''} $moodLabel',
+                    color: AppColors.iconCirclePurple,
+                  ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1325,49 +1322,50 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.primaryBlue, AppColors.primaryBlueDark],
+    // On a narrow screen the count and fold button drop under the title.
+    return AdaptiveRow(
+      gap: 12,
+      runGap: 2,
+      minBodyWidth: 120,
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primaryBlue, AppColors.primaryBlueDark],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryBlue.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryBlue.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: const Icon(Icons.auto_awesome_rounded,
-              size: 22, color: Colors.white),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            context.tr('insights.suggestions_title'),
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+        alignment: Alignment.center,
+        child: const Icon(Icons.auto_awesome_rounded,
+            size: 22, color: Colors.white),
+      ),
+      body: Text(
+        context.tr('insights.suggestions_title'),
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasItems) _PendingChip(count: pendingCount),
+          // Fold the tips away, or open them again.
+          IconButton(
+            tooltip: context.tr(hidden ? 'insights.tips_show' : 'insights.tips_hide'),
+            onPressed: onToggleHidden,
+            iconSize: 30,
+            icon: Icon(hidden ? Icons.expand_more_rounded : Icons.expand_less_rounded),
           ),
-        ),
-        if (hasItems) ...[
-          const SizedBox(width: 8),
-          _PendingChip(count: pendingCount),
         ],
-        // Fold the tips away, or open them again.
-        IconButton(
-          tooltip: context.tr(hidden ? 'insights.tips_show' : 'insights.tips_hide'),
-          onPressed: onToggleHidden,
-          iconSize: 30,
-          icon: Icon(hidden ? Icons.expand_more_rounded : Icons.expand_less_rounded),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -1586,29 +1584,28 @@ class _SuggestionTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header row: setting icon, name, and resolved badge.
-            Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: visual.tint,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(visual.icon,
-                      size: 18, color: AppColors.textPrimary),
+            // On a narrow screen the badge drops under the name.
+            AdaptiveRow(
+              gap: 10,
+              runGap: 6,
+              minBodyWidth: 110,
+              leading: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: visual.tint,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    settingLabel,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 14),
-                  ),
-                ),
-                if (resolved) _StatusBadge(item: item),
-              ],
+                alignment: Alignment.center,
+                child: Icon(visual.icon,
+                    size: 18, color: AppColors.textPrimary),
+              ),
+              body: Text(
+                settingLabel,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              trailing: resolved ? _StatusBadge(item: item) : null,
             ),
             const SizedBox(height: 12),
             // Now vs. suggested.

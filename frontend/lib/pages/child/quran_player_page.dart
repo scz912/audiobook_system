@@ -13,6 +13,7 @@ import '../../services/quran_pack_service.dart';
 import '../../state/language_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/player_controls.dart';
 import '../../widgets/quran_element_thumb.dart';
 import '../../widgets/soft_card.dart';
@@ -199,11 +200,9 @@ class _QuranPlayerPageState extends State<QuranPlayerPage> {
         Expanded(
           child: Column(
             children: [
-              Text(
+              MarqueeText(
                 '${c.number}. ${c.nameEn}',
                 textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style:
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),

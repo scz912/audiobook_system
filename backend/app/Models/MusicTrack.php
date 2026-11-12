@@ -14,11 +14,13 @@ class MusicTrack extends Model
 
     protected $fillable = [
         'track_id', 'caregiver_id', 'title', 'composer', 'file_path',
-        'tags', 'tempo', 'duration_secs', 'ai_summary', 'sensory_notes', 'status',
+        'tags', 'genre', 'tempo', 'bpm', 'beat', 'duration_secs', 'ai_summary',
+        'sensory_notes', 'status',
     ];
 
     protected $casts = [
         'duration_secs' => 'integer',
+        'bpm'           => 'integer',
     ];
 
     protected static function boot(): void
@@ -44,11 +46,33 @@ class MusicTrack extends Model
             });
     }
 
-    // Tags as a clean list of trimmed strings.
+    // Every emotion tag on the tracks this caregiver can see, sorted.
+    public static function emotionVocabulary(?string $caregiverId)
+    {
+        return static::visibleTo($caregiverId)
+            ->pluck('tags')
+            ->flatMap(fn ($t) => array_map('trim', explode(',', (string) $t)))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+    }
+
+    // Emotion tags as a clean list of trimmed strings.
     public function tagsArray(): array
     {
         return array_values(array_filter(
             array_map('trim', explode(',', $this->tags ?? ''))
         ));
+    }
+
+    // What the picker filters by: the genre (if known) and the emotion tags.
+    public function filterTags(): array
+    {
+        $tags = $this->tagsArray();
+        if ($this->genre && !in_array(strtolower($this->genre), array_map('strtolower', $tags), true)) {
+            array_unshift($tags, $this->genre);
+        }
+        return $tags;
     }
 }

@@ -5,8 +5,16 @@ class MusicTrack {
   final String title;
   final String? composer;
   final String fileUrl;
+  // Emotion tags (Calm, Happy...).
   final List<String> tags;
+  // One word (Classical, Nature, Pop, Jazz...), set by the AI; null if unknown.
+  final String? genre;
   final String? tempo;
+  // Measured from the audio: beats per minute, null when there's no pulse
+  // to follow...
+  final int? bpm;
+  // ...and how steady the pulse is: 'steady', 'loose' or 'none'.
+  final String? beat;
   final int? durationSecs;
   // True when the caregiver uploaded it (only they can see it).
   final bool isUserUploaded;
@@ -21,7 +29,10 @@ class MusicTrack {
     this.composer,
     required this.fileUrl,
     this.tags = const [],
+    this.genre,
     this.tempo,
+    this.bpm,
+    this.beat,
     this.durationSecs,
     this.isUserUploaded = false,
     this.aiSummary,
@@ -39,7 +50,10 @@ class MusicTrack {
       composer:    safeNullableString(json['composer']),
       fileUrl:     safeString(json['file_url'], ''),
       tags:        tags,
+      genre:       safeNullableString(json['genre']),
       tempo:       safeNullableString(json['tempo']),
+      bpm:         safeInt(json['bpm']),
+      beat:        safeNullableString(json['beat']),
       durationSecs: safeInt(json['duration_secs']),
       isUserUploaded: safeBool(json['is_user_uploaded']),
       aiSummary:    safeNullableString(json['ai_summary']),

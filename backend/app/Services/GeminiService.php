@@ -336,20 +336,36 @@ PROMPT;
         }
     }
 
+    // The genres a track can be given (the picker's genre filter chips).
+    public const MUSIC_GENRES = [
+        'Classical', 'Nature', 'Pop', 'Jazz', 'Ambient', 'Lullaby',
+        'Acoustic', 'Cinematic', 'Electronic', 'Folk', 'World',
+    ];
+
     /* Let Gemini listen to an uploaded music file and tag it. Returns
-       ['tags' => [...], 'tempo' => 'slow|moderate|upbeat', 'summary' => '...',
-       'sensory_notes' => '...'], or null if the AI call failed.
-       $vocabulary is the tag list already used in the library, so new tracks
-       reuse the same words (the picker filters and the story auto-match
-       both rely on them). */
-    public function analyseMusic(string $audioBytes, string $mimeType, string $title, array $vocabulary): ?array
+       ['genre' => 'Jazz', 'tags' => [...emotions], 'tempo' =>
+       'slow|moderate|upbeat', 'summary' => '...', 'sensory_notes' => '...'],
+       or null if the AI call failed.
+       $vocabulary is the emotion tag list already used in the library, so
+       new tracks reuse the same words (the picker filters and the story
+       auto-match both rely on them). $rhythm is what AudioRhythmAnalyzer
+       measured from the audio, if it could; the AI weighs it alongside what
+       it hears. */
+    public function analyseMusic(string $audioBytes, string $mimeType, string $title, array $vocabulary, ?array $rhythm = null): ?array
     {
         Log::info('[Gemini] analyseMusic called', [
-            'title' => $title,
-            'bytes' => strlen($audioBytes),
-            'mime'  => $mimeType,
+            'title'  => $title,
+            'bytes'  => strlen($audioBytes),
+            'mime'   => $mimeType,
+            'rhythm' => $rhythm !== null,
         ]);
         $tagList = implode(', ', $vocabulary);
+        $genreList = implode(', ', self::MUSIC_GENRES);
+        $measured = $rhythm !== null
+            ? "Measurements taken from the audio itself (trust these numbers over a guess,\n"
+              . "but use your ears to judge what they mean):\n"
+              . AudioRhythmAnalyzer::describe($rhythm)
+            : 'No measurements are available for this track; judge from listening alone.';
         $prompt = <<<PROMPT
 You are a music therapist who curates background music for an audiobook app made
 for autistic children and teenagers (under 18). A caregiver has uploaded the
@@ -367,23 +383,41 @@ Listen to the WHOLE track before answering, then analyse:
    alarms or sirens, crowd noise, or singing/lyrics that would compete with
    the narrator's voice.
 
+{$measured}
+
+Use the rhythm to read the emotion, together with harmony and sound:
+- A steady, quick pulse with busy notes usually feels happy, playful or
+  energetic; a slow or absent pulse with sparse notes feels calm, peaceful or
+  sleepy; an uneven pulse, dark tone or minor harmony can feel mysterious or
+  curious; big loudness swings feel dramatic or adventurous.
+- A steady pulse is not always lively: gentle piano arpeggios can be as
+  regular as drums. Decide how fast it FEELS by listening.
+
 Then return:
-- "tags": 3 to 6 mood tags describing the track as a whole, in Title Case,
-  one word each. Strongly prefer words from this existing list:
+- "genre": the ONE genre that best fits, exactly one of: {$genreList}.
+  Nature = mostly natural sounds (rain, birds, sea, wind), with or without
+  soft music. Lullaby = a soft, rocking song made for sleep. Ambient = slow
+  pads or textures without a clear tune. Cinematic = film-like, orchestral or
+  dramatic score. Classical = classical-style piano, strings or orchestra.
+- "tags": 3 to 6 emotion tags describing the track as a whole, in Title
+  Case, one word each. Strongly prefer words from this existing list:
   {$tagList}
   Use a new word only if none of these fit, and add at most one new word.
-  Do not tag a mood that only appears briefly; tag what the listener feels
-  for most of the track.
-- "tempo": exactly one of "slow", "moderate", "upbeat".
+  Do not tag an emotion that only appears briefly; tag what the listener
+  feels for most of the track. Never use a genre name as a tag.
+- "tempo": exactly one of "slow", "moderate", "upbeat" - how fast it feels.
 - "summary": one short, plain sentence a caregiver can read at a glance,
   describing the music and how it flows (e.g. "Soft piano over gentle rain
   that stays quiet and steady from start to finish.").
 - "sensory_notes": one short, plain sentence naming any sensory risk from
   step 5 and roughly when it happens (e.g. "Has a sudden loud drum hit around
-  1:30."). Use an empty string if there are none. No clinical claims.
+  1:30."). Check any measured sudden loud jumps by listening; mention the
+  ones that would startle. Use an empty string if there are none. No
+  clinical claims.
 
 If the audio is not music (speech, silence, noise), return an empty "tags"
-list, "tempo" "slow", and explain in "sensory_notes" that it is not music.
+list, "tempo" "slow", "genre" "Ambient", and explain in "sensory_notes" that it
+is not music.
 
 Return ONLY JSON.
 PROMPT;
@@ -404,12 +438,13 @@ PROMPT;
                         'responseSchema'   => [
                             'type'       => 'OBJECT',
                             'properties' => [
+                                'genre'         => ['type' => 'STRING', 'enum' => self::MUSIC_GENRES],
                                 'tags'          => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
                                 'tempo'         => ['type' => 'STRING', 'enum' => ['slow', 'moderate', 'upbeat']],
                                 'summary'       => ['type' => 'STRING'],
                                 'sensory_notes' => ['type' => 'STRING'],
                             ],
-                            'required' => ['tags', 'tempo', 'summary', 'sensory_notes'],
+                            'required' => ['genre', 'tags', 'tempo', 'summary', 'sensory_notes'],
                         ],
                     ],
                 ]
@@ -437,10 +472,12 @@ PROMPT;
             foreach ($vocabulary as $v) {
                 $known[strtolower($v)] = $v;
             }
+            // The genre has its own field; keep it out of the emotion tags.
+            $genres = array_map('strtolower', self::MUSIC_GENRES);
             $tags = [];
             foreach ((array) ($parsed['tags'] ?? []) as $tag) {
                 $word = trim(str_replace(',', ' ', (string) $tag));
-                if ($word === '' || mb_strlen($word) > 20) {
+                if ($word === '' || mb_strlen($word) > 20 || in_array(strtolower($word), $genres, true)) {
                     continue;
                 }
                 $word = $known[strtolower($word)] ?? Str::title($word);
@@ -451,7 +488,14 @@ PROMPT;
             $tags = array_slice($tags, 0, 6);
 
             $tempo = (string) ($parsed['tempo'] ?? '');
+            $genre = null;
+            foreach (self::MUSIC_GENRES as $g) {
+                if (strcasecmp($g, trim((string) ($parsed['genre'] ?? ''))) === 0) {
+                    $genre = $g;
+                }
+            }
             $result = [
+                'genre'         => $genre,
                 'tags'          => $tags,
                 'tempo'         => in_array($tempo, ['slow', 'moderate', 'upbeat'], true) ? $tempo : null,
                 'summary'       => mb_substr(trim((string) ($parsed['summary'] ?? '')), 0, 500),

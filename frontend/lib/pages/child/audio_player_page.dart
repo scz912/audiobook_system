@@ -16,6 +16,7 @@ import '../../state/settings_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../widgets/back_pill.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/player_controls.dart';
 import '../../widgets/soft_card.dart';
 
@@ -1096,12 +1097,11 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       children: [
         BackPill(onTap: () => Navigator.of(context).maybePop()),
         const SizedBox(width: 12),
+        // A long title glides by in a loop instead of being cut off.
         Expanded(
-          child: Text(
+          child: MarqueeText(
             widget.title,
             textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
           ),
         ),
