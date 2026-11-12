@@ -92,6 +92,9 @@ class EvaluateMusicTagging extends Command
                     $tagger->tag($t['path'], $title, $vocabulary, $hasFfmpeg);
                 $answers[] = [
                     'genre'    => $analysis['genre'] ?? null,
+                    // What each of the two listens said (genre is kept only
+                    // when they agree).
+                    'votes'    => $analysis['genre_votes'] ?? [],
                     'emotions' => $analysis['tags'] ?? [],
                     'tempo'    => $analysis['tempo'] ?? null,
                     'summary'  => $analysis['summary'] ?? null,
@@ -100,9 +103,14 @@ class EvaluateMusicTagging extends Command
                 ];
             }
             $main = $answers[0];
+            // The listens disagreed, so no genre was given (not counted as wrong).
+            $unsure = !$main['failed'] && $main['genre'] === null && count(array_filter($main['votes'])) > 0;
             $row = $t + [
                 'answers'       => $answers,
-                'genre_right'   => $t['genre'] === null ? null : (!$main['failed'] && $main['genre'] === $t['genre']),
+                'genre_unsure'  => $t['genre'] !== null && $unsure,
+                'genre_right'   => $t['genre'] === null || $unsure ? null : (!$main['failed'] && $main['genre'] === $t['genre']),
+                'first_listen_right' => $t['genre'] === null || $main['failed'] ? null
+                    : (($main['votes'][0] ?? $main['genre']) === $t['genre']),
                 'emotion_found' => $this->share($t['emotions'], $main['emotions']),
                 'emotion_kept'  => $this->share($main['emotions'], $t['emotions']),
             ];
@@ -113,12 +121,13 @@ class EvaluateMusicTagging extends Command
                 ? ($main['rhythm']['bpm'] ? $main['rhythm']['bpm'] . ' BPM ' . $main['rhythm']['beat'] : 'no pulse')
                 : '-';
             $this->line(sprintf(
-                '%3d %s %-34s want %-10s got %-10s %-16s %s',
+                '%3d %s %-34s want %-21s got %-21s %-16s %s',
                 $i + 1,
-                $main['failed'] ? '!' : ($row['genre_right'] === null ? ' ' : ($row['genre_right'] ? '+' : 'x')),
+                $main['failed'] ? '!' : ($row['genre_unsure'] ? '?' : ($row['genre_right'] === null ? ' ' : ($row['genre_right'] ? '+' : 'x'))),
                 Str::limit($t['file'], 32),
                 $t['genre'] ?? '-',
-                $main['failed'] ? '(AI failed)' : ($main['genre'] ?? '-'),
+                $main['failed'] ? '(AI failed)'
+                    : ($main['genre'] ?? ('unsure: ' . implode('/', array_map(fn ($v) => $v ?? '-', $main['votes'])))),
                 $rhythm,
                 implode(', ', $main['emotions']),
             ));
@@ -158,14 +167,22 @@ class EvaluateMusicTagging extends Command
         $answered = array_values(array_filter($results, fn ($r) => !$r['answers'][0]['failed']));
         // Genre is scored only on tracks whose genre is known.
         $genred = array_values(array_filter($answered, fn ($r) => $r['genre'] !== null));
-        $right = count(array_filter($genred, fn ($r) => $r['genre_right']));
         $n = count($genred);
+        $unsure = count(array_filter($genred, fn ($r) => $r['genre_unsure']));
+        $shown = $n - $unsure;
+        $right = count(array_filter($genred, fn ($r) => $r['genre_right']));
+        $firstRight = count(array_filter($genred, fn ($r) => $r['first_listen_right']));
 
         $this->newLine();
+        $pct = fn ($a, $b) => $b ? round(100 * $a / $b) . '%' : '-';
         $this->info(sprintf(
-            'Genre: %d of %d right (%s)%s',
-            $right, $n, $n ? round(100 * $right / $n) . '%' : '-',
-            count($results) > count($answered) ? sprintf(', %d not answered by the AI', count($results) - count($answered)) : '',
+            'Genre, one listen: %d of %d right (%s)%s',
+            $firstRight, $n, $pct($firstRight, $n),
+            count($results) > count($answered) ? sprintf('; %d not answered by the AI', count($results) - count($answered)) : '',
+        ));
+        $this->info(sprintf(
+            'Genre, two listens that agree: shown on %d of %d tracks; %d of those %d right (%s); %d left blank as unsure',
+            $shown, $n, $right, $shown, $pct($right, $shown), $unsure,
         ));
 
         // Per genre, and which genre each miss went to.
@@ -173,9 +190,11 @@ class EvaluateMusicTagging extends Command
         $mixups = [];
         foreach ($genred as $r) {
             $g = $r['genre'];
-            $perGenre[$g] ??= ['right' => 0, 'total' => 0];
+            $perGenre[$g] ??= ['right' => 0, 'unsure' => 0, 'total' => 0];
             $perGenre[$g]['total']++;
-            if ($r['genre_right']) {
+            if ($r['genre_unsure']) {
+                $perGenre[$g]['unsure']++;
+            } elseif ($r['genre_right']) {
                 $perGenre[$g]['right']++;
             } else {
                 $key = $g . ' -> ' . ($r['answers'][0]['genre'] ?? 'none');
@@ -185,9 +204,9 @@ class EvaluateMusicTagging extends Command
         ksort($perGenre);
         arsort($mixups);
         if ($perGenre) $this->table(
-            ['Genre', 'Right', 'Of', '%'],
+            ['Genre', 'Right', 'Wrong', 'Unsure', 'Of'],
             array_map(
-                fn ($g, $s) => [$g, $s['right'], $s['total'], round(100 * $s['right'] / $s['total']) . '%'],
+                fn ($g, $s) => [$g, $s['right'], $s['total'] - $s['right'] - $s['unsure'], $s['unsure'], $s['total']],
                 array_keys($perGenre), $perGenre,
             ),
         );
@@ -242,10 +261,13 @@ class EvaluateMusicTagging extends Command
         }
 
         return [
-            'tracks'        => count($results),
-            'answered'      => $n,
-            'genre_right'   => $right,
-            'genre_percent' => $n ? round(100 * $right / $n) : null,
+            'tracks'              => count($results),
+            'labelled_answered'   => $n,
+            'first_listen_right'  => $firstRight,
+            'genre_shown'         => $shown,
+            'genre_unsure'        => $unsure,
+            'genre_right'         => $right,
+            'genre_percent_shown' => $shown ? round(100 * $right / $shown) : null,
             'per_genre'     => $perGenre,
             'mixups'        => $mixups,
             'emotions'      => $emotion,
@@ -268,7 +290,8 @@ class EvaluateMusicTagging extends Command
         foreach ($rows as $n => $cols) {
             $row = array_combine($head, array_pad(array_slice($cols, 0, count($head)), count($head), ''));
             $file = trim($row['file'] ?? '');
-            $genre = $this->knownGenre($row['genre'] ?? '');
+            // Older single genres (Classical, Folk...) count as the merged genre.
+            $genre = GeminiService::canonicalGenre($row['genre'] ?? '');
             $path = rtrim($folder, '/\\') . DIRECTORY_SEPARATOR . $file;
             if ($file === '' || !is_file($path)) {
                 $this->warn("labels.csv line " . ($n + 2) . ": file \"{$file}\" not found, skipped.");
@@ -290,15 +313,6 @@ class EvaluateMusicTagging extends Command
         return $tracks;
     }
 
-    private function knownGenre(string $genre): ?string
-    {
-        foreach (GeminiService::MUSIC_GENRES as $g) {
-            if (strcasecmp($g, trim($genre)) === 0) {
-                return $g;
-            }
-        }
-        return null;
-    }
 
     // The library's emotion words, or the built-in set when there's no database.
     private function vocabulary(): array

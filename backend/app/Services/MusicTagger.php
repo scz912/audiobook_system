@@ -35,7 +35,8 @@ class MusicTagger
         if ($this->gemini->isConfigured()) {
             [$bytes, $cleanup, $mime] = $this->audioForAnalysis($mp3Path, $hasFfmpeg);
             if ($bytes !== null) {
-                $analysis = $this->gemini->analyseMusic($bytes, $mime, $title, $vocabulary, $measured);
+                // Two listens: a genre is kept only when they agree.
+                $analysis = $this->gemini->analyseMusicTwice($bytes, $mime, $title, $vocabulary, $measured);
             }
             if ($cleanup) {
                 @unlink($cleanup);

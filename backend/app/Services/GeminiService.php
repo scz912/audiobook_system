@@ -336,13 +336,39 @@ PROMPT;
         }
     }
 
-    // The genres a track can be given (the picker's genre filter chips).
+    /* The genres a track can be given (the picker's genre filter chips).
+       Pairs that even people file either way are one genre: tested on 32
+       labelled clips (Nov 2026), orchestral pieces split between Classical
+       and Cinematic, soft piano pieces between Ambient and Lullaby, and solo
+       traditional instruments between Folk and World. */
     public const MUSIC_GENRES = [
-        'Classical', 'Nature', 'Pop', 'Jazz', 'Ambient', 'Lullaby',
-        'Acoustic', 'Cinematic', 'Electronic', 'Folk', 'World',
+        'Classical & Cinematic', 'Nature', 'Pop', 'Jazz', 'Ambient & Lullaby',
+        'Acoustic', 'Electronic', 'Folk & World',
     ];
 
-    /* Let Gemini listen to an uploaded music file and tag it. Returns
+    // Single or older genre names, mapped to the genre that now covers them.
+    public const GENRE_ALIASES = [
+        'classical' => 'Classical & Cinematic',
+        'cinematic' => 'Classical & Cinematic',
+        'ambient'   => 'Ambient & Lullaby',
+        'lullaby'   => 'Ambient & Lullaby',
+        'folk'      => 'Folk & World',
+        'world'     => 'Folk & World',
+    ];
+
+    // The app's genre for [name] (a current genre or an older name), or null.
+    public static function canonicalGenre(?string $name): ?string
+    {
+        $name = trim((string) $name);
+        foreach (self::MUSIC_GENRES as $g) {
+            if (strcasecmp($g, $name) === 0) {
+                return $g;
+            }
+        }
+        return self::GENRE_ALIASES[strtolower($name)] ?? null;
+    }
+
+    /* Let Gemini listen to a music file once and tag it. Returns
        ['genre' => 'Jazz', 'tags' => [...emotions], 'tempo' =>
        'slow|moderate|upbeat', 'summary' => '...', 'sensory_notes' => '...'],
        or null if the AI call failed.
@@ -359,6 +385,107 @@ PROMPT;
             'mime'   => $mimeType,
             'rhythm' => $rhythm !== null,
         ]);
+        try {
+            $response = Http::timeout(120)->post(
+                $this->musicUrl(),
+                $this->musicRequest($audioBytes, $mimeType, $title, $vocabulary, $rhythm),
+            );
+            return $this->readMusicAnswer($response, $vocabulary);
+        } catch (\Throwable $e) {
+            Log::warning('[Gemini] analyseMusic exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /* Like analyseMusic, but Gemini listens twice (at the same time, so it
+       takes no longer) and the genre is kept only when both listens agree.
+       Tested on 32 labelled clips, a genre it gave differently between two
+       listens was nearly always a wrong one, so an unsure genre is left
+       blank (null) instead of shown. Emotions both listens gave come first.
+       Adds 'genre_votes' => [first, second] to the result. */
+    public function analyseMusicTwice(string $audioBytes, string $mimeType, string $title, array $vocabulary, ?array $rhythm = null): ?array
+    {
+        Log::info('[Gemini] analyseMusicTwice called', [
+            'title'  => $title,
+            'bytes'  => strlen($audioBytes),
+            'rhythm' => $rhythm !== null,
+        ]);
+        $url = $this->musicUrl();
+        $body = $this->musicRequest($audioBytes, $mimeType, $title, $vocabulary, $rhythm);
+        try {
+            $responses = Http::pool(fn (Pool $pool) => [
+                $pool->timeout(120)->post($url, $body),
+                $pool->timeout(120)->post($url, $body),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[Gemini] analyseMusicTwice exception', ['error' => $e->getMessage()]);
+            return null;
+        }
+
+        $answers = [];
+        foreach ($responses as $response) {
+            if ($response instanceof Response) {
+                $answer = $this->readMusicAnswer($response, $vocabulary);
+                if ($answer !== null) {
+                    $answers[] = $answer;
+                }
+            } else {
+                Log::warning('[Gemini] analyseMusicTwice listen failed', [
+                    'error' => $response instanceof \Throwable ? $response->getMessage() : 'unknown',
+                ]);
+            }
+        }
+        if (!$answers) {
+            return null;
+        }
+        $result = self::agree($answers);
+        Log::info('[Gemini] analyseMusicTwice result', $result);
+        return $result;
+    }
+
+    /* Combine two listens' answers (see analyseMusicTwice). With only one
+       answer (the other call failed) it is used as it is - a failed call is
+       not a disagreement. */
+    public static function agree(array $answers): array
+    {
+        $a = $answers[0];
+        $b = $answers[1] ?? null;
+        if ($b === null) {
+            return $a + ['genre_votes' => [$a['genre']]];
+        }
+
+        // Emotions both listens heard first, then topped up to at least 3.
+        $inB = array_map('strtolower', $b['tags']);
+        $tags = array_values(array_filter($a['tags'], fn ($t) => in_array(strtolower($t), $inB, true)));
+        foreach (array_merge($a['tags'], $b['tags']) as $t) {
+            if (count($tags) >= 3) {
+                break;
+            }
+            if (!in_array(strtolower($t), array_map('strtolower', $tags), true)) {
+                $tags[] = $t;
+            }
+        }
+
+        return [
+            'genre'         => $a['genre'] !== null && $a['genre'] === $b['genre'] ? $a['genre'] : null,
+            'tags'          => array_slice($tags, 0, 6),
+            'tempo'         => $a['tempo'] ?? $b['tempo'],
+            'summary'       => $a['summary'] !== '' ? $a['summary'] : $b['summary'],
+            // A caution either listen heard is kept: a false alarm is better
+            // than a missed one.
+            'sensory_notes' => $a['sensory_notes'] !== '' ? $a['sensory_notes'] : $b['sensory_notes'],
+            'genre_votes'   => [$a['genre'], $b['genre']],
+        ];
+    }
+
+    private function musicUrl(): string
+    {
+        return "{$this->base}/{$this->textModel}:generateContent?key={$this->key}";
+    }
+
+    // The request body for one listen.
+    private function musicRequest(string $audioBytes, string $mimeType, string $title, array $vocabulary, ?array $rhythm): array
+    {
         $tagList = implode(', ', $vocabulary);
         $genreList = implode(', ', self::MUSIC_GENRES);
         $measured = $rhythm !== null
@@ -395,10 +522,21 @@ Use the rhythm to read the emotion, together with harmony and sound:
 
 Then return:
 - "genre": the ONE genre that best fits, exactly one of: {$genreList}.
-  Nature = mostly natural sounds (rain, birds, sea, wind), with or without
-  soft music. Lullaby = a soft, rocking song made for sleep. Ambient = slow
-  pads or textures without a clear tune. Cinematic = film-like, orchestral or
-  dramatic score. Classical = classical-style piano, strings or orchestra.
+  Classical & Cinematic = classical repertoire or classical-style piano,
+  strings or orchestra, and film, trailer or game scores.
+  Nature = mostly natural sounds (rain, thunder, birds, insects, sea, wind,
+  streams), with or without soft music; a plain recording of nature with no
+  music at all is still Nature.
+  Ambient & Lullaby = slow pads or textures without a clear tune, and soft,
+  rocking songs or melodies made for sleep.
+  Folk & World = traditional and folk songs or tunes from any country or
+  culture, including solo traditional instruments.
+  Jazz = jazz, swing, ragtime, blues and early dance-band music (fox-trots,
+  1920s orchestras), old recordings included.
+  Acoustic = modern songs or instrumentals led by acoustic guitar, ukulele or
+  piano that are not folk. Pop = modern catchy songs or bright instrumentals
+  with a band or a beat. Electronic = music made mainly from synthesizers and
+  electronic beats.
 - "tags": 3 to 6 emotion tags describing the track as a whole, in Title
   Case, one word each. Strongly prefer words from this existing list:
   {$tagList}
@@ -415,98 +553,94 @@ Then return:
   ones that would startle. Use an empty string if there are none. No
   clinical claims.
 
-If the audio is not music (speech, silence, noise), return an empty "tags"
-list, "tempo" "slow", "genre" "Ambient", and explain in "sensory_notes" that it
-is not music.
+Recordings of nature (rain, birds, the sea...) are welcome background sound:
+tag them as Nature with emotion tags like any other track. Only if the audio
+is neither music nor nature (speech, silence, machine or crowd noise), return
+an empty "tags" list, "tempo" "slow", "genre" "Ambient & Lullaby", and explain
+in "sensory_notes" that it is not music.
 
 Return ONLY JSON.
 PROMPT;
 
-        try {
-            $response = Http::timeout(120)->post(
-                "{$this->base}/{$this->textModel}:generateContent?key={$this->key}",
-                [
-                    'contents' => [
-                        ['parts' => [
-                            ['inline_data' => ['mime_type' => $mimeType, 'data' => base64_encode($audioBytes)]],
-                            ['text' => $prompt],
-                        ]],
+        return [
+            'contents' => [
+                ['parts' => [
+                    ['inline_data' => ['mime_type' => $mimeType, 'data' => base64_encode($audioBytes)]],
+                    ['text' => $prompt],
+                ]],
+            ],
+            'generationConfig' => [
+                'temperature'      => 0.3,
+                'responseMimeType' => 'application/json',
+                'responseSchema'   => [
+                    'type'       => 'OBJECT',
+                    'properties' => [
+                        'genre'         => ['type' => 'STRING', 'enum' => self::MUSIC_GENRES],
+                        'tags'          => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                        'tempo'         => ['type' => 'STRING', 'enum' => ['slow', 'moderate', 'upbeat']],
+                        'summary'       => ['type' => 'STRING'],
+                        'sensory_notes' => ['type' => 'STRING'],
                     ],
-                    'generationConfig' => [
-                        'temperature'      => 0.3,
-                        'responseMimeType' => 'application/json',
-                        'responseSchema'   => [
-                            'type'       => 'OBJECT',
-                            'properties' => [
-                                'genre'         => ['type' => 'STRING', 'enum' => self::MUSIC_GENRES],
-                                'tags'          => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
-                                'tempo'         => ['type' => 'STRING', 'enum' => ['slow', 'moderate', 'upbeat']],
-                                'summary'       => ['type' => 'STRING'],
-                                'sensory_notes' => ['type' => 'STRING'],
-                            ],
-                            'required' => ['genre', 'tags', 'tempo', 'summary', 'sensory_notes'],
-                        ],
-                    ],
-                ]
-            );
+                    'required' => ['genre', 'tags', 'tempo', 'summary', 'sensory_notes'],
+                ],
+            ],
+        ];
+    }
 
-            if (!$response->successful()) {
-                Log::warning('[Gemini] analyseMusic HTTP error', [
-                    'status' => $response->status(),
-                    'body'   => mb_substr($response->body(), 0, 300),
-                ]);
-                return null;
-            }
-
-            $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
-            $parsed = $text ? json_decode($text, true) : null;
-            if (!is_array($parsed)) {
-                Log::warning('[Gemini] analyseMusic unreadable response');
-                return null;
-            }
-
-            /* Clean the tags: one word, Title Case, no commas (tags are
-               stored comma-separated), no repeats, at most 6. Match the
-               existing spelling when the word is already in the library. */
-            $known = [];
-            foreach ($vocabulary as $v) {
-                $known[strtolower($v)] = $v;
-            }
-            // The genre has its own field; keep it out of the emotion tags.
-            $genres = array_map('strtolower', self::MUSIC_GENRES);
-            $tags = [];
-            foreach ((array) ($parsed['tags'] ?? []) as $tag) {
-                $word = trim(str_replace(',', ' ', (string) $tag));
-                if ($word === '' || mb_strlen($word) > 20 || in_array(strtolower($word), $genres, true)) {
-                    continue;
-                }
-                $word = $known[strtolower($word)] ?? Str::title($word);
-                if (!in_array($word, $tags, true)) {
-                    $tags[] = $word;
-                }
-            }
-            $tags = array_slice($tags, 0, 6);
-
-            $tempo = (string) ($parsed['tempo'] ?? '');
-            $genre = null;
-            foreach (self::MUSIC_GENRES as $g) {
-                if (strcasecmp($g, trim((string) ($parsed['genre'] ?? ''))) === 0) {
-                    $genre = $g;
-                }
-            }
-            $result = [
-                'genre'         => $genre,
-                'tags'          => $tags,
-                'tempo'         => in_array($tempo, ['slow', 'moderate', 'upbeat'], true) ? $tempo : null,
-                'summary'       => mb_substr(trim((string) ($parsed['summary'] ?? '')), 0, 500),
-                'sensory_notes' => mb_substr(trim((string) ($parsed['sensory_notes'] ?? '')), 0, 500),
-            ];
-            Log::info('[Gemini] analyseMusic success', $result);
-            return $result;
-        } catch (\Throwable $e) {
-            Log::warning('[Gemini] analyseMusic exception', ['error' => $e->getMessage()]);
+    // One listen's answer, cleaned; null if the call failed or was unreadable.
+    private function readMusicAnswer(Response $response, array $vocabulary): ?array
+    {
+        if (!$response->successful()) {
+            Log::warning('[Gemini] music HTTP error', [
+                'status' => $response->status(),
+                'body'   => mb_substr($response->body(), 0, 300),
+            ]);
             return null;
         }
+
+        $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+        $parsed = $text ? json_decode($text, true) : null;
+        if (!is_array($parsed)) {
+            Log::warning('[Gemini] music answer unreadable');
+            return null;
+        }
+
+        /* Clean the tags: one word, Title Case, no commas (tags are stored
+           comma-separated), no repeats, at most 6. Match the existing
+           spelling when the word is already in the library. */
+        $known = [];
+        foreach ($vocabulary as $v) {
+            $known[strtolower($v)] = $v;
+        }
+        $tags = [];
+        // Each new word becomes a filter chip for everyone, so only the
+        // first word the library doesn't have yet is kept (as the prompt asks).
+        $newWords = 0;
+        foreach ((array) ($parsed['tags'] ?? []) as $tag) {
+            $word = trim(str_replace(',', ' ', (string) $tag));
+            // The genre has its own field; keep genre names out of the emotions.
+            if ($word === '' || mb_strlen($word) > 20 || self::canonicalGenre($word) !== null) {
+                continue;
+            }
+            $isNew = !isset($known[strtolower($word)]);
+            if ($isNew && $vocabulary && $newWords >= 1) {
+                continue;
+            }
+            $word = $known[strtolower($word)] ?? Str::title($word);
+            if (!in_array($word, $tags, true)) {
+                $tags[] = $word;
+                $newWords += $isNew ? 1 : 0;
+            }
+        }
+
+        $tempo = (string) ($parsed['tempo'] ?? '');
+        return [
+            'genre'         => self::canonicalGenre($parsed['genre'] ?? null),
+            'tags'          => array_slice($tags, 0, 6),
+            'tempo'         => in_array($tempo, ['slow', 'moderate', 'upbeat'], true) ? $tempo : null,
+            'summary'       => mb_substr(trim((string) ($parsed['summary'] ?? '')), 0, 500),
+            'sensory_notes' => mb_substr(trim((string) ($parsed['sensory_notes'] ?? '')), 0, 500),
+        ];
     }
 
     // Add a soft, calm illustration style to the prompt.

@@ -40,9 +40,10 @@ class MusicGenreTaggingTest extends TestCase
 
         $result = (new GeminiService())->analyseMusic('bytes', 'audio/mp3', 'Night Walk', ['Calm', 'Happy'], self::RHYTHM);
 
-        // Genre matched to the list's spelling; never repeated as a tag.
+        // Genre matched to the list's spelling; never repeated as a tag; and
+        // only one word the library doesn't know yet (Curious, not Soothing).
         $this->assertSame('Jazz', $result['genre']);
-        $this->assertSame(['Calm', 'Curious', 'Soothing'], $result['tags']);
+        $this->assertSame(['Calm', 'Curious'], $result['tags']);
         $this->assertSame('moderate', $result['tempo']);
 
         Http::assertSent(function (Request $request) {
@@ -51,7 +52,7 @@ class MusicGenreTaggingTest extends TestCase
             $schema = $body['generationConfig']['responseSchema'];
             return str_contains($prompt, 'steady and regular (clarity 0.52 of 1), about 96 BPM')
                 && str_contains($prompt, 'Sudden loud jumps at: 1:32')
-                && str_contains($prompt, 'Classical, Nature, Pop, Jazz')
+                && str_contains($prompt, 'Classical & Cinematic, Nature, Pop, Jazz')
                 && $schema['properties']['genre']['enum'] === GeminiService::MUSIC_GENRES
                 && in_array('genre', $schema['required'], true);
         });
@@ -72,6 +73,60 @@ class MusicGenreTaggingTest extends TestCase
             $r->data()['contents'][0]['parts'][1]['text'],
             'No measurements are available',
         ));
+    }
+
+    private function answer(string $genre, array $tags, string $notes = ''): array
+    {
+        return ['genre' => $genre, 'tags' => $tags, 'tempo' => 'slow', 'summary' => 'Soft piano.', 'sensory_notes' => $notes];
+    }
+
+    private function fakeTwoListens(array $first, array $second): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.text_model' => 'test-model']);
+        $body = fn (array $a) => ['candidates' => [['content' => ['parts' => [['text' => json_encode($a)]]]]]];
+        Http::fake(['*generativelanguage.googleapis.com/*' => Http::sequence()->push($body($first))->push($body($second))]);
+    }
+
+    public function test_two_listens_that_agree_keep_the_genre_and_shared_emotions_first(): void
+    {
+        $this->fakeTwoListens(
+            $this->answer('Folk', ['Calm', 'Gentle', 'Curious']),
+            $this->answer('World', ['Gentle', 'Calm', 'Peaceful'], 'A sharp bell at 0:40.'),
+        );
+
+        $result = (new GeminiService())->analyseMusicTwice('bytes', 'audio/mp3', 'Song', ['Calm', 'Gentle', 'Curious', 'Peaceful']);
+
+        // Folk and World are one genre now, so the two listens agree.
+        $this->assertSame('Folk & World', $result['genre']);
+        $this->assertSame(['Folk & World', 'Folk & World'], $result['genre_votes']);
+        $this->assertSame(['Calm', 'Gentle', 'Curious'], $result['tags']);
+        // A caution from either listen is kept.
+        $this->assertSame('A sharp bell at 0:40.', $result['sensory_notes']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_two_listens_that_disagree_leave_the_genre_blank(): void
+    {
+        $this->fakeTwoListens(
+            $this->answer('Pop', ['Happy', 'Upbeat']),
+            $this->answer('Electronic', ['Energetic', 'Happy']),
+        );
+
+        $result = (new GeminiService())->analyseMusicTwice('bytes', 'audio/mp3', 'Song', ['Happy', 'Upbeat', 'Energetic']);
+
+        $this->assertNull($result['genre']);
+        $this->assertSame(['Pop', 'Electronic'], $result['genre_votes']);
+        // Shared emotion first, then topped up to three.
+        $this->assertSame(['Happy', 'Upbeat', 'Energetic'], $result['tags']);
+    }
+
+    public function test_older_genre_names_map_to_the_merged_genres(): void
+    {
+        $this->assertSame('Classical & Cinematic', GeminiService::canonicalGenre('cinematic'));
+        $this->assertSame('Ambient & Lullaby', GeminiService::canonicalGenre('Lullaby'));
+        $this->assertSame('Folk & World', GeminiService::canonicalGenre('folk & world'));
+        $this->assertSame('Jazz', GeminiService::canonicalGenre('JAZZ'));
+        $this->assertNull(GeminiService::canonicalGenre('Polka'));
     }
 
     public function test_the_genre_is_a_filter_tag_but_not_an_emotion_tag(): void

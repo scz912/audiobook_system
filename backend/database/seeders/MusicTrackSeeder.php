@@ -13,21 +13,27 @@ class MusicTrackSeeder extends Seeder
      * caregiver filtering. Each tag spans at least 2 tracks so it is meaningful
      * as a filter. Tags are title-cased for consistent display.
      *
+     * Tags and lengths match the audio files in storage/app/public/bgm
+     * (checked by listening, Nov 2026: "December Rain" is a cheerful ukulele
+     * piece and "Happy Happy Kids Music" a calm piano melody, despite their
+     * names). Live databases get the same corrections from the
+     * 2026_11_12_000002 migration.
+     *
      * Tag coverage across the 6 tracks:
-     *   Happy       → 1, 5
-     *   Upbeat      → 1, 5
-     *   Energetic   → 1, 5
-     *   Playful     → 1, 5, 6
-     *   Calm        → 2, 3
-     *   Gentle      → 2, 6
-     *   Soothing    → 2, 3
-     *   Peaceful    → 2, 3
-     *   Relaxing    → 3  (sleep / bedtime use-case anchor)
+     *   Happy       → 1, 2
+     *   Upbeat      → 1
+     *   Energetic   → 1
+     *   Playful     → 1, 2, 6
+     *   Calm        → 3, 5
+     *   Gentle      → 2, 5, 6
+     *   Soothing    → 3, 5
+     *   Peaceful    → 3, 5
+     *   Relaxing    → 3, 5
      *   Mysterious  → 4  (distinctive mood anchor)
      *   Adventurous → 4, 6
      *   Imaginative → 4, 6
      *   Curious     → 4, 6
-     *   Whimsical   → 5, 6
+     *   Whimsical   → 2, 6
      */
     public function run(): void
     {
@@ -44,9 +50,9 @@ class MusicTrackSeeder extends Seeder
                 'title'        => 'December Rain',
                 'composer'     => 'Ceeprolific',
                 'file_path'    => 'storage/bgm/ceeprolific-december-rain-274814.mp3',
-                'tags'         => 'Calm,Gentle,Soothing,Peaceful',
-                'tempo'        => 'slow',
-                'duration_secs'=> 303,
+                'tags'         => 'Happy,Playful,Gentle,Whimsical',
+                'tempo'        => 'moderate',
+                'duration_secs'=> 79,
             ],
             [
                 'title'        => 'Relaxing Sleep Music with Soft Ambient Rain',
@@ -54,7 +60,7 @@ class MusicTrackSeeder extends Seeder
                 'file_path'    => 'storage/bgm/desifreemusic-relaxing-sleep-music-with-soft-ambient-rain-369762.mp3',
                 'tags'         => 'Calm,Soothing,Peaceful,Relaxing',
                 'tempo'        => 'slow',
-                'duration_secs'=> 274,
+                'duration_secs'=> 151,
             ],
             [
                 'title'        => 'Mystery of Time',
@@ -62,15 +68,15 @@ class MusicTrackSeeder extends Seeder
                 'file_path'    => 'storage/bgm/emmraan-mystery-of-time-213387.mp3',
                 'tags'         => 'Mysterious,Adventurous,Imaginative,Curious',
                 'tempo'        => 'moderate',
-                'duration_secs'=> 105,
+                'duration_secs'=> 137,
             ],
             [
                 'title'        => 'Happy Happy Kids Music',
                 'composer'     => 'Sigma Music Art',
                 'file_path'    => 'storage/bgm/sigmamusicart-happy-happy-kids-music-537737.mp3',
-                'tags'         => 'Happy,Upbeat,Energetic,Playful,Whimsical',
-                'tempo'        => 'upbeat',
-                'duration_secs'=> 219,
+                'tags'         => 'Calm,Gentle,Peaceful,Relaxing,Soothing',
+                'tempo'        => 'moderate',
+                'duration_secs'=> 52,
             ],
             [
                 'title'        => 'Once Upon a Time',
@@ -78,7 +84,7 @@ class MusicTrackSeeder extends Seeder
                 'file_path'    => 'storage/bgm/sonican-once-upon-a-time-children-loop-384715.mp3',
                 'tags'         => 'Gentle,Playful,Whimsical,Imaginative,Adventurous,Curious',
                 'tempo'        => 'moderate',
-                'duration_secs'=> 220,
+                'duration_secs'=> 110,
             ],
         ];
 
