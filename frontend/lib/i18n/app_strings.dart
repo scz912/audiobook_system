@@ -170,6 +170,8 @@ class AppStrings {
     // Guardian PIN
     'guardian.title': 'Guardian PIN Required',
     'guardian.subtitle': 'Enter PIN to exit Child Mode',
+    'guardian.subtitle_enter': 'Enter PIN to start Child Mode',
+    'guardian.enter_child_mode': 'Start Child\nMode',
     'guardian.err_wrong_pin': 'Incorrect PIN, please try again',
     'guardian.caregiver_pin': 'Caregiver PIN',
     'guardian.exit_child_mode': 'Exit Child\nMode',
@@ -500,6 +502,7 @@ class AppStrings {
     'msg.no_connection': 'No internet connection. Please try again.',
     'msg.try_again': 'Something went wrong. Please try again.',
     'msg.narration_failed': 'Could not play the narration.',
+    'player.err_playback': 'The story stopped because of a connection problem. Your place is kept - tap Play to try again.',
 
     // Insights
     'insights.title': 'Insights',
@@ -772,6 +775,11 @@ class AppStrings {
     'upload.choose_track': 'Choose a track',
     'upload.bgm_leave_empty': 'Leave empty: AI picks the music.',
     'upload.volume': 'Volume',
+    'upload.bgm_loud_title': 'Music may be too loud',
+    'upload.bgm_loud_body': 'The background music is set to {level}%. At this level it can cover the narration and make the story harder to follow. We recommend {fix}%.',
+    'upload.bgm_loud_fix': 'Lower to {fix}%',
+    'upload.bgm_loud_keep': 'Keep it',
+    'upload.bgm_loud_back': 'Go back',
     'upload.change': 'Change',
     'upload.format_linear_hint': 'A classic story, read from start to end.',
     'upload.format_interactive_hint': 'The story pauses and lets the child choose what happens.',
@@ -1029,6 +1037,8 @@ class AppStrings {
     // Guardian PIN
     'guardian.title': 'PIN Penjaga Diperlukan',
     'guardian.subtitle': 'Masukkan PIN untuk keluar Mod Kanak-kanak',
+    'guardian.subtitle_enter': 'Masukkan PIN untuk memulakan Mod Kanak-kanak',
+    'guardian.enter_child_mode': 'Mula Mod\nKanak-kanak',
     'guardian.err_wrong_pin': 'PIN tidak betul, sila cuba lagi',
     'guardian.caregiver_pin': 'PIN Penjaga',
     'guardian.exit_child_mode': 'Keluar Mod\nKanak-kanak',
@@ -1365,6 +1375,7 @@ class AppStrings {
         'Tiada sambungan internet. Sila cuba lagi.',
     'msg.try_again': 'Ada masalah. Sila cuba lagi.',
     'msg.narration_failed': 'Tidak dapat memainkan suara cerita.',
+    'player.err_playback': 'Cerita berhenti kerana masalah sambungan. Tempat anda disimpan - tekan Main untuk cuba lagi.',
 
     // Insights
     'insights.title': 'Laporan',
@@ -1637,6 +1648,11 @@ class AppStrings {
     'upload.choose_track': 'Pilih muzik',
     'upload.bgm_leave_empty': 'Biar kosong: AI pilih muzik.',
     'upload.volume': 'Kelantangan',
+    'upload.bgm_loud_title': 'Muzik mungkin terlalu kuat',
+    'upload.bgm_loud_body': 'Muzik latar ditetapkan pada {level}%. Pada tahap ini ia boleh menenggelamkan suara pencerita dan menyukarkan cerita diikuti. Kami mengesyorkan {fix}%.',
+    'upload.bgm_loud_fix': 'Turunkan ke {fix}%',
+    'upload.bgm_loud_keep': 'Kekalkan',
+    'upload.bgm_loud_back': 'Kembali',
     'upload.change': 'Tukar',
     'upload.format_linear_hint': 'Cerita biasa, dibaca dari awal hingga akhir.',
     'upload.format_interactive_hint': 'Cerita berhenti seketika dan anak memilih apa yang berlaku.',

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Jobs\GenerateAudiobookImages;
 use App\Models\Audiobook;
+use App\Models\ChildProfile;
+use App\Models\ListeningHistory;
 use App\Models\MusicTrack;
 use App\Services\GeminiService;
 use App\Services\StarterLibrary;
@@ -446,6 +448,14 @@ class ContentManagementController extends ApiController
             return $this->errorResponse('Audiobook not found', 'NOT_FOUND', 404);
         }
 
+        // FR8: a book one of my children is partway through can't be deleted.
+        if ($this->inUseByMyChild($request, $book->audiobook_id)) {
+            $this->logWarn('Content', 'destroy blocked: in use by a child', [
+                'audiobook_id' => $audiobookId,
+            ]);
+            return $this->errorResponse(self::IN_USE_MESSAGE, 'IN_USE', 409);
+        }
+
         try {
             $book->delete();
             $this->logEvent('Content', 'destroy success', [
@@ -744,6 +754,36 @@ class ContentManagementController extends ApiController
 
     /* The book, if this caregiver may change it. Someone else's book reads
        as not found, so a private book's id doesn't reveal that it exists. */
+    public const IN_USE_MESSAGE =
+        'A child is still partway through this story. It can be deleted once they finish it.';
+
+    // How recent an unfinished session must be to count as "still reading".
+    private const IN_USE_DAYS = 14;
+
+    /* Whether one of this caregiver's children is partway through the book:
+       their most recent session with it, in the last IN_USE_DAYS days,
+       didn't reach the end. Older unfinished sessions don't count, so a
+       story a child gave up on long ago can still be deleted. */
+    private function inUseByMyChild(Request $request, string $audiobookId): bool
+    {
+        $caregiverId = $request->get('auth_caregiver')?->caregiver_id;
+        if ($caregiverId === null) {
+            return false;
+        }
+        $childIds = ChildProfile::where('caregiver_id', $caregiverId)->pluck('child_id');
+        foreach ($childIds as $childId) {
+            $latest = ListeningHistory::where('child_id', $childId)
+                ->where('audiobook_id', $audiobookId)
+                ->where('created_at', '>=', now()->subDays(self::IN_USE_DAYS))
+                ->orderByDesc('created_at')
+                ->first();
+            if ($latest && !$latest->completed) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private function editableBook(Request $request, string $audiobookId): ?Audiobook
     {
         return Audiobook::editableBy($request->get('auth_caregiver')?->caregiver_id)

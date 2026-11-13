@@ -11,6 +11,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../audio/audio_safety.dart';
 import '../../i18n/app_strings.dart';
 import '../../i18n/i18n.dart';
 import '../../models/audiobook.dart';
@@ -281,6 +282,49 @@ class _UploadContentPageState extends State<UploadContentPage> {
     });
   }
 
+  /* FR5: before saving, warn if the background music is set loud enough to
+     compete with the narration, and offer a one-tap fix. Returns false if
+     the caregiver chose to go back and change it. */
+  Future<bool> _confirmMusicLevel({
+    required bool enabled,
+    required int volume,
+    required VoidCallback lower,
+  }) async {
+    if (!enabled || !AudioSafety.bgmTooLoud(volume)) return true;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ctx.tr('upload.bgm_loud_title')),
+        content: Text(ctx
+            .tr('upload.bgm_loud_body')
+            .replaceAll('{level}', '$volume')
+            .replaceAll('{fix}', '${AudioSafety.bgmRecommended}')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('back'),
+            child: Text(ctx.tr('upload.bgm_loud_back')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('keep'),
+            child: Text(ctx.tr('upload.bgm_loud_keep')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('lower'),
+            child: Text(ctx
+                .tr('upload.bgm_loud_fix')
+                .replaceAll('{fix}', '${AudioSafety.bgmRecommended}')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return false;
+    if (choice == 'lower') {
+      setState(lower);
+      return true;
+    }
+    return choice == 'keep';
+  }
+
   Future<void> _submit() async {
     if (_titleCtrl.text.trim().isEmpty) {
       AppSnackbar.warning(context.trRead('upload.err_title_required'), context: context);
@@ -296,6 +340,13 @@ class _UploadContentPageState extends State<UploadContentPage> {
       AppSnackbar.warning(context.trRead('upload.err_need_track'), context: context);
       return;
     }
+    if (!await _confirmMusicLevel(
+        enabled: _writeBgmEnabled,
+        volume: _writeBgmVolume,
+        lower: () => _writeBgmVolume = AudioSafety.bgmRecommended)) {
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _submitting = true);
 
@@ -373,6 +424,13 @@ class _UploadContentPageState extends State<UploadContentPage> {
       AppSnackbar.warning(context.trRead('upload.err_topic_required'), context: context);
       return;
     }
+    if (!await _confirmMusicLevel(
+        enabled: _aiBgmEnabled,
+        volume: _aiBgmVolume,
+        lower: () => _aiBgmVolume = AudioSafety.bgmRecommended)) {
+      return;
+    }
+    if (!mounted) return;
     setState(() => _generating = true);
     final language =
         _aiLanguage ?? context.read<LanguageState>().code; // app language by default
@@ -615,6 +673,13 @@ class _UploadContentPageState extends State<UploadContentPage> {
       AppSnackbar.warning(context.trRead('upload.err_need_track'), context: context);
       return;
     }
+    if (!await _confirmMusicLevel(
+        enabled: _writeBgmEnabled,
+        volume: _writeBgmVolume,
+        lower: () => _writeBgmVolume = AudioSafety.bgmRecommended)) {
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _submitting = true);
 
@@ -2148,11 +2213,12 @@ class _BgmCard extends StatelessWidget {
                 inactiveTrackColor: AppColors.cardBorder,
                 trackHeight: 3,
               ),
+              // Capped at the music ceiling (FR10, NFR5).
               child: Slider(
-                value: volume.toDouble(),
+                value: AudioSafety.clampBgm(volume).toDouble(),
                 min: 0,
-                max: 100,
-                divisions: 20,
+                max: AudioSafety.bgmCeiling.toDouble(),
+                divisions: AudioSafety.bgmCeiling ~/ 5,
                 onChanged: (v) => onVolumeChanged(v.round()),
               ),
             ),

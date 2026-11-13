@@ -5,23 +5,27 @@ import '../../services/database_service.dart';
 import '../../theme/app_colors.dart';
 
 /* Shows the Guardian PIN gate. Resolves to `true` when the correct PIN
-   is entered, `false` if the user cancels. [verifyPin] is for tests; it
-   defaults to checking the PIN with the backend. */
+   is entered, `false` if the user cancels. The PIN is asked both to enter
+   and to exit Child Mode (FR16); [entering] picks the wording. [verifyPin]
+   is for tests; it defaults to checking the PIN with the backend. */
 Future<bool> showGuardianPinDialog(
   BuildContext context, {
+  bool entering = false,
   Future<bool> Function(String pin) verifyPin = DatabaseService.verifyCurrentPin,
 }) async {
   final result = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _GuardianPinDialog(verifyPin: verifyPin),
+    builder: (_) =>
+        _GuardianPinDialog(verifyPin: verifyPin, entering: entering),
   );
   return result ?? false;
 }
 
 class _GuardianPinDialog extends StatefulWidget {
   final Future<bool> Function(String pin) verifyPin;
-  const _GuardianPinDialog({required this.verifyPin});
+  final bool entering;
+  const _GuardianPinDialog({required this.verifyPin, this.entering = false});
   @override
   State<_GuardianPinDialog> createState() => _GuardianPinDialogState();
 }
@@ -112,7 +116,9 @@ class _GuardianPinDialogState extends State<_GuardianPinDialog> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        context.tr('guardian.subtitle'),
+                        context.tr(widget.entering
+                            ? 'guardian.subtitle_enter'
+                            : 'guardian.subtitle'),
                         style: const TextStyle(
                             color: AppColors.textSecondary),
                       ),
@@ -197,7 +203,9 @@ class _GuardianPinDialogState extends State<_GuardianPinDialog> {
                     ),
                     onPressed: _submit,
                     child: Text(
-                      context.tr('guardian.exit_child_mode'),
+                      context.tr(widget.entering
+                          ? 'guardian.enter_child_mode'
+                          : 'guardian.exit_child_mode'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,

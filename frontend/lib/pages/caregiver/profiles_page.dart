@@ -9,6 +9,7 @@ import '../../widgets/adaptive_row.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/soft_card.dart';
 import '../child/child_shell.dart';
+import '../shared/guardian_pin_dialog.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import 'add_child_dialog.dart';
 import 'child_profile_actions.dart';
@@ -17,7 +18,11 @@ import '../../widgets/whole_words_text.dart';
 class ProfilesPage extends StatelessWidget {
   const ProfilesPage({super.key});
 
-  void _enterChildMode(BuildContext context, ChildProfile profile) {
+  /* The Guardian PIN is needed to enter Child Mode as well as to leave it
+     (FR16), so a child can't start it from the caregiver screens alone. */
+  Future<void> _enterChildMode(BuildContext context, ChildProfile profile) async {
+    final ok = await showGuardianPinDialog(context, entering: true);
+    if (!ok || !context.mounted) return;
     context.read<ProfilesState>().enterChildMode(profile);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const ChildShell()),

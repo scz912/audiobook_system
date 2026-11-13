@@ -78,6 +78,8 @@ const _ms = <String, String>{
   'Could not register caregiver': 'Tidak dapat mendaftar akaun',
   'Could not delete page': 'Tidak dapat memadam halaman',
   'Could not delete content': 'Tidak dapat memadam buku',
+  'A child is still partway through this story. It can be deleted once they finish it.':
+      'Seorang kanak-kanak masih belum habis membaca cerita ini. Ia boleh dipadam selepas mereka selesai.',
   'Could not add page': 'Tidak dapat menambah halaman',
   'Cannot message yourself': 'Anda tidak boleh menghantar mesej kepada diri sendiri',
   'Add a story or some text': 'Tambah cerita atau sedikit teks',

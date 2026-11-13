@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 
 import '../../audio/audio_engine.dart';
+import '../../audio/audio_safety.dart';
 import '../../i18n/i18n.dart';
 import '../../models/audiobook.dart';
 import '../../models/user_settings.dart';
@@ -98,6 +99,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   // Tracks the clip's total length as soon as just_audio knows it, used to
   // build _pageEndTimes.
   StreamSubscription<Duration?>? _audioDurSub;
+  // Errors while playing (dropped connection, broken clip) - FR19.
+  StreamSubscription<PlaybackEvent>? _playbackErrorSub;
   Duration? _knownAudioDuration;
   // When each page should end, split by each page's share of the words.
   // _pageEndTimes[i] is when page i hands off to i+1.
@@ -108,6 +111,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   // Set just before an auto page-flip so _onPageChanged knows not to seek
   // (we're already at the right spot).
   bool _suppressAudioPageSeek = false;
+  // Set by a playback error so the next Play reloads the recording (FR19).
+  bool _playbackFailed = false;
   // True while an auto page-flip is animating, so we don't start a second
   // one on every position tick during the 480 ms animation.
   bool _autoAdvanceInFlight = false;
@@ -116,7 +121,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
 
   // Background music - its own player so it doesn't clash with the voice.
   final AudioPlayer _bgmPlayer = AudioPlayer();
-  int _bgmVolume = 30;    // 0-100, from Audiobook.bgmVolume
+  // Fades the music in and out instead of starting/stopping it abruptly.
+  late final AudioFader _bgmFader = AudioFader(_bgmPlayer);
+  int _bgmVolume = 30;    // 0-[AudioSafety.bgmCeiling], from Audiobook.bgmVolume
   bool _bgmStarted = false; // true once it has started playing
 
   // Settings just for this player session - changes here don't save back to
@@ -159,6 +166,49 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       _recordSessionIfNeeded();
       _showFinishDialog();
     });
+    // FR19: an error mid-playback stops everything gently and keeps the
+    // child on the same page, instead of cutting out or leaving music on.
+    _playbackErrorSub = _engine.player.playbackEventStream.listen(
+      (_) {},
+      onError: (Object e, StackTrace _) => _onPlaybackError(e),
+    );
+  }
+
+  /* Back to a safe, quiet state after a playback error (FR19): music fades
+     out, nothing is left "playing", the page and position stay where they
+     were, and the child sees a calm message. The next Play tap reloads. */
+  void _onPlaybackError(Object error) {
+    debugPrint('Playback error: $error');
+    // Load failures are handled where the clip is loaded; this is for
+    // errors while something is actually playing.
+    if (!mounted || !_playingAudio) return;
+    unawaited(_pauseBgm());
+    _listenWatch.stop();
+    _naturalPlaying = false; // voice mode: the next tap fetches the page again
+    _playbackFailed = true; // recording mode: the next tap reloads the file
+    setState(() => _playingAudio = false);
+    AppSnackbar.warning(context.trRead('player.err_playback'), context: context);
+  }
+
+  /* After a playback error the recording has to be loaded again before it
+     can play. Pick up from the same spot. */
+  Future<bool> _reloadRecordingIfFailed() async {
+    if (!_playbackFailed) return true;
+    final url = _audiobook?.audioFile;
+    if (url == null || url.isEmpty) return false;
+    final at = _engine.player.position;
+    try {
+      await _engine.loadAudio(url);
+      await _engine.seek(at);
+      _playbackFailed = false;
+      return true;
+    } catch (e) {
+      debugPrint('Reloading the recording failed: $e');
+      if (mounted) {
+        AppSnackbar.warning(context.trRead('player.err_playback'), context: context);
+      }
+      return false;
+    }
   }
 
   @override
@@ -180,7 +230,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     _naturalPosSub?.cancel();
     _audioPosSub?.cancel();
     _audioDurSub?.cancel();
+    _playbackErrorSub?.cancel();
     _engine.stop();
+    _bgmFader.cancel();
     _bgmPlayer.dispose();
     _pageController.dispose();
     super.dispose();
@@ -390,7 +442,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     // The music itself doesn't start until then (_startBgmIfNeeded).
     final book = _audiobook;
     if (book != null && book.musicTrackFileUrl != null) {
-      _bgmVolume = book.bgmVolume;
+      // Older books may have been saved louder than the ceiling allows.
+      _bgmVolume = AudioSafety.clampBgm(book.bgmVolume);
     }
 
     // Load every page image into the cache now so tapping Next shows the
@@ -398,8 +451,9 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     if (mounted) _precachePageImages();
   }
 
-  /* Start the music the first time (load, set volume, loop), or resume it
-     after that. Does nothing if this book has no music. */
+  /* Start the music the first time (load, loop), or resume it after that.
+     Either way it fades in from silence to the book's level (NFR5).
+     Does nothing if this book has no music. */
   Future<void> _startBgmIfNeeded() async {
     final url = _audiobook?.musicTrackFileUrl;
     if (url == null || url.isEmpty) return;
@@ -407,14 +461,16 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       if (!_bgmStarted) {
         _bgmStarted = true;
         await _bgmPlayer.setUrl(url);
-        await _bgmPlayer.setVolume(_bgmVolume / 100.0);
         await _bgmPlayer.setLoopMode(LoopMode.one);
       }
-      await _bgmPlayer.play();
+      await _bgmFader.fadeInPlay(_bgmVolume / 100.0);
     } catch (_) {
       // Music is optional; ignore failures.
     }
   }
+
+  /// Fade the music out, then pause it (NFR5).
+  Future<void> _pauseBgm() => _bgmFader.fadeOutPause();
 
   void _precachePageImages() {
     final seen = <String>{};
@@ -502,7 +558,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       });
       // The question was the last page - the story is done.
       if (_page >= _pages.length - 1) {
-        unawaited(_bgmPlayer.pause());
+        unawaited(_pauseBgm());
         _listenWatch.stop();
         _reachedEnd = true;
         _recordSessionIfNeeded();
@@ -566,12 +622,14 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       return;
     }
     if (_playingAudio) {
-      await _engine.pause();
-      unawaited(_bgmPlayer.pause());
+      // Soft fade-out instead of a hard stop (NFR5).
+      unawaited(_engine.fadeOutPause());
+      unawaited(_pauseBgm());
       _listenWatch.stop();
       _pauseCount++; // count the pause for UC-9
     } else {
-      unawaited(_engine.play()); // see note in _toggleNarration
+      if (!await _reloadRecordingIfFailed()) return;
+      unawaited(_engine.fadeInPlay()); // fades in; see note in _toggleNarration
       unawaited(_startBgmIfNeeded());
       _listenWatch.start();
       // No need to subscribe here - _loadAudiobook already set up the
@@ -588,13 +646,13 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     // Already reading this page -> pause / resume.
     if (_naturalPlaying) {
       if (_playingAudio) {
-        await _engine.pause();
-        unawaited(_bgmPlayer.pause());
+        unawaited(_engine.fadeOutPause()); // soft fade-out (NFR5)
+        unawaited(_pauseBgm());
         _listenWatch.stop();
         _pauseCount++; // count the pause for UC-9
         if (mounted) setState(() => _playingAudio = false);
       } else {
-        unawaited(_engine.play()); // see note in fresh-play branch below
+        unawaited(_engine.fadeInPlay()); // fades in; see note in fresh-play branch below
         unawaited(_startBgmIfNeeded());
         _listenWatch.start();
         if (mounted) setState(() => _playingAudio = true);
@@ -640,20 +698,24 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         _listenForNaturalProgress();
         // just_audio's play() finishes only when playback ENDS, not when it
         // starts. Awaiting it would block the setState below until the clip
-        // was done, so we don't await it.
-        unawaited(_engine.play());
+        // was done, so we don't await it. It fades in (NFR5).
+        unawaited(_engine.fadeInPlay());
         unawaited(_startBgmIfNeeded());
         _listenWatch.start();
         if (mounted) setState(() => _playingAudio = true);
       } catch (e) {
         debugPrint('Narration playback failed: $e');
         _naturalPlaying = false;
+        unawaited(_pauseBgm()); // FR19: no music left running on its own
         if (mounted) {
+          setState(() => _playingAudio = false);
           AppSnackbar.error(context.trRead('msg.narration_failed'),
               context: context);
         }
       }
     } else {
+      unawaited(_pauseBgm()); // FR19: no music left running on its own
+      setState(() => _playingAudio = false);
       AppSnackbar.error(resp.message, context: context);
     }
   }
@@ -892,13 +954,13 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     // Never turn the page or finish the story from here.
     if (_pendingQuestion != null) {
       _heardQuestion = true;
-      unawaited(_bgmPlayer.pause());
+      unawaited(_pauseBgm());
       return;
     }
 
     final isLastPage = _page >= _pages.length - 1;
     if (isLastPage) {
-      unawaited(_bgmPlayer.pause()); // story done - stop the music
+      unawaited(_pauseBgm()); // story done - stop the music
       _reachedEnd = true;
       _recordSessionIfNeeded();
       _showFinishDialog();
@@ -911,7 +973,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
         if (mounted) _toggleNarration();
       });
     } else {
-      unawaited(_bgmPlayer.pause()); // wait for the next Listen tap
+      unawaited(_pauseBgm()); // wait for the next Listen tap
     }
   }
 
@@ -1364,7 +1426,10 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
               _ControlButton(
                 label: context.tr('player.music_louder'),
                 accent: const Color(0xFF7457F5),
-                onTap: _bgmVolume < 100 ? () => _setBgmVolume(_bgmVolume + 10) : null,
+                // Can't go past the music ceiling (FR10, NFR5).
+                onTap: _bgmVolume < AudioSafety.bgmCeiling
+                    ? () => _setBgmVolume(_bgmVolume + 10)
+                    : null,
                 child: const _Emoji('\u{1F50A}'),
               ),
             ],
@@ -1375,8 +1440,11 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   }
 
   Future<void> _setBgmVolume(int value) async {
-    setState(() => _bgmVolume = value.clamp(0, 100));
-    await _bgmPlayer.setVolume(_bgmVolume / 100.0);
+    setState(() => _bgmVolume = AudioSafety.clampBgm(value));
+    if (!_bgmPlayer.playing) return; // the next fade-in uses the new level
+    // Glide to the new level rather than jumping (NFR5).
+    await _bgmFader.rampTo(_bgmVolume / 100.0,
+        duration: const Duration(milliseconds: 250));
   }
 
   Future<void> _setVoice(NarratorVoice voice) async {
