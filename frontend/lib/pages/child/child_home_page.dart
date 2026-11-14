@@ -3,12 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../i18n/i18n.dart';
+import '../../models/book_recommendation.dart';
 import '../../models/content_item.dart';
 import '../../models/insights_overview.dart';
 import '../../services/audiobook_recommender.dart';
 import '../../services/database_service.dart';
-import '../../services/music_taste_service.dart';
 import '../../services/reading_progress.dart';
+import '../../services/todays_mood.dart';
 import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_snackbar.dart';
@@ -39,8 +40,8 @@ class ChildHomePage extends StatefulWidget {
   final VoidCallback? onPaigeTap;
   // The personal account's own most-listened books ("Top 3 Books").
   final bool showTopBooks;
-  /* Personal account: with YouTube access allowed, today's pick is the
-     top "Recommended for you" book from Insights. */
+  /* Personal account: with YouTube access allowed, their music taste also
+     counts towards today's pick. */
   final bool recommendFromMusic;
 
   @override
@@ -144,28 +145,25 @@ class _ChildHomePageState extends State<ChildHomePage> {
     }
   }
 
-  /* With YouTube access allowed on a personal account, today's pick is the
-     top "Recommended for you" book from Insights: the one whose background
-     music best suits the genres they listen to (genre tags) and today's
-     mood (emotion tags). Without access, or when nothing fits, the pick
-     above stays. Runs again when a mood is chosen. */
+  /* Today's pick is the top book from the recommender (the same one as
+     "Recommended for you" on Insights): like books they enjoyed, what
+     similar readers liked, today's mood and the right difficulty. On a
+     personal account with YouTube access allowed, their music taste
+     counts too. If it can't be reached, the first book above stays. Runs
+     again when a mood is chosen. */
   Future<void> _pickRecommended() async {
-    if (!widget.recommendFromMusic || _readyBooks.isEmpty) return;
+    if (_readyBooks.isEmpty) return;
     final profiles = context.read<ProfilesState>();
     final childId = profiles.activeProfile?.childId;
-
-    final status = await MusicTasteService.status();
-    if (!status.supported || !status.granted) return;
-    await MusicTasteService.sync();
-    final top = AudiobookRecommender.topGenres(await MusicTasteService.genreCounts());
-    if (top.isEmpty) return;
-
-    var mood = profiles.currentMood;
-    if (mood == null && childId != null) {
-      mood = (await SharedPreferences.getInstance()).getString(_todayMoodKey(childId));
-    }
-    final recs = AudiobookRecommender.recommend(_readyBooks, top, mood, limit: 1);
-    if (recs.isNotEmpty && mounted) setState(() => _featured = recs.first.book);
+    if (childId == null) return;
+    final mood = await todaysMood(profiles, childId);
+    final taste = widget.recommendFromMusic ? await AudiobookRecommender.tasteForServer() : null;
+    final resp = await DatabaseService.getRecommendations(childId, mood: mood, taste: taste, limit: 1);
+    if (!mounted || resp.data is! List<BookRecommendation>) return;
+    final recs = resp.data as List<BookRecommendation>;
+    if (recs.isEmpty) return;
+    final pick = _readyBooks.where((b) => b.audiobookId == recs.first.audiobookId).firstOrNull;
+    if (pick != null) setState(() => _featured = pick);
   }
 
   /* The storage key for [childId]'s mood today. Uses the local date, so a

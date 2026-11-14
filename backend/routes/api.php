@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\RecommendationController;
 use App\Http\Controllers\Api\AudiobookController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildProfileController;
@@ -89,6 +90,7 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{childId}/suggestions', [InsightsController::class, 'suggestions'])->whereUuid('childId');
         Route::post('/{childId}/suggestions/apply',   [InsightsController::class, 'applySuggestion'])->whereUuid('childId');
         Route::post('/{childId}/suggestions/dismiss', [InsightsController::class, 'dismissSuggestion'])->whereUuid('childId');
+        Route::post('/{childId}/recommendations', [RecommendationController::class, 'forChild'])->whereUuid('childId');
     });
 
     // Natural-voice narration

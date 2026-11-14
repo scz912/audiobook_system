@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../models/content_item.dart';
 import 'music_genres.dart';
+import 'music_taste_service.dart';
 
 /// A listening genre and its share of the person's recent plays (0-1).
 typedef GenreShare = ({String genre, double share});
@@ -82,6 +83,25 @@ class AudiobookRecommender {
     final clashes = tags.where((t) => moodClashes[mood]!.contains(t)).length;
     final score = (math.min(fits.length, 3) / 3 - 0.34 * clashes).clamp(0.0, 1.0);
     return (score: score.toDouble(), tags: fits);
+  }
+
+  /* The person's music taste in the form the server's recommender takes:
+     for each background-music genre, how well it suits what they listen
+     to (0-1). Null when YouTube access isn't allowed or there are no
+     plays yet, so recommendations just leave taste out. */
+  static Future<Map<String, double>?> tasteForServer() async {
+    final status = await MusicTasteService.status();
+    if (!status.supported || !status.granted) return null;
+    await MusicTasteService.sync();
+    final top = topGenres(await MusicTasteService.genreCounts());
+    if (top.isEmpty) return null;
+    final taste = <String, double>{};
+    for (final g in top) {
+      (genreAffinity[g.genre] ?? const {}).forEach((trackGenre, fit) {
+        taste[trackGenre] = math.min(1.0, (taste[trackGenre] ?? 0) + g.share * fit);
+      });
+    }
+    return taste.isEmpty ? null : taste;
   }
 
   /// Top listening genres from per-genre play counts: the [limit] most

@@ -21,6 +21,7 @@ import '../../widgets/stat_sphere_carousel.dart';
 import '../../widgets/shelf_nav_bar.dart';
 import '../../widgets/whole_words_text.dart';
 import 'insights_music_taste.dart';
+import 'insights_recommendations.dart';
 
 class InsightsPage extends StatefulWidget {
   /* The personal account's own sections, after Top stories: its top
@@ -275,6 +276,12 @@ class _InsightsPageState extends State<InsightsPage> {
               onEditAccept: (item, value) =>
                   _acceptItem(_selectedChildId!, item, overrideValue: value),
               onDismiss: (item) => _dismissItem(_selectedChildId!, item),
+            ),
+            const SizedBox(height: 20),
+            // Books picked for this child (or for me, on a personal account).
+            RecommendedBooksSection(
+              childId: _selectedChildId!,
+              previewOnOpen: !personal,
             ),
             const SizedBox(height: 16),
           ],

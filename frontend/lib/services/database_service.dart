@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../models/ai_suggestion.dart';
 import '../models/audiobook.dart';
+import '../models/book_recommendation.dart';
 import '../models/caregiver.dart';
 import '../models/child_profile.dart';
 import '../models/content_item.dart';
@@ -781,6 +782,34 @@ class DatabaseService {
   }
 
   // UC-9: AI listening-behaviour suggestions
+
+  /* Audiobooks picked for [childId] by the server's recommender. [mood] is
+     today's mood if known; [taste] is how well each background-music genre
+     suits the person's own music (only when they allowed YouTube access).
+     On success `data` is a List<BookRecommendation>, best first. */
+  static Future<ApiResponse> getRecommendations(
+    String childId, {
+    String? mood,
+    Map<String, double>? taste,
+    int limit = 3,
+  }) async {
+    final resp = await _post('/insights/$childId/recommendations', body: {
+      'mood': ?mood,
+      if (taste != null && taste.isNotEmpty) 'taste': taste,
+      'limit': limit,
+    });
+    if (!resp.success || resp.data is! Map) return resp;
+    final raw = (resp.data as Map)['items'];
+    return ApiResponse(
+      success: true,
+      message: resp.message,
+      data: [
+        if (raw is List)
+          for (final r in raw)
+            if (r is Map<String, dynamic>) BookRecommendation.fromJson(r),
+      ],
+    );
+  }
 
   /* Get the saved tips for [childId] without calling Gemini. Used when the
      insights page first opens. */
