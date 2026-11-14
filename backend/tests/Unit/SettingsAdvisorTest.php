@@ -127,6 +127,18 @@ class SettingsAdvisorTest extends TestCase
         $this->assertGreaterThanOrEqual(0.4, $advice['stats']['struggle']);
     }
 
+    public function test_older_sessions_without_page_details_still_count(): void
+    {
+        $old = ['pages_total' => null, 'pages_reached' => null, 'completed' => false, 'pause_count' => 10];
+        $advice = $this->advise([
+            $this->session(0, $old), $this->session(1, $old), $this->session(2, $old),
+        ]);
+
+        $tip = $this->tip($advice, 'reading_speed');
+        $this->assertEqualsWithDelta(0.9, $tip['suggested_value'], 0.001);
+        $this->assertSame(0, $advice['stats']['sessions_with_pages']);
+    }
+
     public function test_tapping_next_on_every_page_suggests_auto_turn(): void
     {
         $tapper = ['skip_count' => 7];

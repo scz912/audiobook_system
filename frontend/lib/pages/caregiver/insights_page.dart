@@ -155,6 +155,9 @@ class _InsightsPageState extends State<InsightsPage> {
         context.tr('insights.suggestions_stale'),
         context: context,
       );
+    } else if (mounted) {
+      // Even with no tips, show that the check ran.
+      AppSnackbar.success(context.tr('insights.checked'), context: context);
     }
   }
 
@@ -1299,7 +1302,7 @@ class _SuggestionsCard extends StatelessWidget {
         ] else ...[
           if (s != null && (s.isStale || s.isLowConfidence))
             const SizedBox(height: 14),
-          _EmptyState(),
+          _EmptyState(suggestion: s),
         ],
         const SizedBox(height: 18),
         _Footer(
@@ -1486,9 +1489,31 @@ class _Footer extends StatelessWidget {
 
 /* Shown when a child is selected but no analysis has run yet - a friendly
    icon and the "Run AI analysis" prompt. */
+/* No tips to show. Says which of three it is, so "Check now" never
+   looks like it did nothing:
+   - never checked: "No tips yet";
+   - checked, but too little listening with the new details yet: "Listen
+     to a few more books first", with how many so far (of 3);
+   - checked, and nothing needs changing: "All good!". */
 class _EmptyState extends StatelessWidget {
+  final AiSuggestion? suggestion;
+  const _EmptyState({required this.suggestion});
+
+  static const _needed = 3;
+
   @override
   Widget build(BuildContext context) {
+    final stats = suggestion?.sourceStats;
+    final checked = suggestion?.generatedAt != null && stats != null;
+    final withDetails = (stats?['sessions_with_pages'] as num?)?.toInt() ?? 0;
+    final needMore = checked && withDetails < _needed;
+
+    final (icon, color, text) = !checked
+        ? (Icons.auto_awesome_outlined, AppColors.iconCirclePurple, context.tr('insights.no_suggestions_title'))
+        : needMore
+            ? (Icons.headphones_rounded, AppColors.softPeach, context.tr('insights.tips_need_more'))
+            : (Icons.check_circle_rounded, AppColors.iconCircleGreen, context.tr('insights.tips_all_good'));
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Column(
@@ -1496,21 +1521,34 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
-              color: AppColors.iconCirclePurple,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             alignment: Alignment.center,
-            child: const Icon(Icons.auto_awesome_outlined,
-                size: 28, color: AppColors.textPrimary),
+            child: Icon(icon, size: 30, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 10),
           Text(
-            context.tr('insights.no_suggestions_title'),
+            text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
           ),
+          if (needMore) ...[
+            const SizedBox(height: 10),
+            // How many books with the new details so far, as dots.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < _needed; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      i < withDetails ? Icons.circle : Icons.circle_outlined,
+                      size: 16,
+                      color: AppColors.primaryBlueDark,
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

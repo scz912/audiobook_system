@@ -891,6 +891,10 @@ class AppStrings {
     // Smart tips: learning and AI marks
     'insights.helped_before': 'Helped {n} of {m} times before',
     'insights.ai_checked': 'Checked by AI',
+    // Smart tips: empty results
+    'insights.tips_need_more': 'Listen to a few more books first.',
+    'insights.tips_all_good': 'All good! Nothing to change.',
+    'insights.checked': 'Checked',
   };
 
   // Bahasa Malaysia strings
@@ -1767,5 +1771,9 @@ class AppStrings {
     // Smart tips: learning and AI marks
     'insights.helped_before': 'Membantu {n} daripada {m} kali sebelum ini',
     'insights.ai_checked': 'Disemak oleh AI',
+    // Smart tips: empty results
+    'insights.tips_need_more': 'Dengar beberapa buku lagi dahulu.',
+    'insights.tips_all_good': 'Semua baik! Tiada yang perlu diubah.',
+    'insights.checked': 'Sudah disemak',
   };
 }

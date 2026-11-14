@@ -211,6 +211,18 @@ class SettingsAdvisor
             }
         }
 
+        /* Older sessions (or older app versions) have no page details. Lots
+           of pausing and few books finished still says: slow down. */
+        if ($stats['sessions_with_pages'] < self::MIN_SESSIONS
+            && $stats['sessions_count'] >= self::MIN_SESSIONS
+            && $stats['pauses_per_minute'] >= self::PAUSES_PER_MINUTE
+            && $stats['completion_rate'] < 0.5
+            && $now - self::STEP >= self::SPEED_MIN - 1e-9) {
+            return $this->tip('reading_speed', round($now - self::STEP, 2), 0.4 + 0.3 * (1 - $stats['completion_rate']),
+                ['Lots of pausing. Slower may help.',
+                 'Banyak berhenti. Lebih perlahan mungkin membantu.']);
+        }
+
         // Mostly sleepy: a calmer pace.
         if ($stats['sessions_count'] >= self::MIN_SESSIONS && $stats['sleepy_share'] >= 0.5 && $now > 0.9) {
             return $this->tip('reading_speed', 0.9, 0.4 * $stats['sleepy_share'],
