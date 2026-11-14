@@ -11,7 +11,7 @@ class AiSuggestionItem {
   /* The child's current value, so the UI can show "now 1.00 → 0.90". */
   final dynamic currentValue;
 
-  // The value Gemini suggested (numbers, booleans, or enum strings).
+  // The suggested value (numbers, booleans, or enum strings).
   final dynamic suggestedValue;
 
   /* The value saved when the caregiver accepted (maybe edited). Null while
@@ -29,6 +29,13 @@ class AiSuggestionItem {
   // pending | accepted | edited | dismissed
   final String status;
 
+  /* From the learning step: how often this kind of tip helped when it
+     was tried (this child's own record, else everyone's). */
+  final int helped;
+  final int tried;
+  // Gemini reviewed and worded it (false when the learned order was used).
+  final bool aiChecked;
+
   const AiSuggestionItem({
     required this.id,
     required this.settingKey,
@@ -36,6 +43,9 @@ class AiSuggestionItem {
     required this.reason,
     required this.status,
     this.reasonMs,
+    this.helped = 0,
+    this.tried = 0,
+    this.aiChecked = false,
     this.currentValue,
     this.appliedValue,
   });
@@ -49,16 +59,21 @@ class AiSuggestionItem {
       appliedValue: json['applied_value'],
       reason: safeString(json['reason']),
       reasonMs: json['reason_ms'] is String ? json['reason_ms'] as String : null,
+      helped: _int(json['learning'] is Map ? (json['learning'] as Map)['helped'] : null),
+      tried: _int(json['learning'] is Map ? (json['learning'] as Map)['tried'] : null),
+      aiChecked: json['ai_checked'] == true,
       status: safeString(json['status'], 'pending'),
     );
   }
+
+  static int _int(Object? v) => v is num ? v.toInt() : 0;
 
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted' || status == 'edited';
   bool get isDismissed => status == 'dismissed';
 }
 
-/* One row from `ai_suggestions` - the latest saved Gemini tips for a child. */
+/* One row from `ai_suggestions` - the latest saved setting tips for a child. */
 class AiSuggestion {
   final String? suggestionId;
   final String childId;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\ChildProfile;
+use App\Models\ChildSettings;
 use App\Models\ListeningHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,13 @@ class ListeningHistoryController extends ApiController
             'completed'             => 'nullable|boolean',
             'pause_count'           => 'nullable|integer|min:0',
             'skip_count'            => 'nullable|integer|min:0',
+            // For the settings advisor (see SettingsAdvisor).
+            'pages_total'           => 'nullable|integer|min:1|max:1000',
+            'pages_reached'         => 'nullable|integer|min:0|max:1000',
+            'back_count'            => 'nullable|integer|min:0',
+            'speed_used'            => 'nullable|numeric|min:0.5|max:2',
+            'text_scale_used'       => 'nullable|numeric|min:0.7|max:2',
+            'voice_used'            => 'nullable|string|in:' . implode(',', ChildSettings::ALLOWED_VOICES),
         ]);
 
         if ($validator->fails()) {

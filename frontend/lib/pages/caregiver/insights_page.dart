@@ -1149,7 +1149,7 @@ class _Badge extends StatelessWidget {
   }
 }
 
-// AI listening-behaviour suggestions
+// Listening-based setting tips (worked out by the backend's SettingsAdvisor)
 
 /* An icon and tint per setting, so each tip tile looks distinct instead of
    a wall of grey text. */
@@ -1202,7 +1202,7 @@ String _absoluteWhen(BuildContext context, DateTime when) {
       '${when.minute.toString().padLeft(2, '0')}';
 }
 
-/* Shows Gemini's tips with Accept / Edit & accept / Dismiss on each one.
+/* Shows the setting tips with Accept / Edit & accept / Dismiss on each one.
    Always there when a child is selected, so "Run AI analysis" is visible
    even before the first run. */
 class _SuggestionsCard extends StatelessWidget {
@@ -1612,7 +1612,7 @@ class _SuggestionTile extends StatelessWidget {
                 style: const TextStyle(
                     fontWeight: FontWeight.w800, fontSize: 14),
               ),
-              trailing: resolved ? _StatusBadge(item: item) : null,
+              trailing: _badges(context, resolved),
             ),
             const SizedBox(height: 12),
             // Now vs. suggested.
@@ -1640,6 +1640,50 @@ class _SuggestionTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /* Small marks beside the setting name: how often this kind of tip
+     helped before (the learning step), whether AI checked it, and, once
+     answered, applied / skipped. */
+  Widget? _badges(BuildContext context, bool resolved) {
+    final marks = <Widget>[
+      if (item.tried > 0)
+        Tooltip(
+          message: context
+              .tr('insights.helped_before')
+              .replaceAll('{n}', '${item.helped}')
+              .replaceAll('{m}', '${item.tried}'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.iconCircleGreen,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.success),
+                const SizedBox(width: 4),
+                Text('${item.helped}/${item.tried}',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+              ],
+            ),
+          ),
+        ),
+      if (item.aiChecked)
+        Tooltip(
+          message: context.tr('insights.ai_checked'),
+          child: const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primaryBlueDark),
+        ),
+      if (resolved) _StatusBadge(item: item),
+    ];
+    if (marks.isEmpty) return null;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: marks,
     );
   }
 

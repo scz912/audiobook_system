@@ -545,12 +545,12 @@ class AppStrings {
     'insights.mood.sleepy': 'Sleepy',
 
     // UC-9: AI listening-behaviour suggestions card
-    'insights.suggestions_title': 'AI tips',
+    'insights.suggestions_title': 'Smart tips',
     'insights.suggestions_pick_child':
         'Select one child above to see personalised suggestions.',
-    'insights.run_analysis': 'Ask AI',
-    'insights.refresh_analysis': 'Ask again',
-    'insights.analyzing': 'Thinking…',
+    'insights.run_analysis': 'Check now',
+    'insights.refresh_analysis': 'Check again',
+    'insights.analyzing': 'Checking…',
     'insights.no_suggestions_title': 'No tips yet',
     'insights.suggestions_low_confidence': 'Not much listening yet. Tips may change.',
     'insights.suggestions_stale': 'Offline. Showing old tips.',
@@ -888,6 +888,9 @@ class AppStrings {
     'player.speed': 'Speed',
     'player.text': 'Text size',
     'player.music': 'Music',
+    // Smart tips: learning and AI marks
+    'insights.helped_before': 'Helped {n} of {m} times before',
+    'insights.ai_checked': 'Checked by AI',
   };
 
   // Bahasa Malaysia strings
@@ -1418,12 +1421,12 @@ class AppStrings {
     'insights.mood.sleepy': 'Mengantuk',
 
     // Cadangan AI berdasarkan tingkah laku mendengar
-    'insights.suggestions_title': 'Tip AI',
+    'insights.suggestions_title': 'Tip pintar',
     'insights.suggestions_pick_child':
         'Pilih seorang anak di atas untuk melihat cadangan untuknya.',
-    'insights.run_analysis': 'Tanya AI',
-    'insights.refresh_analysis': 'Tanya lagi',
-    'insights.analyzing': 'Sedang berfikir…',
+    'insights.run_analysis': 'Semak sekarang',
+    'insights.refresh_analysis': 'Semak semula',
+    'insights.analyzing': 'Menyemak…',
     'insights.no_suggestions_title': 'Belum ada tip',
     'insights.suggestions_low_confidence': 'Belum banyak mendengar. Tip mungkin berubah.',
     'insights.suggestions_stale': 'Luar talian. Tip lama ditunjukkan.',
@@ -1761,5 +1764,8 @@ class AppStrings {
     'player.speed': 'Kelajuan',
     'player.text': 'Saiz teks',
     'player.music': 'Muzik',
+    // Smart tips: learning and AI marks
+    'insights.helped_before': 'Membantu {n} daripada {m} kali sebelum ini',
+    'insights.ai_checked': 'Disemak oleh AI',
   };
 }

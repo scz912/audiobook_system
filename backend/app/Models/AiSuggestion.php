@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/* The latest saved Gemini tips for one child. The `items` JSON holds
+/* The latest saved setting tips for one child (from SettingsAdvisor). The `items` JSON holds
    each tip and its status; the caregiver accepts, edits, or dismisses
    them one by one. */
 class AiSuggestion extends Model

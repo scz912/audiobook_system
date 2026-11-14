@@ -26,6 +26,12 @@ class ListeningHistory extends Model
         'completed',
         'pause_count',
         'skip_count',
+        'pages_total',
+        'pages_reached',
+        'back_count',
+        'speed_used',
+        'text_scale_used',
+        'voice_used',
     ];
 
     protected $casts = [
@@ -34,6 +40,11 @@ class ListeningHistory extends Model
         'completed'             => 'boolean',
         'pause_count'           => 'integer',
         'skip_count'            => 'integer',
+        'pages_total'           => 'integer',
+        'pages_reached'         => 'integer',
+        'back_count'            => 'integer',
+        'speed_used'            => 'float',
+        'text_scale_used'       => 'float',
     ];
 
     public function uniqueIds(): array

@@ -7,6 +7,8 @@ use App\Models\ChildProfile;
 use App\Models\ChildSettings;
 use App\Models\ListeningHistory;
 use App\Services\GeminiService;
+use App\Services\SettingsAdvisor;
+use App\Services\TipLearner;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,12 +19,8 @@ class InsightsController extends ApiController
 {
     private const TZ = 'Asia/Kuala_Lumpur';
 
-    /* Need this many sessions before Gemini's tips are trusted.
-       Below this we still show them but tag confidence = "low". */
-    private const MIN_SESSIONS_FOR_CONFIDENCE = 5;
-
-    /* Settings we let Gemini change, with checks for each value.
-       Anything else from Gemini gets dropped. Each check returns
+    /* Settings a tip may change, with checks for each value.
+       Anything else gets dropped. Each check returns
        [true, value] if OK, or [false, null] if out of range. */
     private function settingValidators(): array
     {
@@ -176,9 +174,14 @@ class InsightsController extends ApiController
         ]);
     }
 
-    /* Look at a child's listening, ask Gemini for tips, and save them.
-       If Gemini fails, return the last saved tips marked stale. If there
-       aren't many sessions, flag confidence as "low". */
+    /* Works out setting tips for a child in three steps, then saves them:
+       1. rules (SettingsAdvisor) find candidates from the listening, with
+          the child's own choices first and recent sessions counting more;
+       2. learning (TipLearner) ranks them by what has worked before, from
+          caregivers' answers and from whether applied tips helped;
+       3. AI review (Gemini) picks and words the best few for this child,
+          within guardrails; without it, the learned order is used.
+       Few sessions -> confidence "low". */
     public function analyse(Request $request, string $childId): JsonResponse
     {
         $this->logEvent('Insights', 'analyse called', [
@@ -192,20 +195,9 @@ class InsightsController extends ApiController
             return $this->errorResponse('Child profile not found', 'NOT_FOUND', 404);
         }
 
-        $stats = $this->aggregateStatsFor($profile);
-        $confidence = $stats['sessions_count'] < self::MIN_SESSIONS_FOR_CONFIDENCE
-            ? 'low'
-            : 'normal';
-        $this->logEvent('Insights', 'analyse stats aggregated', [
-            'child_id'       => $childId,
-            'sessions_count' => $stats['sessions_count'],
-            'confidence'     => $confidence,
-        ]);
-
-        // Give Gemini the current settings so it won't suggest no changes.
         $settings = $profile->childSettings
             ?? ChildSettings::create(['child_id' => $profile->child_id]);
-        $stats['current_settings'] = [
+        $saved = [
             'narrator_voice'     => $settings->narrator_voice,
             'reading_speed'      => (float) $settings->reading_speed,
             'volume'             => (float) $settings->volume,
@@ -215,69 +207,71 @@ class InsightsController extends ApiController
             'read_along'         => (bool) $settings->read_along,
         ];
 
-        $gemini = app(GeminiService::class);
-        $rawItems = $gemini->isConfigured()
-            ? $gemini->analyseListening($stats)
-            : [];
+        $now = Carbon::now(self::TZ);
+        $advisor = app(SettingsAdvisor::class);
+        $learner = app(TipLearner::class);
 
-        if (empty($rawItems)) {
-            $this->logWarn('Insights', 'analyse gemini empty', [
-                'child_id'    => $childId,
-                'configured'  => $gemini->isConfigured(),
-            ]);
-            /* Gemini failed or had nothing. Show the last saved tips
-               marked stale so the caregiver still sees something. */
-            $cached = AiSuggestion::where('child_id', $profile->child_id)->first();
-            if ($cached) {
-                $cached->is_stale = true;
-                $cached->save();
-                $this->logEvent('Insights', 'analyse serving stale cache', [
-                    'child_id' => $childId,
-                ]);
-                return $this->successResponse('Suggestions ready (cached)',
-                    $this->serializeSuggestion($cached));
-            }
-            $this->logEvent('Insights', 'analyse no cache available', [
-                'child_id' => $childId,
-            ]);
-            // Nothing saved either. Return empty so the UI can say so.
-            return $this->successResponse('No suggestions available', [
-                'suggestion_id' => null,
-                'child_id'      => $profile->child_id,
-                'confidence'    => $confidence,
-                'is_stale'      => false,
-                'generated_at'  => null,
-                'source_stats'  => $stats,
-                'items'         => [],
-            ]);
-        }
+        // 0. Learn from tips applied earlier that have had time to work.
+        $judged = $learner->evaluateOutcomes($profile, $advisor, $now);
 
-        // Drop unknown settings and ones that match the current value.
+        // 1. Rules: every candidate tip, with the evidence behind it.
+        $sessions = $profile->listeningHistory()
+            ->where('created_at', '>=', $now->copy()->subDays(SettingsAdvisor::WINDOW_DAYS))
+            ->get();
+        $advice = $advisor->advise($sessions, $saved, $now, null);
+        $stats = $advice['stats'] + ['current_settings' => $saved];
+        $confidence = $advice['confidence'];
+
+        // Only known settings, safe values, and real changes (guardrails).
         $validators = $this->settingValidators();
-        $items = [];
-        foreach ($rawItems as $raw) {
+        $candidates = [];
+        foreach ($advice['items'] as $raw) {
             $key = $raw['setting_key'];
             if (!isset($validators[$key])) {
                 continue;
             }
             [$ok, $value] = $validators[$key]($raw['suggested_value']);
-            if (!$ok) {
+            $current = $saved[$key] ?? null;
+            if (!$ok || $this->valuesEqual($current, $value)) {
                 continue;
             }
-            $current = $stats['current_settings'][$key] ?? null;
-            if ($this->valuesEqual($current, $value)) {
-                continue;
-            }
-            $items[] = [
+            $candidates[] = [
                 'id'              => (string) Str::uuid(),
                 'setting_key'     => $key,
                 'current_value'   => $current,
                 'suggested_value' => $value,
                 'reason'          => $raw['reason'],
                 'reason_ms'       => $raw['reason_ms'] ?? $raw['reason'],
-                'status'          => 'pending',
+                'strength'        => $raw['strength'] ?? 0.5,
+                'arm'             => TipLearner::arm($key, $current, $value),
             ];
         }
+
+        // 2. Learning: rank by what has worked before (Thompson sampling).
+        $ranked = $learner->rank($profile->child_id, $candidates);
+
+        // 3. AI review: Gemini picks and words the best few, if it can.
+        [$items, $aiChecked] = $this->aiReview($profile, $stats, $ranked);
+        $items = array_map(fn ($c) => [
+            'id'              => $c['id'],
+            'setting_key'     => $c['setting_key'],
+            'current_value'   => $c['current_value'],
+            'suggested_value' => $c['suggested_value'],
+            'reason'          => $c['reason'],
+            'reason_ms'       => $c['reason_ms'],
+            'strength'        => $c['strength'],
+            'arm'             => $c['arm'],
+            'learning'        => $c['learning'] ?? null,
+            'ai_checked'      => $aiChecked,
+            'status'          => 'pending',
+        ], $items);
+
+        $stats['pipeline'] = [
+            'candidates'        => count($candidates),
+            'after_learning'    => count($ranked),
+            'ai_checked'        => $aiChecked,
+            'outcomes_judged'   => $judged,
+        ];
 
         $row = AiSuggestion::updateOrCreate(
             ['child_id' => $profile->child_id],
@@ -291,15 +285,80 @@ class InsightsController extends ApiController
         );
 
         $this->logEvent('Insights', 'analyse success', [
-            'child_id'  => $childId,
-            'raw_items' => count($rawItems),
-            'kept'      => count($items),
+            'child_id'   => $childId,
+            'candidates' => count($candidates),
+            'kept'       => count($items),
+            'ai_checked' => $aiChecked,
         ]);
         return $this->successResponse('Suggestions ready',
             $this->serializeSuggestion($row));
     }
 
-    /* The last saved tips for a child (no Gemini call). The insights page
+    /* Step 3 of the tips: Gemini reviews the learned ranking with the
+       child's context and returns [items, aiChecked]. Guardrails: only
+       candidate ids are accepted, each once, at most MAX_TIPS, values stay
+       ours, and reasons are trimmed. If Gemini is off, fails or picks
+       nothing usable, the learned order is kept (aiChecked = false). */
+    private function aiReview(ChildProfile $profile, array $stats, array $ranked): array
+    {
+        $fallback = [array_slice($ranked, 0, SettingsAdvisor::MAX_TIPS), false];
+        if ($ranked === []) {
+            return $fallback;
+        }
+
+        $shortlist = array_slice($ranked, 0, 5);
+        $picks = app(GeminiService::class)->reviewSettingTips(
+            [
+                'age'               => $profile->age,
+                'sessions'          => $stats['sessions_count'],
+                'completion_rate'   => $stats['completion_rate'],
+                'struggle'          => $stats['struggle'],
+                'back_per_page'     => $stats['back_per_page'],
+                'pauses_per_minute' => $stats['pauses_per_minute'],
+                'moods'             => $stats['mood_breakdown'],
+                'settings_now'      => $stats['current_settings'],
+            ],
+            array_map(fn ($c) => [
+                'id'            => $c['id'],
+                'setting'       => $c['setting_key'],
+                'from'          => $c['current_value'],
+                'to'            => $c['suggested_value'],
+                'rule_reason'   => $c['reason'],
+                'rule_strength' => $c['strength'],
+                'learned_trust' => $c['learning']['trust'] ?? null,
+                'helped'        => $c['learning']['helped'] ?? 0,
+                'tried'         => $c['learning']['tried'] ?? 0,
+            ], $shortlist)
+        );
+        if (!is_array($picks)) {
+            return $fallback;
+        }
+
+        $byId = array_column($shortlist, null, 'id');
+        $chosen = [];
+        foreach ($picks as $pick) {
+            $id = is_array($pick) ? ($pick['id'] ?? null) : null;
+            if (!is_string($id) || !isset($byId[$id]) || isset($chosen[$id])) {
+                continue;
+            }
+            $item = $byId[$id];
+            $reason = trim((string) ($pick['reason'] ?? ''));
+            $reasonMs = trim((string) ($pick['reason_ms'] ?? ''));
+            if ($reason !== '') {
+                $item['reason'] = mb_substr($reason, 0, 120);
+            }
+            if ($reasonMs !== '') {
+                $item['reason_ms'] = mb_substr($reasonMs, 0, 120);
+            }
+            $chosen[$id] = $item;
+            if (count($chosen) >= SettingsAdvisor::MAX_TIPS) {
+                break;
+            }
+        }
+        return $chosen === [] ? $fallback : [array_values($chosen), true];
+    }
+
+    /* The last saved tips for a child (nothing is worked out again). The insights page
        shows these right away instead of waiting for a fresh analyse. */
     public function suggestions(Request $request, string $childId): JsonResponse
     {
@@ -421,6 +480,15 @@ class InsightsController extends ApiController
         $row->items = $items;
         $row->save();
 
+        /* Learning: the caregiver said yes. Also note how listening is going
+           now, to check in a few sessions whether the change helped. An
+           edit may even flip the direction, so the arm comes from the
+           value actually applied. */
+        $arm = TipLearner::arm($key, $item['current_value'] ?? null, $value);
+        $learner = app(TipLearner::class);
+        $learner->recordFeedback($profile->child_id, $arm, $items[$idx]['status']);
+        $learner->startOutcome($profile->child_id, $arm, $this->recentStats($profile));
+
         $this->logEvent('Insights', 'applySuggestion success', [
             'child_id'    => $childId,
             'setting_key' => $key,
@@ -480,6 +548,12 @@ class InsightsController extends ApiController
         $row->items = $items;
         $row->save();
 
+        // Learning: the caregiver said no to this kind of tip.
+        $item = $items[$idx];
+        $arm = $item['arm'] ?? TipLearner::arm(
+            (string) $item['setting_key'], $item['current_value'] ?? null, $item['suggested_value'] ?? null);
+        app(TipLearner::class)->recordFeedback($profile->child_id, $arm, 'dismissed');
+
         $this->logEvent('Insights', 'dismissSuggestion success', [
             'child_id' => $childId,
             'item_id'  => $items[$idx]['id'] ?? null,
@@ -517,67 +591,14 @@ class InsightsController extends ApiController
             : null;
     }
 
-    /* Work out the per-child stats we send to Gemini. All rates are
-       per-session so the numbers look the same no matter how many
-       sessions there are. */
-    private function aggregateStatsFor(ChildProfile $profile): array
+    // The child's listening numbers over the last 30 days.
+    private function recentStats(ChildProfile $profile): array
     {
-        // Last 30 days, so we look at how the child uses it now.
-        $since = Carbon::now(self::TZ)->subDays(30);
+        $now = Carbon::now(self::TZ);
         $sessions = $profile->listeningHistory()
-            ->where('created_at', '>=', $since)
+            ->where('created_at', '>=', $now->copy()->subDays(SettingsAdvisor::WINDOW_DAYS))
             ->get();
-
-        $count = $sessions->count();
-        if ($count === 0) {
-            return [
-                'window_days'         => 30,
-                'sessions_count'      => 0,
-                'avg_session_minutes' => 0.0,
-                'completion_rate'     => 0.0,
-                'early_drop_rate'     => 0.0,
-                'pause_rate'          => 0.0,
-                'skip_rate'           => 0.0,
-                'mood_breakdown'      => ['happy' => 0, 'calm' => 0, 'curious' => 0, 'sleepy' => 0],
-            ];
-        }
-
-        $totalSeconds = (int) $sessions->sum('duration_seconds');
-        $completed = $sessions->where('completed', true)->count();
-        $totalPauses = (int) $sessions->sum('pause_count');
-        $totalSkips  = (int) $sessions->sum('skip_count');
-
-        /* Early drop = stopped before halfway and didn't finish. A high
-           rate may mean the child loses interest or feels overwhelmed. */
-        $earlyDrops = $sessions->filter(function ($s) {
-            if ($s->completed) {
-                return false;
-            }
-            $duration = (int) $s->duration_seconds;
-            $position = (int) $s->last_position_seconds;
-            if ($duration <= 0) {
-                return false;
-            }
-            return ($position / $duration) < 0.5;
-        })->count();
-
-        $moods = ['happy' => 0, 'calm' => 0, 'curious' => 0, 'sleepy' => 0];
-        foreach ($sessions as $s) {
-            if (isset($moods[$s->mood])) {
-                $moods[$s->mood]++;
-            }
-        }
-
-        return [
-            'window_days'         => 30,
-            'sessions_count'      => $count,
-            'avg_session_minutes' => round($totalSeconds / $count / 60, 1),
-            'completion_rate'     => round($completed / $count, 3),
-            'early_drop_rate'     => round($earlyDrops / $count, 3),
-            'pause_rate'          => round($totalPauses / $count, 2),
-            'skip_rate'           => round($totalSkips / $count, 2),
-            'mood_breakdown'      => $moods,
-        ];
+        return app(SettingsAdvisor::class)->summarize($sessions, $now);
     }
 
     private function serializeSuggestion(AiSuggestion $row): array

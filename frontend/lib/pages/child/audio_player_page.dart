@@ -83,6 +83,12 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
   // How many times the child paused or skipped forward this session.
   int _pauseCount = 0;
   int _skipCount = 0;
+  /* For the settings advisor: times the child went back a page, the
+     furthest page reached, and the settings this book started with (so a
+     session only reports speed, text size or voice the child changed). */
+  int _backCount = 0;
+  int _furthestPage = 0;
+  UserSettings? _startSettings;
   bool _finishShowing = false;
   bool _naturalLoading = false;
   bool _naturalPlaying = false; // Gemini voice is playing
@@ -148,6 +154,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     _localSettings = widget.previewMode
         ? const UserSettings()
         : context.read<SettingsState>().settings;
+    _startSettings = _localSettings;
     _loadAudiobook();
     // One listener for when playback finishes (voice or audio file).
     _audioCompleteSub = _engine.onComplete.listen((_) {
@@ -266,6 +273,8 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     // Skip the built-in demo story and very short visits.
     if (childId == null || audiobookId == null || seconds < 3) return;
     _sessionRecorded = true;
+    final start = _startSettings;
+    final end = _readSettings();
     DatabaseService.recordListeningSession(
       childId: childId,
       audiobookId: audiobookId,
@@ -275,6 +284,15 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
       completed: _reachedEnd,
       pauseCount: _pauseCount,
       skipCount: _skipCount,
+      pagesTotal: _pages.isEmpty ? null : _pages.length,
+      pagesReached: _pages.isEmpty ? null : (_page > _furthestPage ? _page : _furthestPage) + 1,
+      backCount: _backCount,
+      // Only what the child changed with the icon buttons.
+      speedUsed: start != null && end.readingSpeed != start.readingSpeed ? end.readingSpeed : null,
+      textScaleUsed: start != null && end.textScale != start.textScale ? end.textScale : null,
+      voiceUsed: start != null && end.narratorVoice != start.narratorVoice
+          ? end.narratorVoice.apiValue
+          : null,
     );
   }
 
@@ -1001,6 +1019,10 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     if (next > _page && !_suppressAudioPageSeek && !_pickingChoice) {
       _skipCount++;
     }
+    if (next < _page && !_suppressAudioPageSeek) _backCount++;
+    // A resumed book starts part-way, so count from where it opened.
+    if (_page > _furthestPage) _furthestPage = _page;
+    if (next > _furthestPage) _furthestPage = next;
     // Voice is per-page, so stop it when the page turns.
     if (_naturalPlaying) {
       await _stopNaturalVoice();

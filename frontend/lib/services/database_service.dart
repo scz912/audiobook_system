@@ -727,6 +727,12 @@ class DatabaseService {
     bool? completed,
     int? pauseCount,
     int? skipCount,
+    int? pagesTotal,
+    int? pagesReached,
+    int? backCount,
+    double? speedUsed,
+    double? textScaleUsed,
+    String? voiceUsed,
   }) {
     final save = _post('/listening-history/record', body: {
       'child_id': childId,
@@ -737,6 +743,13 @@ class DatabaseService {
       'completed': ?completed,
       'pause_count': ?pauseCount,
       'skip_count': ?skipCount,
+      // For the settings advisor (backend SettingsAdvisor).
+      'pages_total': ?pagesTotal,
+      'pages_reached': ?pagesReached,
+      'back_count': ?backCount,
+      'speed_used': ?speedUsed,
+      'text_scale_used': ?textScaleUsed,
+      'voice_used': ?voiceUsed,
     });
     _pendingSessionSaves.add(save);
     save.whenComplete(() => _pendingSessionSaves.remove(save));

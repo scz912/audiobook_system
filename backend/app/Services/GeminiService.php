@@ -212,130 +212,6 @@ class GeminiService
             . 'data' . pack('V', $dataLen) . $pcm;
     }
 
-    /* Ask Gemini for setting tweaks based on the child's listening stats.
-       Each item has setting_key, suggested_value, and reason. Returns []
-       on error. The caller falls back to the cached row. */
-    public function analyseListening(array $stats): array
-    {
-        Log::info('[Gemini] analyseListening called', [
-            'sessions_count' => $stats['sessions_count'] ?? null,
-            'pause_rate'     => $stats['pause_rate'] ?? null,
-            'skip_rate'      => $stats['skip_rate'] ?? null,
-        ]);
-        $payload = json_encode($stats, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        $prompt = <<<PROMPT
-You are advising a caregiver on how to better tune an audiobook reader app for
-their autistic child. Below are anonymised, aggregated stats from the child's
-recent listening sessions. Suggest sensory-friendly adjustments to the child's
-in-app settings.
-
-STATS (JSON):
-{$payload}
-
-Rules:
-- Only suggest changes to known settings. Allowed setting_key values are
-  exactly: "reading_speed", "narrator_voice", "volume", "text_scale",
-  "auto_play_next", "read_along".
-- For reading_speed: a number between 0.5 and 2.0 (step 0.05).
-- For narrator_voice: "calm_female" or "warm_male".
-- For volume: a number between 0.0 and 1.0 (step 0.05).
-- For text_scale: a number between 0.7 and 2.0 (step 0.05).
-- For auto_play_next, read_along: true or false.
-- Each item's "reason" must be ONE very short sentence of at most 10 words,
-  in simple everyday English: the reader may be an autistic teenager. No
-  numbers, no clinical claims, no jargon (e.g. "You pause a lot, so slower
-  may help.").
-- Each item's "reason_ms" is the same sentence in simple Bahasa Melayu
-  (e.g. "Anda kerap berhenti, jadi lebih perlahan mungkin membantu.").
-- Do NOT suggest changes that match the current value already.
-- At most 3 suggestions. Skip suggestions you are not confident about.
-
-Return ONLY JSON with key "items".
-PROMPT;
-
-        try {
-            $response = Http::timeout(45)->post(
-                "{$this->base}/{$this->textModel}:generateContent?key={$this->key}",
-                [
-                    'contents' => [
-                        ['parts' => [['text' => $prompt]]],
-                    ],
-                    'generationConfig' => [
-                        'temperature'      => 0.4,
-                        'responseMimeType' => 'application/json',
-                        'responseSchema'   => [
-                            'type'       => 'OBJECT',
-                            'properties' => [
-                                'items' => [
-                                    'type'  => 'ARRAY',
-                                    'items' => [
-                                        'type'       => 'OBJECT',
-                                        'properties' => [
-                                            'setting_key'     => ['type' => 'STRING'],
-                                            /* String here so Gemini can send numbers,
-                                               booleans, or enums. We convert later. */
-                                            'suggested_value' => ['type' => 'STRING'],
-                                            'reason'          => ['type' => 'STRING'],
-                                            'reason_ms'       => ['type' => 'STRING'],
-                                        ],
-                                        'required' => ['setting_key', 'suggested_value', 'reason', 'reason_ms'],
-                                    ],
-                                ],
-                            ],
-                            'required' => ['items'],
-                        ],
-                    ],
-                ]
-            );
-
-            if (!$response->successful()) {
-                Log::warning('[Gemini] analyseListening HTTP error', [
-                    'status' => $response->status(),
-                    'body'   => mb_substr($response->body(), 0, 300),
-                ]);
-                return [];
-            }
-
-            $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
-            if (!$text) {
-                Log::warning('[Gemini] analyseListening empty response');
-                return [];
-            }
-            $parsed = json_decode($text, true);
-            $items = is_array($parsed) ? ($parsed['items'] ?? []) : [];
-
-            // Clean up to the simple shape callers expect.
-            $clean = [];
-            foreach ($items as $item) {
-                if (!is_array($item)) {
-                    continue;
-                }
-                $key = (string) ($item['setting_key'] ?? '');
-                $raw = $item['suggested_value'] ?? null;
-                $reason = trim((string) ($item['reason'] ?? ''));
-                if ($key === '' || $raw === null || $reason === '') {
-                    continue;
-                }
-                $reasonMs = trim((string) ($item['reason_ms'] ?? ''));
-                $clean[] = [
-                    'setting_key'     => $key,
-                    'suggested_value' => $raw,
-                    'reason'          => $reason,
-                    // Malay, so the tip reads in the app's language.
-                    'reason_ms'       => $reasonMs !== '' ? $reasonMs : $reason,
-                ];
-            }
-            Log::info('[Gemini] analyseListening success', [
-                'items_returned' => count($items),
-                'items_kept'     => count($clean),
-            ]);
-            return $clean;
-        } catch (\Throwable $e) {
-            Log::warning('[Gemini] analyseListening exception', ['error' => $e->getMessage()]);
-            return [];
-        }
-    }
-
     /* The genres a track can be given (the picker's genre filter chips).
        Pairs that even people file either way are one genre: tested on 32
        labelled clips (Nov 2026), orchestral pieces split between Classical
@@ -484,6 +360,86 @@ PROMPT;
             'sensory_notes' => $a['sensory_notes'] !== '' ? $a['sensory_notes'] : $b['sensory_notes'],
             'genre_votes'   => [$a['genre'], $b['genre']],
         ];
+    }
+
+    /* The AI step of the setting tips: Gemini reviews the candidates our
+       rules and learning came up with, with the child's context, picks up
+       to three that fit best, in order, and writes each a short reason in
+       English and Malay. It can only choose among the candidate ids; the
+       values are never its own (the caller checks this too). Returns null
+       when Gemini is off or fails, so the caller keeps its own order. */
+    public function reviewSettingTips(array $context, array $candidates): ?array
+    {
+        if (!$this->isConfigured() || $candidates === []) {
+            return null;
+        }
+        $payload = json_encode([
+            'child'      => $context,
+            'candidates' => $candidates,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $prompt = <<<PROMPT
+You review setting tips for an audiobook app used by autistic children and
+teenagers. Our own rules found the candidate tips below from the reader's
+listening, and a learning model scored how well each kind of tip has worked
+before ("learned_trust", 0-1; "helped"/"tried" count real outcomes).
+
+DATA (JSON):
+{$payload}
+
+Choose the tips that would help this reader most, best first, at most 3.
+- Use ONLY ids from "candidates". Never invent tips or change values.
+- Leave out a tip that doesn't fit the context (for example two tips that
+  pull in opposite directions, or one with low learned_trust and weak
+  evidence). Keep at least one if any is reasonable.
+- For each, "reason": ONE very short sentence of at most 10 simple English
+  words, no numbers, no jargon; "reason_ms": the same in simple Bahasa
+  Melayu.
+
+Return ONLY JSON: {"items": [{"id": "...", "reason": "...", "reason_ms": "..."}]}.
+PROMPT;
+
+        try {
+            $response = Http::timeout(20)->post(
+                "{$this->base}/{$this->textModel}:generateContent?key={$this->key}",
+                [
+                    'contents' => [['parts' => [['text' => $prompt]]]],
+                    'generationConfig' => [
+                        'temperature'      => 0.2,
+                        'responseMimeType' => 'application/json',
+                        'responseSchema'   => [
+                            'type'       => 'OBJECT',
+                            'properties' => [
+                                'items' => [
+                                    'type'  => 'ARRAY',
+                                    'items' => [
+                                        'type'       => 'OBJECT',
+                                        'properties' => [
+                                            'id'        => ['type' => 'STRING'],
+                                            'reason'    => ['type' => 'STRING'],
+                                            'reason_ms' => ['type' => 'STRING'],
+                                        ],
+                                        'required' => ['id', 'reason', 'reason_ms'],
+                                    ],
+                                ],
+                            ],
+                            'required' => ['items'],
+                        ],
+                    ],
+                ]
+            );
+            if (!$response->successful()) {
+                Log::warning('[Gemini] reviewSettingTips HTTP error', ['status' => $response->status()]);
+                return null;
+            }
+            $text = data_get($response->json(), 'candidates.0.content.parts.0.text');
+            $parsed = $text ? json_decode($text, true) : null;
+            $items = is_array($parsed) ? ($parsed['items'] ?? null) : null;
+            return is_array($items) ? $items : null;
+        } catch (\Throwable $e) {
+            Log::warning('[Gemini] reviewSettingTips failed', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     private function musicUrl(): string
