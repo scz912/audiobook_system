@@ -8,6 +8,7 @@ import '../../models/content_item.dart';
 import '../../models/insights_overview.dart';
 import '../../services/audiobook_recommender.dart';
 import '../../services/database_service.dart';
+import '../../services/music_taste_service.dart';
 import '../../services/reading_progress.dart';
 import '../../services/todays_mood.dart';
 import '../../state/profiles_state.dart';
@@ -158,12 +159,27 @@ class _ChildHomePageState extends State<ChildHomePage> {
     if (childId == null) return;
     final mood = await todaysMood(profiles, childId);
     final taste = widget.recommendFromMusic ? await AudiobookRecommender.tasteForServer() : null;
+    if (widget.recommendFromMusic) _saveMusicTaste(childId);
     final resp = await DatabaseService.getRecommendations(childId, mood: mood, taste: taste, limit: 1);
     if (!mounted || resp.data is! List<BookRecommendation>) return;
     final recs = resp.data as List<BookRecommendation>;
     if (recs.isEmpty) return;
     final pick = _readyBooks.where((b) => b.audiobookId == recs.first.audiobookId).firstOrNull;
     if (pick != null) setState(() => _featured = pick);
+  }
+
+  /* Save the YouTube genre counts (already synced by tasteForServer) to
+     the child's account online, in the background. Only while YouTube
+     access is still allowed: once it's turned off, nothing more is sent. */
+  Future<void> _saveMusicTaste(String childId) async {
+    try {
+      final status = await MusicTasteService.status();
+      if (!status.supported || !status.granted) return;
+      final daily = await MusicTasteService.dailyCounts();
+      await DatabaseService.uploadMusicTaste(childId, from: daily.from, counts: daily.counts);
+    } catch (_) {
+      // Offline or the server is busy: the next visit sends the same days again.
+    }
   }
 
   /* The storage key for [childId]'s mood today. Uses the local date, so a

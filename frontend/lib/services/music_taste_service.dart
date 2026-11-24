@@ -213,6 +213,35 @@ class MusicTasteService {
     return counts;
   }
 
+  /* Plays per genre per day (local dates), for saving to the account
+     online. [from] is the first whole day this phone still holds: the
+     day before it was partly forgotten (only [_keepDays] are kept), so
+     it is left out and the server keeps what it already had for it. */
+  static Future<({String from, List<Map<String, dynamic>> counts})> dailyCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    String ymd(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final now = DateTime.now();
+    final from = ymd(DateTime(now.year, now.month, now.day - (_keepDays - 1)));
+    final perDay = <String, Map<String, int>>{};
+    for (final g in _readList(prefs, _genresKey)) {
+      final at = g['at'];
+      if (at is! num) continue;
+      final day = ymd(DateTime.fromMillisecondsSinceEpoch(at.toInt()));
+      if (day.compareTo(from) < 0) continue;
+      final genre = '${g['genre']}';
+      final forDay = perDay.putIfAbsent(day, () => {});
+      forDay[genre] = (forDay[genre] ?? 0) + 1;
+    }
+    return (
+      from: from,
+      counts: [
+        for (final d in perDay.entries)
+          for (final g in d.value.entries) {'day': d.key, 'genre': g.key, 'plays': g.value},
+      ],
+    );
+  }
+
   static List<Map<String, dynamic>> _readList(SharedPreferences prefs, String key) {
     try {
       final raw = prefs.getString(key);

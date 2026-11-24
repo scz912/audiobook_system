@@ -761,6 +761,16 @@ class DatabaseService {
   static Future<void> pendingSessionSaves() =>
       Future.wait(_pendingSessionSaves.toList()).then((_) {});
 
+  /* Save [childId]'s YouTube genre counts to the account (table
+     music_taste_counts). Days from [from] on are replaced as a whole. */
+  static Future<ApiResponse> uploadMusicTaste(
+    String childId, {
+    required String from,
+    required List<Map<String, dynamic>> counts,
+  }) {
+    return _post('/insights/$childId/music-taste', body: {'from': from, 'counts': counts});
+  }
+
   static Future<ApiResponse> listeningHistoryFor(String childId) {
     return _post('/listening-history/child/$childId');
   }

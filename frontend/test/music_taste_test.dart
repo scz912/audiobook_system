@@ -1,11 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:autism_audiobook/models/content_item.dart';
 import 'package:autism_audiobook/models/music_track.dart';
 import 'package:autism_audiobook/services/audiobook_recommender.dart';
 import 'package:autism_audiobook/services/music_genres.dart';
+import 'package:autism_audiobook/services/music_taste_service.dart';
 import 'package:autism_audiobook/state/language_state.dart';
 import 'package:autism_audiobook/widgets/difficulty_badge.dart';
 
@@ -280,6 +284,33 @@ void main() {
     testWidgets('no difficulty: nothing shown', (tester) async {
       await tester.pumpWidget(host(null));
       expect(find.byType(Container), findsNothing);
+    });
+  });
+
+  group('saving genre counts online', () {
+    test('plays per genre per day, from the first whole day kept', () async {
+      final now = DateTime.now();
+      int at(int daysAgo, int hour) =>
+          DateTime(now.year, now.month, now.day - daysAgo, hour).millisecondsSinceEpoch;
+      String ymd(int daysAgo) {
+        final d = DateTime(now.year, now.month, now.day - daysAgo);
+        return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      }
+
+      SharedPreferences.setMockInitialValues({
+        'music_taste_genres': jsonEncode([
+          {'genre': 'kpop', 'at': at(0, 9)},
+          {'genre': 'kpop', 'at': at(0, 20)},
+          {'genre': 'pop', 'at': at(0, 21)},
+          {'genre': 'jazz', 'at': at(3, 10)},
+          // Partly forgotten day: left for the server to keep.
+          {'genre': 'rock', 'at': at(35, 23)},
+        ]),
+      });
+      final daily = await MusicTasteService.dailyCounts();
+      expect(daily.from, ymd(34));
+      final rows = {for (final c in daily.counts) '${c['day']} ${c['genre']}': c['plays']};
+      expect(rows, {'${ymd(0)} kpop': 2, '${ymd(0)} pop': 1, '${ymd(3)} jazz': 1});
     });
   });
 }

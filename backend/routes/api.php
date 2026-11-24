@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\HubController;
 use App\Http\Controllers\Api\InsightsController;
 use App\Http\Controllers\Api\InviteController;
 use App\Http\Controllers\Api\ListeningHistoryController;
+use App\Http\Controllers\Api\MusicTasteController;
 use App\Http\Controllers\Api\MusicTrackController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\TtsController;
@@ -91,6 +92,8 @@ Route::middleware('session.auth')->group(function () {
         Route::post('/{childId}/suggestions/apply',   [InsightsController::class, 'applySuggestion'])->whereUuid('childId');
         Route::post('/{childId}/suggestions/dismiss', [InsightsController::class, 'dismissSuggestion'])->whereUuid('childId');
         Route::post('/{childId}/recommendations', [RecommendationController::class, 'forChild'])->whereUuid('childId');
+        // The child's YouTube genre counts, from the phone (see MusicTasteController).
+        Route::post('/{childId}/music-taste', [MusicTasteController::class, 'sync'])->whereUuid('childId');
     });
 
     // Natural-voice narration
