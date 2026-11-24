@@ -1,19 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../i18n/i18n.dart';
+import '../../models/content_item.dart';
 import '../../services/audiobook_recommender.dart';
+import '../../services/database_service.dart';
 import '../../services/music_genres.dart';
 import '../../services/music_taste_service.dart';
+import '../../services/todays_mood.dart';
+import '../../state/profiles_state.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/difficulty_badge.dart';
+import '../../widgets/marquee_text.dart';
 import '../../widgets/soft_card.dart';
+import '../../widgets/top_genre_banner.dart';
+import '../child/audio_player_page.dart';
 
 /* Personal account only, on the Insights page after "Top stories":
-   Top Music Genre - the three listening genres played most on YouTube and
-   YouTube Music in the last 30 days (MusicTasteService). With access on,
-   this taste also feeds "Recommended for you" (RecommendedBooksSection).
 
-   It stays empty with an "Allow YouTube Access" button until the person
-   turns on access; coming back from Android's settings refreshes it. */
+   1. Top Music Genre - the three listening genres played most on YouTube
+      and YouTube Music in the last 30 days (MusicTasteService). With
+      access on, this taste also feeds "Recommended for you"
+      (RecommendedBooksSection).
+   2. Top Audiobooks for Your Music - three audiobooks whose background
+      music suits those genres and today's mood (AudiobookRecommender,
+      no AI), chosen by music genre alone.
+
+   Both stay empty with an "Allow YouTube Access" button until the person
+   turns on access; coming back from Android's settings refreshes them. */
 class MusicTasteSections extends StatefulWidget {
   const MusicTasteSections({super.key});
 
@@ -25,7 +39,11 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
   MusicTasteStatus? _status;
   // The card's rows: the top genres, then Others (songs of unknown genre).
   List<GenreShare> _top = const [];
+  // The top genres alone, which the audiobook picks go by.
+  List<GenreShare> _tasteTop = const [];
   Map<String, int> _counts = const {};
+  List<Recommendation> _recs = const [];
+  String? _mood;
   bool _loading = true;
 
   @override
@@ -60,11 +78,24 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
     await MusicTasteService.sync();
     final counts = await MusicTasteService.genreCounts();
     final top = AudiobookRecommender.topGenres(counts, withOthers: true);
+    final tasteTop = AudiobookRecommender.topGenres(counts);
+    if (!mounted) return;
+    final profiles = context.read<ProfilesState>();
+    final childId = profiles.activeProfile?.childId;
+    final mood = childId == null ? profiles.currentMood : await todaysMood(profiles, childId);
+    var books = <ContentItem>[];
+    if (tasteTop.isNotEmpty) {
+      final resp = await DatabaseService.getContentList();
+      if (resp.success && resp.data is List<ContentItem>) books = resp.data as List<ContentItem>;
+    }
     if (!mounted) return;
     setState(() {
       _status = status;
       _counts = counts;
       _top = top;
+      _tasteTop = tasteTop;
+      _mood = mood;
+      _recs = AudiobookRecommender.recommend(books, tasteTop, mood);
       _loading = false;
     });
   }
@@ -107,7 +138,16 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
         const SizedBox(height: 20),
         _Header(title: context.tr('music.top_genre'), subtitle: context.tr('music.top_genre_sub')),
         const SizedBox(height: 10),
+        // The most played genre, with a banner of its own look.
+        if (!_loading && (_status?.granted ?? false) && _tasteTop.isNotEmpty) ...[
+          TopGenreBanner(genre: _tasteTop.first.genre, plays: _counts[_tasteTop.first.genre] ?? 0),
+          const SizedBox(height: 12),
+        ],
         SoftCard(child: _genres(context)),
+        const SizedBox(height: 20),
+        _Header(title: context.tr('music.recs'), subtitle: context.tr('music.recs_sub')),
+        const SizedBox(height: 10),
+        SoftCard(child: _recommendations(context)),
       ],
     );
   }
@@ -170,6 +210,20 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
     );
   }
 
+  Widget _recommendations(BuildContext context) {
+    final gate = _gate(context);
+    if (gate != null) return gate;
+    if (_tasteTop.isEmpty) return _Notice(icon: Icons.auto_stories_rounded, text: context.tr('music.recs_need_plays'));
+    if (_recs.isEmpty) return _Notice(icon: Icons.auto_stories_rounded, text: context.tr('music.recs_none'));
+    return Column(
+      children: [
+        for (var i = 0; i < _recs.length; i++) ...[
+          if (i > 0) const Divider(height: 24),
+          _RecommendationTile(rec: _recs[i], mood: _mood),
+        ],
+      ],
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -314,4 +368,79 @@ class _GenreRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _RecommendationTile extends StatelessWidget {
+  final Recommendation rec;
+  final String? mood;
+  const _RecommendationTile({required this.rec, required this.mood});
+
+  @override
+  Widget build(BuildContext context) {
+    final book = rec.book;
+    final cover = book.coverImage;
+    final reasons = [
+      if (rec.becauseGenre != null)
+        context.tr('music.because').replaceAll('{genre}', context.tr('music.genre.${rec.becauseGenre}')),
+      if (rec.moodTags.isNotEmpty && mood != null)
+        context.tr('music.fits_mood').replaceAll('{mood}', context.tr('child.mood_$mood').toLowerCase()),
+    ];
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => AudioPlayerPage(title: book.title, audiobookId: book.audiobookId),
+      )),
+      child: Row(
+        children: [
+          // Cover with the difficulty tag in front of its top-right corner.
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: (cover != null && cover.isNotEmpty)
+                      ? Image.network(cover, fit: BoxFit.cover, cacheWidth: 200,
+                          errorBuilder: (_, _, _) => _fallback())
+                      : _fallback(),
+                ),
+              ),
+              Positioned(top: -8, right: -14, child: DifficultyBadge(difficulty: book.difficulty)),
+            ],
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                MarqueeText(book.title, maxLines: 2,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                if (reasons.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(reasons.join(' · '),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+                ],
+                if (book.musicTrack?.genre != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    context.tr('music.bgm').replaceAll('{genre}', book.musicTrack!.genre!),
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Icon(Icons.play_circle_outline_rounded, color: AppColors.primaryBlueDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _fallback() => Container(
+        color: AppColors.softLavender,
+        alignment: Alignment.center,
+        child: const Icon(Icons.auto_stories_rounded, color: AppColors.primaryBlueDark),
+      );
 }

@@ -307,6 +307,47 @@ String? _placeableGenre(({String artist, String title}) song, List<Map> results,
 // A catalogue title without its "(Live)", "(feat. X)", "(Piano Ver.)".
 String _bareTitle(String t) => t.replaceAll(RegExp(r'\s*[\(\[（].*$'), '').trim();
 
+/* On a phone set to English, YouTube can show a video's title translated
+   ("Propose / KAFU" for "プロポーズ / 可不") while the channel keeps its
+   own script (内緒のピアス). Searching the Latin words in the Malaysian
+   store then finds nothing. For such a play this gives the channel's home
+   store, to search for the channel name with the title there; null when
+   the title is in Chinese/Japanese/Korean script already or the channel
+   isn't in Chinese/Japanese script. */
+String? translatedTitleCountry(String title, String channel) {
+  final asian = RegExp(r'[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]', unicode: true);
+  if (asian.hasMatch(title)) return null;
+  final name = channelArtist(channel);
+  return _cjk.hasMatch(name) ? catalogueCountryFor(name) : null;
+}
+
+/// A channel name without its 【公式】, "ちゃんねる", "Official", "- Topic".
+String channelArtist(String channel) => channel
+    .replaceAll(RegExp(r'[【\[\(（][^】\]\)）]*[】\]\)）]'), ' ')
+    .replaceAll(RegExp(r'\s*-\s*Topic$|VEVO$', caseSensitive: false), '')
+    .replaceAll(RegExp(r'ちゃんねる|チャンネル|公式|\b(official|channel)\b', caseSensitive: false), ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+/* The genre of the first result by the channel's own artist, from a
+   search for the channel name with a translated title (see
+   [translatedTitleCountry]). The title can't be compared (it was
+   translated), so the artist alone decides: their own song is listed
+   under their name. */
+String? channelArtistGenre(String channel, List<Map> results) {
+  String bare(String s) => s.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+  final want = bare(channelArtist(channel));
+  if (want.runes.length < 2) return null;
+  for (final r in results) {
+    final g = listeningGenreFor('${r['primaryGenreName'] ?? ''}');
+    final a = bare('${r['artistName'] ?? ''}');
+    if (g != null && a.isNotEmpty && (a == want || a.contains(want) || (want.contains(a) && a.runes.length >= 2))) {
+      return g;
+    }
+  }
+  return null;
+}
+
 /* The genre from a search by the song title alone, used when searching
    artist and title together found nothing (a cover singer's name, as in
    "プロポーズ Cover / Gero", makes Apple return no results). Only results

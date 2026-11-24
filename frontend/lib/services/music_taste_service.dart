@@ -49,7 +49,7 @@ class MusicTasteService {
   static const _genresKey = 'music_taste_genres';
   static const _pendingKey = 'music_taste_pending';
   // Versioned: when title reading improves, songs not found before get another look.
-  static const _cacheKey = 'music_taste_cache_v4';
+  static const _cacheKey = 'music_taste_cache_v5';
   static const _keepDays = 35;
   static const _retryMissDays = 3;
   // Apple asks for about 20 searches a minute at most, and a song can take
@@ -111,14 +111,31 @@ class MusicTasteService {
     } on MissingPluginException {
       return;
     }
+    // The phone's log is empty now, and the lookups below can take a minute:
+    // keep the plays safe first, or closing the app meanwhile loses them.
+    await prefs.setString(_pendingKey, jsonEncode(pending));
 
     final cache = _readMap(prefs, _cacheKey);
     final genres = _readList(prefs, _genresKey);
+    // Plays already counted (by their time), so one saved just before the
+    // app was closed isn't counted again when it is looked at once more.
+    final counted = {for (final g in genres) g['at']};
     final http.Client web = client ?? http.Client();
     var lookups = 0;
     final waiting = <Map<String, dynamic>>[];
+    final cutoff = DateTime.now().subtract(const Duration(days: _keepDays)).millisecondsSinceEpoch;
+    // Save what's done so far; plays from [next] on still wait.
+    Future<void> save(int next) async {
+      genres.removeWhere((g) => (g['at'] as num? ?? 0) < cutoff);
+      await prefs.setString(_genresKey, jsonEncode(genres));
+      await prefs.setString(_cacheKey, jsonEncode(cache));
+      await prefs.setString(_pendingKey, jsonEncode([...waiting, ...pending.skip(next)].take(300).toList()));
+    }
+
     try {
-      for (final p in pending) {
+      for (var i = 0; i < pending.length; i++) {
+        final p = pending[i];
+        var looked = false;
         final song = songFromPlay('${p['title']}', '${p['artist']}');
         final key = '${song.artist}|${song.title}'.toLowerCase();
         String? genre = cache[key];
@@ -134,7 +151,8 @@ class MusicTasteService {
             continue;
           }
           lookups++;
-          final found = await _lookUp(web, song, '${p['title']} ${p['artist']}');
+          looked = true;
+          final found = await _lookUp(web, song, '${p['title']}', '${p['artist']}');
           if (found == null) {
             // The catalogue couldn't be reached: try again next time.
             waiting.add(p);
@@ -147,24 +165,26 @@ class MusicTasteService {
         if (genre.isEmpty && looksLikeSong('${p['title']}', '${p['artist']}', '${p['app'] ?? ''}')) {
           genre = otherGenre;
         }
-        if (genre.isNotEmpty) genres.add({'genre': genre, 'at': p['at']});
+        if (genre.isNotEmpty && counted.add(p['at'])) genres.add({'genre': genre, 'at': p['at']});
+        if (looked) await save(i + 1);
       }
     } finally {
       if (client == null) web.close();
     }
-
-    final cutoff = DateTime.now().subtract(const Duration(days: _keepDays)).millisecondsSinceEpoch;
-    genres.removeWhere((g) => (g['at'] as num? ?? 0) < cutoff);
-    await prefs.setString(_genresKey, jsonEncode(genres));
-    await prefs.setString(_pendingKey, jsonEncode(waiting.take(300).toList()));
-    await prefs.setString(_cacheKey, jsonEncode(cache));
+    await save(pending.length);
   }
 
   /* The listening genre of a song: '' when it isn't a song the catalogue
      knows (or not music at all), null when the catalogue can't be reached.
      A video that isn't one song (a compilation) gets the genre its own
-     words name, if any ([played] is its raw title and channel). */
-  static Future<String?> _lookUp(http.Client web, ({String artist, String title}) song, String played) async {
+     words name, if any ([rawTitle] and [channel] are as YouTube gave them). */
+  static Future<String?> _lookUp(
+    http.Client web,
+    ({String artist, String title}) song,
+    String rawTitle,
+    String channel,
+  ) async {
+    final played = '$rawTitle $channel';
     final named = genreFromWords(played) ?? '';
     if (song.title.isEmpty) return named;
     final country = catalogueCountryFor('${song.artist} ${song.title}');
@@ -174,6 +194,15 @@ class MusicTasteService {
     if (both == null) return null;
     final found = catalogueGenre(song, both, played: played);
     if (found != null) return found;
+    // A title YouTube translated ("Propose / KAFU" on the channel 内緒のピアス):
+    // look for the channel's own songs in its home store.
+    final home = translatedTitleCountry(song.title, channel);
+    if (home != null) {
+      final byChannel = await _search(web, '${channelArtist(channel)} ${song.title}', home);
+      if (byChannel == null) return null;
+      final g = channelArtistGenre(channel, byChannel);
+      if (g != null) return g;
+    }
     if (song.artist.isEmpty) return named;
     final alone = await _search(web, song.title, country);
     if (alone == null) return null;

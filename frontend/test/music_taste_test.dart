@@ -12,6 +12,7 @@ import 'package:autism_audiobook/services/music_genres.dart';
 import 'package:autism_audiobook/services/music_taste_service.dart';
 import 'package:autism_audiobook/state/language_state.dart';
 import 'package:autism_audiobook/widgets/difficulty_badge.dart';
+import 'package:autism_audiobook/widgets/top_genre_banner.dart';
 
 ContentItem _book(String title, {String? genre, List<String> tags = const [], String? status, bool music = true}) =>
     ContentItem(
@@ -149,6 +150,36 @@ void main() {
       final card = AudiobookRecommender.topGenres(counts, withOthers: true);
       expect(card.map((g) => g.genre), ['pop', 'rock', 'jazz', otherGenre]);
       expect(card.last.share, closeTo(9 / 15, 1e-9));
+    });
+  });
+
+  group('YouTube titles translated to English', () {
+    // Live from the emulator: YouTube showed "プロポーズ / 可不" in English.
+    test('the title is read, and the channel points to the Japanese store', () {
+      final song = songFromPlay('Propose / KAFU', '内緒のピアス');
+      expect(song.title, 'Propose');
+      expect(translatedTitleCountry(song.title, '内緒のピアス'), 'JP');
+    });
+
+    test('not for titles already in their own script, or Latin channels', () {
+      expect(translatedTitleCountry('プロポーズ', '内緒のピアス'), isNull);
+      expect(translatedTitleCountry('Idol', 'YOASOBI'), isNull);
+    });
+
+    test('channel extras are dropped', () {
+      expect(channelArtist('優里ちゃんねる【公式】'), '優里');
+      expect(channelArtist('Ado - Topic'), 'Ado');
+    });
+
+    test("the genre comes from the channel's own song, not karaoke or others", () {
+      // Apple JP for "内緒のピアス Propose" (Nov 2026), reordered so others come first.
+      final results = <Map>[
+        {'artistName': '歌っちゃ王', 'trackName': 'プロポーズ(カラオケ)[原曲歌手:内緒のピアス]', 'primaryGenreName': 'Karaoke'},
+        {'artistName': '9Lana', 'trackName': 'プロポーズ', 'primaryGenreName': 'Rock'},
+        {'artistName': '内緒のピアス', 'trackName': 'プロポーズ', 'primaryGenreName': 'J-Pop'},
+      ];
+      expect(channelArtistGenre('内緒のピアス', results), 'pop');
+      expect(channelArtistGenre('Someone Else', results), isNull);
     });
   });
 
@@ -311,6 +342,27 @@ void main() {
       expect(daily.from, ymd(34));
       final rows = {for (final c in daily.counts) '${c['day']} ${c['genre']}': c['plays']};
       expect(rows, {'${ymd(0)} kpop': 2, '${ymd(0)} pop': 1, '${ymd(3)} jazz': 1});
+    });
+  });
+
+  group('top genre banner', () {
+    test('every listening genre has a look of its own', () {
+      expect(genreBannerLooks.keys.toSet(), listeningGenres.toSet());
+      final looks = genreBannerLooks.values;
+      expect(looks.map((l) => l.motif).toSet().length, looks.length);
+      expect(looks.map((l) => l.colors.first).toSet().length, looks.length);
+      expect(looks.map((l) => l.icon).toSet().length, looks.length);
+    });
+
+    testWidgets('shows the genre, its line and the plays', (tester) async {
+      await tester.pumpWidget(ChangeNotifierProvider(
+        create: (_) => LanguageState(),
+        child: const MaterialApp(home: Scaffold(body: TopGenreBanner(genre: 'rock', plays: 12))),
+      ));
+      expect(find.text('Your top genre'), findsOneWidget);
+      expect(find.text('Rock'), findsOneWidget);
+      expect(find.text('Loud guitars and drums that hit hard'), findsOneWidget);
+      expect(find.text('12 plays in the last 30 days'), findsOneWidget);
     });
   });
 }
