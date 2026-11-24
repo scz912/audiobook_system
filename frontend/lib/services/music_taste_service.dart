@@ -21,6 +21,9 @@ class MusicTasteStatus {
      greyed out ("Restricted setting") until "Allow restricted settings"
      is tapped in App info. */
   final bool mayBeRestricted;
+  /* Battery optimisation leaves the app alone, so the listener keeps
+     running while the app is closed. True when unknown. */
+  final bool batteryExempt;
   final bool youtubeInstalled;
   final bool youtubeMusicInstalled;
   const MusicTasteStatus({
@@ -28,6 +31,7 @@ class MusicTasteStatus {
     required this.granted,
     this.listening = false,
     this.mayBeRestricted = false,
+    this.batteryExempt = true,
     this.youtubeInstalled = false,
     this.youtubeMusicInstalled = false,
   });
@@ -75,6 +79,7 @@ class MusicTasteService {
         granted: s['granted'] == true,
         listening: s['listening'] == true,
         mayBeRestricted: s['mayBeRestricted'] == true,
+        batteryExempt: s['batteryExempt'] != false,
         youtubeInstalled: s['youtubeInstalled'] == true,
         youtubeMusicInstalled: s['youtubeMusicInstalled'] == true,
       );
@@ -86,6 +91,11 @@ class MusicTasteService {
   // Android's notification-access page, at this app's switch.
   static Future<void> openSettings() async {
     if (supported) await _channel.invokeMethod('openSettings');
+  }
+
+  // Android's "let this app run in the background" dialog.
+  static Future<void> askBatteryExemption() async {
+    if (supported) await _channel.invokeMethod('askBatteryExemption');
   }
 
   // This app's App info page (restricted settings, battery, autostart).

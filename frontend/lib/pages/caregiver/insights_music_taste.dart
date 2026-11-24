@@ -183,11 +183,35 @@ class _MusicTasteSectionsState extends State<MusicTasteSections> with WidgetsBin
             ),
           )
         : null;
-    if (_top.isEmpty) return paused ?? _Notice(icon: Icons.music_note_rounded, text: context.tr('music.no_plays'));
+    // Listening now, but battery optimisation may stop it once the app is
+    // closed: ask to let it run in the background. Gone once allowed.
+    final battery = paused == null && !_status!.batteryExempt
+        ? _Notice(
+            icon: Icons.battery_charging_full_rounded,
+            text: context.tr('music.battery'),
+            action: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryBlueDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: MusicTasteService.askBatteryExemption,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: Text(context.tr('music.battery_allow')),
+            ),
+          )
+        : null;
+    final warning = paused ?? battery;
+    if (_top.isEmpty) {
+      final none = _Notice(icon: Icons.music_note_rounded, text: context.tr('music.no_plays'));
+      if (paused != null) return paused;
+      return battery == null
+          ? none
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [battery, const Divider(height: 24), none]);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (paused != null) ...[paused, const Divider(height: 24)],
+        if (warning != null) ...[warning, const Divider(height: 24)],
         for (var i = 0; i < _top.length; i++) ...[
           if (i > 0) const SizedBox(height: 14),
           _GenreRow(

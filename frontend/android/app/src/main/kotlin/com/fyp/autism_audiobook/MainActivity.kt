@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -35,6 +36,7 @@ class MainActivity : FlutterActivity() {
                             "granted" to granted,
                             "listening" to listening,
                             "mayBeRestricted" to mayBeRestricted(),
+                            "batteryExempt" to batteryExempt(),
                             "youtubeInstalled" to installed(MusicPlayLog.YOUTUBE),
                             "youtubeMusicInstalled" to installed(MusicPlayLog.YOUTUBE_MUSIC),
                             "youtubeLastSeen" to MusicPlayLog.lastSeen(this, MusicPlayLog.YOUTUBE),
@@ -47,6 +49,10 @@ class MainActivity : FlutterActivity() {
                     }
                     "openAppInfo" -> {
                         openAppInfo()
+                        result.success(null)
+                    }
+                    "askBatteryExemption" -> {
+                        askBatteryExemption()
                         result.success(null)
                     }
                     "takePlays" -> result.success(MusicPlayLog.take(this))
@@ -104,6 +110,35 @@ class MainActivity : FlutterActivity() {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
+    }
+
+    /* Whether Android's battery optimisation leaves this app alone. While
+       it doesn't, the phone may stop the listener once the app is closed,
+       and YouTube goes unseen until the app is opened again. */
+    private fun batteryExempt(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val pm = getSystemService(PowerManager::class.java) ?: return true
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /* Android's own "Let app always run in background?" dialog for this app.
+       Some phones leave it out: then the battery optimisation list, and
+       failing that, App info. */
+    private fun askBatteryExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val tries = listOf(
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.fromParts("package", packageName, null)),
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+        )
+        for (intent in tries) {
+            try {
+                startActivity(intent)
+                return
+            } catch (e: Exception) {
+                // Not on this phone: try the next.
+            }
+        }
+        openAppInfo()
     }
 
     private fun installed(pkg: String): Boolean = try {

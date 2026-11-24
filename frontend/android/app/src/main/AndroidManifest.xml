@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Asks to leave the app out of battery optimisation, so the YouTube
+         music listener keeps running while the app is closed. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <!-- Saving piano recordings (MP3) to Downloads. Only Android 10 and
          older need these; newer versions let apps add files to Downloads. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
